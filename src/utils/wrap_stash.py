@@ -13,7 +13,6 @@ theano.
 
 import argparse
 import biggie
-from joblib import Parallel, delayed
 import numpy as np
 import os
 import time
@@ -59,11 +58,11 @@ def main(args):
         os.remove(args.output_file)
 
     out_stash = biggie.Stash(args.output_file)
-    total_count = len(in_stash)
+    STATUS['total'] = len(in_stash)
     for idx, key in enumerate(in_stash.keys()):
-        out_stash.add(
-            key, wrap_entity(in_stash.get(key), args.length, args.stride))
-
+        new_entity = wrap_cqt_for_key(in_stash.get(key), args.length,
+                                      args.stride)
+        out_stash.add(key, new_entity)
 
     out_stash.close()
 
