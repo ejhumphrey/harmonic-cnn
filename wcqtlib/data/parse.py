@@ -25,3 +25,23 @@ Where...
 Here, these composite filenames are *ALL* comprised of 8 characters in length.
 
 """
+
+import pandas
+
+
+def rwc_to_dataframe(base_dir):
+    """Convert a base directory of RWC files to a pandas dataframe.
+    """
+    return pandas.DataFrame()
+
+
+def uiowa_to_dataframe(base_dir):
+    """Convert a base directory of UIowa files to a pandas dataframe.
+    """
+    return pandas.DataFrame()
+
+
+def philharmonia_to_dataframe(base_dir):
+    """Convert a base directory of Philharmonia files to a pandas dataframe.
+    """
+    return pandas.DataFrame()
