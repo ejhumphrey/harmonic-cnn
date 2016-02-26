@@ -106,8 +106,7 @@ if __name__ == "__main__":
         metavar="output_dir", type=str,
         help="Output path for downloaded data.")
     parser.add_argument(
-        "--skip_existing",
-        metavar="skip_existing", type=bool, default=False,
+        "--skip_existing", action="store_true",
         help="If True, don't download files that already exist.")
     parser.add_argument(
         "--num_cpus",
