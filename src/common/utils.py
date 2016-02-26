@@ -16,6 +16,7 @@ def create_directory(directory):
 
 
 def filebase(fpath):
+    """Return the file's basename without an extension, e.g. 'x/y.z' -> 'y'."""
     return os.path.splitext(os.path.basename(fpath))[0]
 
 
@@ -41,3 +42,24 @@ def fold_array(x_in, length, stride):
     num_tiles = int((x_in.shape[1] - (length-stride)) / float(stride))
     return np.array([x_in[:, n*stride:n*stride + length]
                      for n in range(num_tiles)])
+
+
+def map_io(input_file, output_directory):
+    """Map the basename of an input file path to an output directory.
+
+    Parameters
+    ----------
+    input_file : str
+        Input file path to parse.
+
+    output_directory : str
+        Directory the output will be mapped into.
+
+    Returns
+    -------
+    output_file : str
+        Resulting output file mapped to the given directory.
+    """
+    create_directory(output_directory)
+    return os.path.join(output_directory,
+                        "{}.npz".format(filebase(input_file)))

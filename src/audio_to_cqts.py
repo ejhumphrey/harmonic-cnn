@@ -6,7 +6,7 @@ This script writes the output files under the given output directory:
   "/some/audio/file.mp3" maps to "${output_dir}/file.npz"
 
 Sample Call:
-$ python audio_files_to_cqt_arrays.py \
+$ python audio_to_cqts.py \
     filelist.json \
     ./cqt_arrays \
     --cqt_params=params.json \
@@ -30,16 +30,11 @@ import common.utils as utils
 CQT_PARAMS = dict(
     hop_length=512, fmin=27.5, n_bins=252, bins_per_octave=36, tuning=0.0,
     filter_scale=1, aggregate=None, norm=1, sparsity=0.0, real=True)
+
 AUDIO_PARAMS = dict(samplerate=11025.0, channels=1, bytedepth=2)
 
 
-def map_io(input_file, output_directory):
-    utils.create_directory(output_directory)
-    return os.path.join(output_directory,
-                        "{}.npz".format(utils.filebase(input_file)))
-
-
-def cqt_one(input_file, output_file):
+def cqt_one(input_file, output_file, cqt_params=None, audio_params=None):
     """Compute the CQT for a input/output file Pair.
 
     Parameters
@@ -55,19 +50,26 @@ def cqt_one(input_file, output_file):
     success : bool
         True if the output file was successfully created.
     """
-    x, fs = claudio.read(input_file, **AUDIO_PARAMS)
+    if not cqt_params:
+        cqt_params = CQT_PARAMS.copy()
+
+    if not audio_params:
+        audio_params = AUDIO_PARAMS.copy()
+
+    x, fs = claudio.read(input_file, **audio_params)
     # TODO: This isn't quite correct.
-    cqt_spectra = np.array([librosa.cqt(x_c, sr=fs, **CQT_PARAMS)
+    cqt_spectra = np.array([librosa.cqt(x_c, sr=fs, **cqt_params)
                             for x_c in x.T])
     frame_idx = np.arange(cqt_spectra[0].shape[1])
     time_points = librosa.frames_to_times(
-        frame_idx, sr=fs, hop_length=CQT_PARAMS['hop_length'])
+        frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
     np.savez(output_file, time_points=time_points, cqt=cqt_spectra)
     print("[{0}] Finished: {1}".format(time.asctime(), output_file))
     return os.path.exists(output_file)
 
 
-def cqt_many(audio_files, output_files, cqt_params=None, num_cpus=-1):
+def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
+             num_cpus=-1):
     """Compute CQT representation over a number of audio files.
 
     Parameters
@@ -78,9 +80,11 @@ def cqt_many(audio_files, output_files, cqt_params=None, num_cpus=-1):
     output_files : list of str, len=n
         File paths for writing outputs.
 
-    param_file : str, default=None
-        Path to a JSON file of CQT parameters; if None, defaults to those
-        defined in the module.
+    cqt_params : dict, default=None
+        Parameters to use for CQT computation.
+
+    audio_params : dict, default=None
+        Parameters to use for loading the audio file.
 
     num_cpus : int, default=-1
         Number of parallel threads to use for computation.
@@ -90,13 +94,11 @@ def cqt_many(audio_files, output_files, cqt_params=None, num_cpus=-1):
     success : bool
         True if all input files were processed successfully.
     """
-    if cqt_params:
-        CQT_PARAMS.update(json.load(open(cqt_params)))
-
     pool = Parallel(n_jobs=num_cpus)
     dcqt = delayed(cqt_one)
     pairs = zip(audio_files, output_files)
-    return all(pool(dcqt(fin, fout) for fin, fout in pairs))
+    return all(pool(dcqt(fin, fout, cqt_params, audio_params)
+                    for fin, fout in pairs))
 
 
 if __name__ == "__main__":
@@ -111,6 +113,10 @@ if __name__ == "__main__":
                         metavar="cqt_params", type=str,
                         default='',
                         help="Path to a JSON file of CQT parameters.")
+    parser.add_argument("--audio_params",
+                        metavar="audio_params", type=str,
+                        default='',
+                        help="Path to a JSON file of CQT parameters.")
     parser.add_argument("--num_cpus", type=int,
                         metavar="num_cpus", default=-1,
                         help="Number of CPUs over which to parallelize "
@@ -120,8 +126,16 @@ if __name__ == "__main__":
     with open(args.audio_files) as fp:
         audio_files = json.load(fp)
 
-    # TODO: Catch result, write to JSON.
-    output_files = [map_io(fin, args.output_directory) for fin in audio_files]
+    cqt_params = None
+    audio_params = None
+
+    cqt_params = json.load(open(args.cqt_params)) if args.cqt_params else None
+    audio_params = json.load(open(args.audio_params)) \
+        if args.audio_params else None
+
+    output_files = [utils.map_io(fin, args.output_directory)
+                    for fin in audio_files]
     success = cqt_many(audio_files, output_files,
-                       args.cqt_params, args.num_cpus)
+                       cqt_params=cqt_params, audio_params=audio_params,
+                       num_cpus=args.num_cpus)
     sys.exit(0 if success else 1)
