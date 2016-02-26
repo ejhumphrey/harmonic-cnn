@@ -24,6 +24,13 @@ Where...
 
 Here, these composite filenames are *ALL* comprised of 8 characters in length.
 
+# Dataset Index
+The columns could look like the following:
+ * index / id : a unique identifier for each row
+ * audio_file :
+ * feature_file :
+ * dataset :
+ * ...?
 """
 
 import pandas
