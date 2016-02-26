@@ -25,7 +25,7 @@ import os
 import sys
 import time
 
-import common.utils as utils
+import wcqtlib.common.utils as utils
 
 CQT_PARAMS = dict(
     hop_length=512, fmin=27.5, n_bins=252, bins_per_octave=36, tuning=0.0,
@@ -61,7 +61,7 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None):
     cqt_spectra = np.array([librosa.cqt(x_c, sr=fs, **cqt_params)
                             for x_c in x.T])
     frame_idx = np.arange(cqt_spectra[0].shape[1])
-    time_points = librosa.frames_to_times(
+    time_points = librosa.frames_to_time(
         frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
     np.savez(output_file, time_points=time_points, cqt=cqt_spectra)
     print("[{0}] Finished: {1}".format(time.asctime(), output_file))

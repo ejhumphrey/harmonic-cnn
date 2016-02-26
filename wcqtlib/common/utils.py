@@ -2,17 +2,22 @@ import numpy as np
 import os
 
 
-def create_directory(directory):
+def create_directory(dname):
     """Create the output directory recursively if it doesn't already exist.
+
+    Parameters
+    ----------
+    dname : str
+        Directory to create.
 
     Returns
     -------
-    output_dir : str
-        Expanded path, that now certainly exists.
+    success : bool
+        True if the requested directory now exists.
     """
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    return directory
+    if not os.path.exists(dname):
+        os.makedirs(dname)
+    return os.path.exists(dname)
 
 
 def filebase(fpath):
