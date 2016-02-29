@@ -46,7 +46,6 @@ def rwc_to_dataframe(base_dir):
     """
     file_list = []
     index = 0
-    # Iterate over the 12 "CDs".
     for audio_file_path in glob.glob(os.path.join(base_dir, "*/*/*.flac")):
         audio_file_name = os.path.basename(audio_file_path)
         if len(audio_file_name) != 13:
@@ -57,14 +56,16 @@ def rwc_to_dataframe(base_dir):
         instrument_code = audio_file_name[3:5]
         # ...Do we care?
         # style_code = audio_file_name[5:7]
-        # dynamic_code = audio_file_name[7]
+        dynamic_code = audio_file_name[7]
 
         file_list.append(
             dict(index=index,
                  audio_file=audio_file_path,
                  dataset="rwc",
                  # Convert this to actual instrument name?
-                 instrument=instrument_code))
+                 instrument=instrument_code,
+                 dynamic=dynamic_code))
+        index += 1
 
     return pandas.DataFrame(file_list)
 
@@ -72,7 +73,38 @@ def rwc_to_dataframe(base_dir):
 def uiowa_to_dataframe(base_dir):
     """Convert a base directory of UIowa files to a pandas dataframe.
     """
-    return pandas.DataFrame()
+    file_list = []
+    index = 0
+    root_dir = os.path.join(base_dir, "theremin.music.uiowa.edu",
+                            "sound files", "MIS")
+    for item in os.scandir(root_dir):
+        if item.is_dir():
+            parent_cagetegory = item.name
+            audio_files = glob.glob(os.path.join(item.path, "*/*.aiff"))
+            for audio_file_path in audio_files:
+                filename = os.path.splitext(
+                    os.path.basename(audio_file_path))[0]
+                parameters = [x.strip() for x in filename.split('.')]
+                instrument = parameters.pop(0)
+                notevalue = parameters.pop(-1) if len(parameters) else None
+                # You have to do this to get rid of this element if it's there
+                articulation = parameters.pop(0) if len(parameters) > 1 \
+                    else None
+                dynamic = parameters.pop(0) if len(parameters) else None
+                # There might be more now but we don't really care.
+
+                file_list.append(
+                    dict(index=index,
+                         audio_file=audio_file_path,
+                         dataset="uiowa",
+                         instrument=instrument,
+                         dynamic=dynamic,
+                         note=notevalue,
+                         parent=parent_cagetegory)
+                    )
+                index += 1
+
+    return pandas.DataFrame(file_list)
 
 
 def philharmonia_to_dataframe(base_dir):
