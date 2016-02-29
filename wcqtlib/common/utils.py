@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import zipfile
 
 
 def create_directory(dname):
@@ -68,3 +69,31 @@ def map_io(input_file, output_directory):
     create_directory(output_directory)
     return os.path.join(output_directory,
                         "{}.npz".format(filebase(input_file)))
+
+
+def unzip_files(file_list):
+    """Given a list of file paths, unzip them in place.
+
+    Attempts to skip it if the extracted folder exists.
+
+    Parameters
+    ----------
+    file_list : list of str
+
+    Returns
+    -------
+    List of created output folders.
+    """
+    result_list = []
+    for zip_path in file_list:
+        working_dir = os.path.dirname(zip_path)
+        zip_name = os.path.splitext(os.path.basename(zip_path))[0]
+        new_folder_path = os.path.join(working_dir, zip_name)
+        if not os.path.exists(new_folder_path):
+            with zipfile.ZipFile(zip_path, 'r') as myzip:
+                # Create a directory of the same name as the zip.
+                os.makedirs(new_folder_path)
+                myzip.extractall(path=new_folder_path)
+                result_list.append(new_folder_path)
+
+    return result_list
