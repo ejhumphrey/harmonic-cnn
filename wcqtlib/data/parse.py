@@ -118,6 +118,9 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
     base_dir : str
         Full path to the base RWC directory.
 
+    dataset : str
+        Datset string to use in this df.
+
     Returns
     -------
     pandas.DataFrame
@@ -166,6 +169,9 @@ def uiowa_to_dataframe(base_dir, dataset="uiowa"):
     ----------
     base_dir : str
         Full path to the base RWC directory.
+
+    dataset : str
+        Datset string to use in this df.
 
     Returns
     -------
@@ -227,6 +233,9 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     ----------
     base_dir : str
         Full path to the base RWC directory.
+
+    dataset : str
+        Datset string to use in this df.
 
     Returns
     -------
