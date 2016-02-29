@@ -53,6 +53,7 @@ def download_one(url, output_file, skip_existing=True):
         True if the file was downloaded successfully.
     """
     if os.path.exists(output_file) and skip_existing:
+        print(" Skipping (exists): {}".format(url))
         return
 
     print("[{}] Fetching: {}".format(time.asctime(), url))
