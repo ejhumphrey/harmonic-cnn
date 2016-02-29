@@ -33,13 +33,40 @@ The columns could look like the following:
  * ...?
 """
 
+import glob
+import logging
+import os
 import pandas
+
+logger = logging.getLogger(__name__)
 
 
 def rwc_to_dataframe(base_dir):
     """Convert a base directory of RWC files to a pandas dataframe.
     """
-    return pandas.DataFrame()
+    file_list = []
+    index = 0
+    # Iterate over the 12 "CDs".
+    for audio_file_path in glob.glob(os.path.join(base_dir, "*/*/*.flac")):
+        audio_file_name = os.path.basename(audio_file_path)
+        if len(audio_file_name) != 13:
+            logger.warning("Audio file '{}' does not have the "
+                           "expected file name format: skipping."
+                           .format(audio_file_name))
+            continue
+        instrument_code = audio_file_name[3:5]
+        # ...Do we care?
+        # style_code = audio_file_name[5:7]
+        # dynamic_code = audio_file_name[7]
+
+        file_list.append(
+            dict(index=index,
+                 audio_file=audio_file_path,
+                 dataset="rwc",
+                 # Convert this to actual instrument name?
+                 instrument=instrument_code))
+
+    return pandas.DataFrame(file_list)
 
 
 def uiowa_to_dataframe(base_dir):
