@@ -7,11 +7,15 @@ $ python src/utils/download.py data/uiowa.json ~/uiowa
 import argparse
 from joblib import Parallel, delayed
 import json
+import logging
 import os
+import six.moves.urllib.error as urlerror
 import six.moves.urllib.parse as urlparse
 import six.moves.urllib.request as urlrequest
 import sys
 import time
+
+logger = logging.getLogger()
 
 
 def url_to_filepath(url, output_dir):
@@ -57,9 +61,16 @@ def download_one(url, output_file, skip_existing=True):
         return
 
     print("[{}] Fetching: {}".format(time.asctime(), url))
-    surl = urlparse.quote(url, safe=':./')
-    urlrequest.urlretrieve(surl, output_file)
-    return os.path.exists(output_file)
+    try:
+        surl = urlparse.quote(url, safe=':./')
+        urlrequest.urlretrieve(surl, output_file)
+    except urlerror.HTTPError:
+        logger.warning("FAILED to download file at: {}".format(surl))
+        logger.warning("\nOriginal link: {}\nOutput file:{}\n".format(
+            url, output_file))
+        logger.warning("Skipping...")
+    finally:
+        return os.path.exists(output_file)
 
 
 def download_many(urls, output_files, skip_existing=True, num_cpus=-1):
@@ -113,6 +124,8 @@ if __name__ == "__main__":
         "--num_cpus",
         metavar="num_cpus", type=int, default=-1,
         help="Number of CPUs to use; by default, uses all.")
+
+    logging.basicConfig(level=logging.INFO)
 
     args = parser.parse_args()
     urls = json.load(open(args.manifest_file))['resources']

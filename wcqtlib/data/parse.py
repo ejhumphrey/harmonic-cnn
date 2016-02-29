@@ -161,7 +161,7 @@ def philharmonia_to_dataframe(base_dir):
                  instrument=instrument,
                  note=note,
                  dynamic=dynamic))
-        index += 1    
+        index += 1
 
     return pandas.DataFrame(file_list)
 
