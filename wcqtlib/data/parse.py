@@ -128,20 +128,20 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
             instrument
             dynamic
     """
-    file_list = []
+    indexes = []
+    records = []
     for audio_file_path in glob.glob(os.path.join(base_dir, "*/*/*.flac")):
         instrument_name, style_code, dynamic_code = \
             parse_rwc_path(audio_file_path)
 
-        file_list.append(
-            dict(id=generate_id(dataset, audio_file_path),
-                 audio_file=audio_file_path,
+        indexes.append(generate_id(dataset, audio_file_path))
+        records.append(
+            dict(audio_file=audio_file_path,
                  dataset=dataset,
-                 # Convert this to actual instrument name?
                  instrument=instrument_name,
                  dynamic=dynamic_code))
 
-    return pandas.DataFrame(file_list)
+    return pandas.DataFrame(records, index=indexes)
 
 
 def parse_uiowa_path(uiowa_path):
@@ -179,7 +179,8 @@ def uiowa_to_dataframe(base_dir, dataset="uiowa"):
             note
             parent : instrument category.
     """
-    file_list = []
+    indexes = []
+    records = []
     root_dir = os.path.join(base_dir, "theremin.music.uiowa.edu",
                             "sound files", "MIS")
     for item in os.scandir(root_dir):
@@ -190,16 +191,16 @@ def uiowa_to_dataframe(base_dir, dataset="uiowa"):
                 instrument, dynamic, notevalue = \
                     parse_uiowa_path(audio_file_path)
 
-                file_list.append(
-                    dict(id=generate_id(dataset, audio_file_path),
-                         audio_file=audio_file_path,
+                indexes.append(generate_id(dataset, audio_file_path))
+                records.append(
+                    dict(audio_file=audio_file_path,
                          dataset=dataset,
                          instrument=instrument,
                          dynamic=dynamic,
                          note=notevalue,
                          parent=parent_cagetegory))
 
-    return pandas.DataFrame(file_list)
+    return pandas.DataFrame(records, index=indexes)
 
 
 def parse_phil_path(phil_path):
@@ -245,20 +246,21 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     zip_files = glob.glob(os.path.join(root_dir, "*/*.zip"))
     utils.unzip_files(zip_files)
 
-    file_list = []
+    indexes = []
+    records = []
     for audio_file_path in glob.glob(os.path.join(root_dir, "*/*/*.mp3")):
         instrument, note, duration, dynamic, _ = \
             parse_phil_path(audio_file_path)
 
-        file_list.append(
-            dict(id=generate_id(dataset, audio_file_path),
-                 audio_file=audio_file_path,
+        indexes.append(generate_id(dataset, audio_file_path))
+        records.append(
+            dict(audio_file=audio_file_path,
                  dataset=dataset,
                  instrument=instrument,
                  note=note,
                  dynamic=dynamic))
 
-    return pandas.DataFrame(file_list)
+    return pandas.DataFrame(records, index=indexes)
 
 
 def load_dataframes(data_dir):
