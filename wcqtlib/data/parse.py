@@ -34,134 +34,229 @@ The columns could look like the following:
 """
 
 import glob
+import hashlib
+import json
 import logging
 import os
 import pandas
-import zipfile
+import re
+
+import wcqtlib.common.utils as utils
 
 logger = logging.getLogger(__name__)
 
+RWC_INSTRUMENT_MAP_PATH = os.path.join(
+    os.path.dirname(__file__), os.pardir, os.pardir,
+    "data", "rwc_instrument_map.json")
+with open(RWC_INSTRUMENT_MAP_PATH, 'r') as fh:
+    RWC_INSTRUMENT_MAP = json.load(fh)
 
-def unzip_files(file_list):
-    """Given a list of file paths, unzip them in place.
 
-    Attempts to skip it if the extracted folder exists.
+def rwc_instrument_code_to_name(rwc_instrument_code):
+    """Use the rwc_instrument_map.json to convert an rwc_instrument_code
+    to it's instrument name.
 
     Parameters
     ----------
-    file_list : list of str
+    rwc_instrument_code : str
+        Two character instrument code
 
     Returns
     -------
-    List of created output folders.
+    instrument_name : str
+        Full instrument name, if it exists, else the code.
     """
-    result_list = []
-    for zip_path in file_list:
-        working_dir = os.path.dirname(zip_path)
-        zip_name = os.path.splitext(os.path.basename(zip_path))[0]
-        new_folder_path = os.path.join(working_dir, zip_name)
-        if not os.path.exists(new_folder_path):
-            with zipfile.ZipFile(zip_path, 'r') as myzip:
-                # Create a directory of the same name as the zip.
-                os.makedirs(new_folder_path)
-                myzip.extractall(path=new_folder_path)
-                result_list.append(new_folder_path)
-
-    return result_list
+    instrument_name = RWC_INSTRUMENT_MAP.get(
+        rwc_instrument_code, rwc_instrument_code)
+    return instrument_name if instrument_name else rwc_instrument_code
 
 
-def rwc_to_dataframe(base_dir):
+def parse_rwc_path(rwc_path):
+    """Takes an rwc path, and returns the extracted codes from the
+    filename.
+
+    Parameters
+    ----------
+    rwc_path : str
+        Full path or basename. If full path, gets the basename.
+
+    Returns
+    -------
+    instrument_name : str
+    style_code : str
+    dynamic_code : str
+    """
+    filebase = utils.filebase(rwc_path)
+    instrument_code = filebase[3:5]
+    # Get the instrument name from the json file.
+    instrument_name = rwc_instrument_code_to_name(instrument_code)
+    style_code = filebase[5:7]
+    dynamic_code = filebase[7]
+    return instrument_name, style_code, dynamic_code
+
+
+def generate_id(dataset, audio_file_path):
+    """Create a unique identifier for this entry.
+
+    Returns
+    -------
+    id : str
+        dataset[0] + md5(audio_file_path)[:8]
+    """
+    dataset_code = dataset[0]
+    audio_file_hash = hashlib.md5(
+        utils.filebase(audio_file_path)
+        .encode('utf-8')).hexdigest()
+    return "{0}{1}".format(dataset_code, audio_file_hash[:8])
+
+
+def rwc_to_dataframe(base_dir, dataset="rwc"):
     """Convert a base directory of RWC files to a pandas dataframe.
+
+    Parameters
+    ----------
+    base_dir : str
+        Full path to the base RWC directory.
+
+    Returns
+    -------
+    pandas.DataFrame
+        With the following columns:
+            id
+            audio_file
+            dataset
+            instrument
+            dynamic
     """
     file_list = []
-    index = 0
     for audio_file_path in glob.glob(os.path.join(base_dir, "*/*/*.flac")):
-        audio_file_name = os.path.basename(audio_file_path)
-        if len(audio_file_name) != 13:
-            logger.warning("Audio file '{}' does not have the "
-                           "expected file name format: skipping."
-                           .format(audio_file_name))
-            continue
-        instrument_code = audio_file_name[3:5]
-        # ...Do we care?
-        # style_code = audio_file_name[5:7]
-        dynamic_code = audio_file_name[7]
+        instrument_name, style_code, dynamic_code = \
+            parse_rwc_path(audio_file_path)
 
         file_list.append(
-            dict(index=index,
+            dict(id=generate_id(dataset, audio_file_path),
                  audio_file=audio_file_path,
-                 dataset="rwc",
+                 dataset=dataset,
                  # Convert this to actual instrument name?
-                 instrument=instrument_code,
+                 instrument=instrument_name,
                  dynamic=dynamic_code))
-        index += 1
 
     return pandas.DataFrame(file_list)
 
 
-def uiowa_to_dataframe(base_dir):
+def parse_uiowa_path(uiowa_path):
+    filename = utils.filebase(uiowa_path)
+    parameters = [x.strip() for x in filename.split('.')]
+    instrument = parameters.pop(0)
+    # This regex matches note names with a preceeding and following '.'
+    note_match = re.search(r"(?<=\.)[A-Fb#0-6]*(?<!\.)", filename)
+    notevalue = filename[note_match.start():note_match.end()] \
+                if note_match else None
+    # This regex matches dynamic chars with a preceeding and following '.'
+    dynamic_match = re.search(r"(?<=\.)[f|p|m]*(?<!\.)", filename)
+    dynamic = filename[dynamic_match.start():dynamic_match.end()] \
+              if dynamic_match else None
+    return instrument, dynamic, notevalue
+
+
+def uiowa_to_dataframe(base_dir, dataset="uiowa"):
     """Convert a base directory of UIowa files to a pandas dataframe.
+
+    Parameters
+    ----------
+    base_dir : str
+        Full path to the base RWC directory.
+
+    Returns
+    -------
+    pandas.DataFrame
+        With the following columns:
+            id
+            audio_file
+            dataset
+            instrument
+            dynamic
+            note
+            parent : instrument category.
     """
     file_list = []
-    index = 0
     root_dir = os.path.join(base_dir, "theremin.music.uiowa.edu",
                             "sound files", "MIS")
     for item in os.scandir(root_dir):
         if item.is_dir():
             parent_cagetegory = item.name
-            audio_files = glob.glob(os.path.join(item.path, "*/*.aiff"))
+            audio_files = glob.glob(os.path.join(item.path, "*/*.aif*"))
             for audio_file_path in audio_files:
-                filename = os.path.splitext(
-                    os.path.basename(audio_file_path))[0]
-                parameters = [x.strip() for x in filename.split('.')]
-                instrument = parameters.pop(0)
-                notevalue = parameters.pop(-1) if len(parameters) else None
-                # You have to do this to get rid of this element if it's there
-                articulation = parameters.pop(0) if len(parameters) > 1 \
-                    else None
-                dynamic = parameters.pop(0) if len(parameters) else None
-                # There might be more now but we don't really care.
+                instrument, dynamic, notevalue = \
+                    parse_uiowa_path(audio_file_path)
 
                 file_list.append(
-                    dict(index=index,
+                    dict(id=generate_id(dataset, audio_file_path),
                          audio_file=audio_file_path,
-                         dataset="uiowa",
+                         dataset=dataset,
                          instrument=instrument,
                          dynamic=dynamic,
                          note=notevalue,
-                         parent=parent_cagetegory)
-                    )
-                index += 1
+                         parent=parent_cagetegory))
 
     return pandas.DataFrame(file_list)
 
 
-def philharmonia_to_dataframe(base_dir):
+def parse_phil_path(phil_path):
+    """Convert phil path to codes/parameters.
+
+    Parameters
+    ----------
+    phil_path : full path.
+
+    Returns
+    -------
+    tuple of parameters.
+    """
+    audio_file_name = utils.filebase(phil_path)
+    instrument, note, duration, dynamic, articulation = \
+        audio_file_name.split('_')
+    return instrument, note, duration, dynamic, articulation
+
+
+def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     """Convert a base directory of Philharmonia files to a pandas dataframe.
+
+    Parameters
+    ----------
+    base_dir : str
+        Full path to the base RWC directory.
+
+    Returns
+    -------
+    pandas.DataFrame
+        With the following columns:
+            id
+            audio_file
+            dataset
+            instrument
+            note
+            dynamic
     """
     root_dir = os.path.join(base_dir, "www.philharmonia.co.uk",
                             "assets", "audio", "samples")
 
     # These files come in zips. Extract them as necessary.
     zip_files = glob.glob(os.path.join(root_dir, "*/*.zip"))
-    unzip_files(zip_files)
+    utils.unzip_files(zip_files)
 
     file_list = []
-    index = 0
     for audio_file_path in glob.glob(os.path.join(root_dir, "*/*/*.mp3")):
-        audio_file_name = os.path.splitext(
-            os.path.basename(audio_file_path))[0]
-        instrument, note, duration, dynamic, _ = audio_file_name.split('_')
+        instrument, note, duration, dynamic, _ = \
+            parse_phil_path(audio_file_path)
 
         file_list.append(
-            dict(index=index,
+            dict(id=generate_id(dataset, audio_file_path),
                  audio_file=audio_file_path,
-                 dataset="philharmonia",
-                 # Convert this to actual instrument name?
+                 dataset=dataset,
                  instrument=instrument,
                  note=note,
                  dynamic=dynamic))
-        index += 1
 
     return pandas.DataFrame(file_list)
 

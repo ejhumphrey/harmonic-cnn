@@ -30,3 +30,10 @@ def test_fold_array():
 @pytest.mark.skipif(True, reason='todo')
 def test_map_io():
     assert False
+
+
+def test_unzip():
+    zip_files = [os.path.join(os.path.dirname(__file__), "zipped_folder.zip")]
+    unzipped_folders = utils.unzip_files(zip_files)
+    for dir_path in unzipped_folders:
+        assert os.path.exists(dir_path) and os.path.isdir(dir_path)
