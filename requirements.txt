@@ -1,2 +1,3 @@
 git+git://github.com/ejhumphrey/claudio.git
-git+git://github.com/bmcfee/pescador.git
+pescador
+
