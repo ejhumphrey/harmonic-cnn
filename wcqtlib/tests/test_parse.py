@@ -134,10 +134,10 @@ def test_philharmonia_to_dataframe():
     yield __test_pd_output, philharmonia_df, PHIL_ROOT, "philharmonia"
 
 
-@pytest.mark.skipif(not os.path.exists(DATA_ROOT) \
-                    or not os.path.exists(PHIL_ROOT) \
-                    or not os.path.exists(UIOWA_ROOT) \
-                    or not os.path.exists(RWC_ROOT),
+@pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),
+                             os.path.exists(PHIL_ROOT),
+                             os.path.exists(UIOWA_ROOT),
+                             os.path.exists(RWC_ROOT)]),
                     reason="Data not found.")
 def test_load_dataframes():
     dfs = wcqtlib.data.parse.load_dataframes(DATA_ROOT)

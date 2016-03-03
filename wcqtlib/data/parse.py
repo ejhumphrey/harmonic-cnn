@@ -124,12 +124,13 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
     Returns
     -------
     pandas.DataFrame
+        Indexed by:
+            id : [dataset identifier] + [8 char md5 of filename]
         With the following columns:
-            id
-            audio_file
-            dataset
-            instrument
-            dynamic
+            audio_file : full path to original audio file.
+            dataset : dataset it is from
+            instrument : instrument label.
+            dynamic : dynamic tag
     """
     indexes = []
     records = []
