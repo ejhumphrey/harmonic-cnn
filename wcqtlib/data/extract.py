@@ -124,7 +124,15 @@ def standardize_one(input_audio_path,
     """
     # Load the audio file
     audio_modified = False
-    audio, sr = claudio.read(input_audio_path, channels=1)
+    try:
+        audio, sr = claudio.read(input_audio_path, channels=1)
+    except (IndexError, AssertionError) as e:
+        logger.error("File is probably empty: {}. Skipping..."
+                     .format(input_audio_path))
+        return False
+
+    if len(audio) == 0:
+        return False
 
     if first_onset_start is not None:
         # Find the onsets using librosa
@@ -167,7 +175,7 @@ def standardize_one(input_audio_path,
         return False
 
 
-def datasets_to_notes(datasets_df, extract_path):
+def datasets_to_notes(datasets_df, extract_path, max_duration=2.0):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -200,6 +208,9 @@ def datasets_to_notes(datasets_df, extract_path):
     extract_path : str
         Path which new note-separated files can be written to.
 
+    max_duration : float
+        Max file length in seconds.
+
     Returns
     -------
     notes_df : pandas.DataFrame
@@ -228,7 +239,8 @@ def datasets_to_notes(datasets_df, extract_path):
 
             if dataset in ['uiowa', 'rwc']:
                 result_notes = split_and_standardize_examples(
-                    original_audio_path, output_dir)
+                    original_audio_path, output_dir,
+                    final_duration=max_duration)
             else: # for philharmonia, just pass it through.
                 result_notes = [original_audio_path]
 
@@ -281,6 +293,7 @@ if __name__ == "__main__":
                         default="ismir2016-wcqt-data")
     parser.add_argument("--datasets_df", default="datasets.json")
     parser.add_argument("--output_file", default="notes.json")
+    parser.add_argument("--max_duration", type=float, default=2.0)
     args = parser.parse_args()
 
     output_path = os.path.join(args.data_root, args.extract_path)
@@ -299,5 +312,6 @@ if __name__ == "__main__":
     filtered_df = filter_datasets_on_selected_instruments(
         datasets_df, classmap.allnames)
     logger.info("Loading Notes DataFrame from {} files".format(len(filtered_df)))
-    notes_df = datasets_to_notes(filtered_df, output_path)
+    notes_df = datasets_to_notes(filtered_df, output_path, 
+                                 max_duration=args.max_duration)
     dfs.to_json(output_df_path)
