@@ -137,3 +137,22 @@ def test_datasets_to_notes():
     yield __test_rwc_notes, small_datasets_df, notes_df
     yield __test_uiowa_notes, small_datasets_df, notes_df
     yield __test_phil_notes, small_datasets_df, notes_df
+
+
+@pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),
+                             os.path.exists(PHIL_ROOT),
+                             os.path.exists(UIOWA_ROOT),
+                             os.path.exists(RWC_ROOT)]),
+                    reason="Data not found.")
+def test_filter_datasets_on_selected_instruments():
+    datasets_df = wcqtlib.data.parse.load_dataframes(DATA_ROOT)
+
+    inst_filter = ["guitar"]
+    new_df = wcqtlib.data.extract.filter_datasets_on_selected_instruments(
+        datasets_df, inst_filter)
+    assert all(new_df["instrument"].unique() == inst_filter)
+
+    inst_filter = ["guitar", "piano"]
+    new_df = wcqtlib.data.extract.filter_datasets_on_selected_instruments(
+        datasets_df, inst_filter)
+    assert all([x in new_df["instrument"].unique() for x in inst_filter])

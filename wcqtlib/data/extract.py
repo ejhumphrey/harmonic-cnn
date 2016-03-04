@@ -1,7 +1,9 @@
 """Utilities for manipulating audio files."""
 
+import argparse
 import claudio
 import claudio.sox
+import json
 import librosa
 import logging
 import numpy as np
@@ -244,3 +246,58 @@ def datasets_to_notes(datasets_df, extract_path):
             i += 1
 
     return pandas.DataFrame(records, index=indexes)
+
+
+def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
+    """Return a dataframe containing only the entries corresponding
+    to the selected instruments.
+
+    Parameters
+    ----------
+    datasets_df : pandas.DataFrame
+        DataFrame containing all of the dataset information.
+
+    selected_instruments : list of str (or None)
+        List of strings specifying the instruments to select from.
+        (If none, don't filter.)
+
+    Returns
+    -------
+    filtered_df : pandas.DataFrame
+        The datasets_df filtered to contain only the selected
+        instruments.
+    """
+    if not selected_instruments:
+        return datasets_df
+
+    return datasets_df[datasets_df["instrument"].isin(selected_instruments)]
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='Parse raw data into dataframe')
+    parser.add_argument("--data_root", default=os.path.expanduser("~/data/"))
+    parser.add_argument("-o", "--extract_path",
+                        default="ismir2016-wcqt-data")
+    parser.add_argument("--datasets_df", default="datasets.json")
+    parser.add_argument("--output_file", default="notes.json")
+    args = parser.parse_args()
+
+    output_path = os.path.join(args.data_root, args.extract_path)
+    datasets_df_path = os.path.join(args.data_root,
+                                    args.extract_path,
+                                    args.datasets_df)
+    output_df_path = os.path.join(args.data_root, args.output_file)
+
+    logging.basicConfig(level=logging.DEBUG)
+    print("Running Extraction Process")
+
+    logger.info("Loading Datasets DataFrame")
+    datasets_df = pandas.read_json(datasets_df_path)
+
+    classmap = wcqtlib.data.parse.InstrumentClassMap.read()
+    filtered_df = filter_datasets_on_selected_instruments(
+        datasets_df, classmap.allnames)
+    logger.info("Loading Notes DataFrame from {} files".format(len(filtered_df)))
+    notes_df = datasets_to_notes(filtered_df, output_path)
+    dfs.to_json(output_df_path)
