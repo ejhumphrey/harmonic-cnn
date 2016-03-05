@@ -33,6 +33,7 @@ The columns could look like the following:
  * ...?
 """
 
+import argparse
 import glob
 import hashlib
 import json
@@ -45,9 +46,11 @@ import wcqtlib.common.utils as utils
 
 logger = logging.getLogger(__name__)
 
-RWC_INSTRUMENT_MAP_PATH = os.path.join(
+DATA_DIR = os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir,
-    "data", "rwc_instrument_map.json")
+    "data")
+RWC_INSTRUMENT_MAP_PATH = os.path.join(DATA_DIR, "rwc_instrument_map.json")
+CLASS_MAP = os.path.join(DATA_DIR, "class_map.json")
 with open(RWC_INSTRUMENT_MAP_PATH, 'r') as fh:
     RWC_INSTRUMENT_MAP = json.load(fh)
 
@@ -124,12 +127,13 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
     Returns
     -------
     pandas.DataFrame
+        Indexed by:
+            id : [dataset identifier] + [8 char md5 of filename]
         With the following columns:
-            id
-            audio_file
-            dataset
-            instrument
-            dynamic
+            audio_file : full path to original audio file.
+            dataset : dataset it is from
+            instrument : instrument label.
+            dynamic : dynamic tag
     """
     indexes = []
     records = []
@@ -292,6 +296,54 @@ def load_dataframes(data_dir):
     return pandas.concat([rwc_df, uiowa_df, philharmonia_df])
 
 
+class InstrumentClassMap(object):
+    """Class for handling map between class names and the
+    names they possibly could be from the datasets."""
+
+    def __init__(self, file_path=CLASS_MAP):
+        """
+        Parameters
+        ----------
+        file_path : str
+        """
+        with open(file_path, 'r') as fh:
+            self.data = json.load(fh)
+
+        # Create the reverse map so we can efficiently do the
+        # reverse lookup
+        self.reverse_map = {}
+        for classname in self.data:
+            for item in self.data[classname]:
+                self.reverse_map[item] = classname
+
+    @property
+    def allnames(self):
+        """Return a complete list of all class names for searching the
+        dataframe."""
+        return sorted(self.reverse_map.keys())
+
+    @property
+    def classnames(self):
+        return sorted(self.data.keys())
+
+    def __getitem__(self, searchkey):
+        """Get the actual class name. (Actually the reverse map)."""
+        return self.reverse_map[searchkey]
+
+
 if __name__ == "__main__":
-    dfs = load_dataframes(os.path.expanduser("~/data"))
-    import pdb; pdb.set_trace()
+    parser = argparse.ArgumentParser(
+        description='Parse raw data into dataframe')
+    parser.add_argument("--data_root", default=os.path.expanduser("~/data/"))
+    parser.add_argument("-o", "--output_path",
+                        default="ismir2016-wcqt-data/datasets.json")
+    args = parser.parse_args()
+
+    # Load the datasets dataframe
+    print("Loading dataset...")
+    dfs = load_dataframes(args.data_root)
+    print("Datasets contain {} audio files.".format(len(dfs)))
+    # Save it to a json file
+    output_path = os.path.join(args.data_root, args.output_path)
+    print("Saving to", output_path)
+    dfs.to_json(output_path)

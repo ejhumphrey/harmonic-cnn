@@ -134,11 +134,38 @@ def test_philharmonia_to_dataframe():
     yield __test_pd_output, philharmonia_df, PHIL_ROOT, "philharmonia"
 
 
-@pytest.mark.skipif(not os.path.exists(DATA_ROOT) \
-                    or not os.path.exists(PHIL_ROOT) \
-                    or not os.path.exists(UIOWA_ROOT) \
-                    or not os.path.exists(RWC_ROOT),
+@pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),
+                             os.path.exists(PHIL_ROOT),
+                             os.path.exists(UIOWA_ROOT),
+                             os.path.exists(RWC_ROOT)]),
                     reason="Data not found.")
 def test_load_dataframes():
     dfs = wcqtlib.data.parse.load_dataframes(DATA_ROOT)
     yield __test_df_has_data, dfs
+
+
+@pytest.fixture
+def classmap():
+  return wcqtlib.data.parse.InstrumentClassMap()
+
+
+def test_load_classmap(classmap):
+    assert classmap is not None
+
+
+def test_classmap_allnames(classmap):
+    assert isinstance(classmap.allnames, list)
+    assert len(classmap.allnames) > 1
+    assert map(lambda x: isinstance(x, str), classmap.allnames)
+
+
+def test_classmap_classnames(classmap):
+    assert isinstance(classmap.classnames, list)
+    assert len(classmap.classnames) == 12
+    assert map(lambda x: isinstance(x, str), classmap.allnames)
+
+
+def test_classmap_getattr(classmap):
+    assert classmap["bassoon"] == "bassoon"
+    assert classmap["acoustic-guitar"] == "guitar"
+    assert classmap["Trumpet"] == "trumpet"
