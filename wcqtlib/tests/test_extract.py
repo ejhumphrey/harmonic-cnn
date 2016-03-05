@@ -42,7 +42,7 @@ def datasets_df():
 
 @pytest.fixture
 def filtered_datasets_df(datasets_df):
-    classmap = wcqtlib.data.parse.InstrumentClassMap.read()
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
     return wcqtlib.data.extract.filter_datasets_on_selected_instruments(
         datasets_df, classmap.allnames)
 

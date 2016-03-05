@@ -146,7 +146,7 @@ def test_load_dataframes():
 
 @pytest.fixture
 def classmap():
-  return wcqtlib.data.parse.InstrumentClassMap.read()
+  return wcqtlib.data.parse.InstrumentClassMap()
 
 
 def test_load_classmap(classmap):

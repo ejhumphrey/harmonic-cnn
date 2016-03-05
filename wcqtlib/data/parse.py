@@ -300,7 +300,7 @@ class InstrumentClassMap(object):
     """Class for handling map between class names and the
     names they possibly could be from the datasets."""
 
-    def __init__(self, file_path):
+    def __init__(self, file_path=CLASS_MAP):
         """
         Parameters
         ----------
@@ -316,14 +316,9 @@ class InstrumentClassMap(object):
             for item in self.data[classname]:
                 self.reverse_map[item] = classname
 
-    @classmethod
-    def read(cls, file_path=CLASS_MAP):
-        """Read it in with the default path."""
-        return cls(file_path)
-
     @property
     def allnames(self):
-        """Return a complete list of all class names for searching the 
+        """Return a complete list of all class names for searching the
         dataframe."""
         return sorted(self.reverse_map.keys())
 

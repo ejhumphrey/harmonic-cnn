@@ -126,9 +126,9 @@ def standardize_one(input_audio_path,
     audio_modified = False
     try:
         audio, sr = claudio.read(input_audio_path, channels=1)
-    except (IndexError, AssertionError) as e:
-        logger.error("File is probably empty: {}. Skipping..."
-                     .format(input_audio_path))
+    except AssertionError as e:
+        logger.error("Sox may have failed. Input: {}\n Error: {}. Skipping..."
+                     .format(input_audio_path, e))
         return False
 
     if len(audio) == 0:
@@ -308,10 +308,10 @@ if __name__ == "__main__":
     logger.info("Loading Datasets DataFrame")
     datasets_df = pandas.read_json(datasets_df_path)
 
-    classmap = wcqtlib.data.parse.InstrumentClassMap.read()
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
     filtered_df = filter_datasets_on_selected_instruments(
         datasets_df, classmap.allnames)
     logger.info("Loading Notes DataFrame from {} files".format(len(filtered_df)))
     notes_df = datasets_to_notes(filtered_df, output_path, 
                                  max_duration=args.max_duration)
-    dfs.to_json(output_df_path)
+    notes_df.to_json(output_df_path)
