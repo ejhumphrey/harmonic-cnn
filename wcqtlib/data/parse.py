@@ -345,7 +345,8 @@ if __name__ == "__main__":
     dfs = load_dataframes(args.data_root)
     print("Datasets contain {} audio files.".format(len(dfs)))
     # Save it to a json file
-    output_path = os.path.join(args.data_root, args.write_folder,
-                               args.output_name)
+    write_folder = os.path.join(args.data_root, args.write_folder)
+    utils.create_directory(write_folder)
+    output_path = os.path.join(write_folder, args.output_name)
     print("Saving to", output_path)
     dfs.to_json(output_path)
