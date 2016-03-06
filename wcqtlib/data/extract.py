@@ -29,7 +29,8 @@ def get_onsets(audio, sr, **kwargs):
 def split_and_standardize_examples(input_audio_path,
                                    output_dir,
                                    first_onset_start=.05,
-                                   final_duration=None):
+                                   final_duration=None,
+                                   skip_processing=False):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
 
@@ -67,7 +68,7 @@ def split_and_standardize_examples(input_audio_path,
     ready_files = []
 
     # Split the audio files using claudio.sox
-    if claudio.sox.split_along_silence(
+    if skip_processing or claudio.sox.split_along_silence(
                 input_audio_path, new_output_path):
 
         # Sox generates files of the form:
@@ -78,10 +79,10 @@ def split_and_standardize_examples(input_audio_path,
         # For each file generated
         for file_name in process_files:
             audio_path = os.path.join(output_dir, file_name)
-            success = standardize_one(audio_path,
-                                      first_onset_start=first_onset_start,
-                                      final_duration=final_duration)
-            if success:
+            if skip_processing or \
+                    standardize_one(audio_path,
+                                    first_onset_start=first_onset_start,
+                                    final_duration=final_duration):
                 ready_files.append(audio_path)
 
     return ready_files
@@ -175,7 +176,8 @@ def standardize_one(input_audio_path,
         return False
 
 
-def datasets_to_notes(datasets_df, extract_path, max_duration=2.0):
+def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
+                      skip_processing=False):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -211,6 +213,10 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0):
     max_duration : float
         Max file length in seconds.
 
+    skip_processing : bool or None
+        If true, skips the split-on-silence portion of the procedure, and
+        just generates the dataframe from existing files.
+
     Returns
     -------
     notes_df : pandas.DataFrame
@@ -240,7 +246,8 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0):
             if dataset in ['uiowa', 'rwc']:
                 result_notes = split_and_standardize_examples(
                     original_audio_path, output_dir,
-                    final_duration=max_duration)
+                    final_duration=max_duration,
+                    skip_processing=skip_processing)
             else: # for philharmonia, just pass it through.
                 result_notes = [original_audio_path]
 
@@ -285,6 +292,11 @@ def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
     return datasets_df[datasets_df["instrument"].isin(selected_instruments)]
 
 
+def summarize_notes(notes_df):
+    """Print a summary of the classes available in summarize_notes."""
+    pass
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Parse raw data into dataframe')
@@ -292,15 +304,20 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--extract_path",
                         default="ismir2016-wcqt-data")
     parser.add_argument("--datasets_df", default="datasets.json")
-    parser.add_argument("--output_file", default="notes.json")
+    parser.add_argument("--output_file", default="notes.pkl")
     parser.add_argument("--max_duration", type=float, default=2.0)
+    parser.add_argument("--skip_processing", action="store_true",
+                        help="Skip the split-on-silence procedure, and just"
+                             " generate the dataframe.")
     args = parser.parse_args()
 
     output_path = os.path.join(args.data_root, args.extract_path)
     datasets_df_path = os.path.join(args.data_root,
                                     args.extract_path,
                                     args.datasets_df)
-    output_df_path = os.path.join(args.data_root, args.output_file)
+    output_df_path = os.path.join(args.data_root,
+                                  args.extract_path,
+                                  args.output_file)
 
     logging.basicConfig(level=logging.DEBUG)
     print("Running Extraction Process")
@@ -311,7 +328,20 @@ if __name__ == "__main__":
     classmap = wcqtlib.data.parse.InstrumentClassMap()
     filtered_df = filter_datasets_on_selected_instruments(
         datasets_df, classmap.allnames)
-    logger.info("Loading Notes DataFrame from {} files".format(len(filtered_df)))
-    notes_df = datasets_to_notes(filtered_df, output_path, 
-                                 max_duration=args.max_duration)
-    notes_df.to_json(output_df_path)
+    logger.info("Loading Notes DataFrame from {} files".format(
+        len(filtered_df)))
+    notes_df = datasets_to_notes(filtered_df, output_path,
+                                 max_duration=args.max_duration,
+                                 skip_processing=args.skip_processing)
+    summarize_notes(notes_df)
+
+    # notes_df.to_json(output_df_path)
+    # notes_df.reset_index().to_json(output_df_path)
+    notes_df.to_pickle(output_df_path)
+
+    try:
+        # Try to load it and make sure it worked.
+        pandas.read_pickle(output_df_path)
+    except ValueError:
+        # If it didn't work, allow us to save it manually
+        import pdb; pdb.set_trace()
