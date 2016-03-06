@@ -346,6 +346,6 @@ if __name__ == "__main__":
     print("Datasets contain {} audio files.".format(len(dfs)))
     # Save it to a json file
     output_path = os.path.join(args.data_root, args.write_folder,
-                               args.output_path)
+                               args.output_name)
     print("Saving to", output_path)
     dfs.to_json(output_path)
