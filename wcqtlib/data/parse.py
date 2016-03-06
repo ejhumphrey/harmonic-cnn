@@ -335,8 +335,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Parse raw data into dataframe')
     parser.add_argument("--data_root", default=os.path.expanduser("~/data/"))
-    parser.add_argument("-o", "--output_path",
-                        default="ismir2016-wcqt-data/datasets.json")
+    parser.add_argumnet("--write_folder", default="ismir2016-wcqt-data")
+    parser.add_argument("-o", "--output_name",
+                        default="datasets.json")
     args = parser.parse_args()
 
     # Load the datasets dataframe
@@ -344,6 +345,7 @@ if __name__ == "__main__":
     dfs = load_dataframes(args.data_root)
     print("Datasets contain {} audio files.".format(len(dfs)))
     # Save it to a json file
-    output_path = os.path.join(args.data_root, args.output_path)
+    output_path = os.path.join(args.data_root, args.write_folder,
+                               args.output_path)
     print("Saving to", output_path)
     dfs.to_json(output_path)
