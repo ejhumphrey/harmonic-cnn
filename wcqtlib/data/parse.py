@@ -335,7 +335,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Parse raw data into dataframe')
     parser.add_argument("--data_root", default=os.path.expanduser("~/data/"))
-    parser.add_argumnet("--write_folder", default="ismir2016-wcqt-data")
+    parser.add_argument("--write_folder", default="ismir2016-wcqt-data")
     parser.add_argument("-o", "--output_name",
                         default="datasets.json")
     args = parser.parse_args()
