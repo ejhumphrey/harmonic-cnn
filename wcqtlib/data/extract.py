@@ -3,7 +3,6 @@
 import argparse
 import claudio
 import claudio.sox
-import json
 import librosa
 import logging
 import numpy as np
@@ -26,16 +25,11 @@ def get_onsets(audio, sr, **kwargs):
     return onset_samples
 
 
-def split_and_standardize_examples(input_audio_path,
-                                   output_dir,
-                                   first_onset_start=.05,
-                                   final_duration=None,
-                                   skip_processing=False):
+def split_examples(input_audio_path,
+                   output_dir,
+                   skip_processing=False):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
-
-    Once they are split, the onset, as detected by librosa,
-    is then placed at the location specified by first_onset_start.
 
     Parameters
     ----------
@@ -45,14 +39,6 @@ def split_and_standardize_examples(input_audio_path,
     output_dir : str
         Full path to the folder where you want to place the
         result files. Will be created if it does not exist.
-
-    first_onset_start : float
-        Value in seconds where the first onset will
-        be set, for a sort of normalization of the audio.
-
-    final_duration : float or None
-        If not None, trims the final audio file to final_duration
-        seconds.
 
     Returns
     -------
@@ -68,6 +54,7 @@ def split_and_standardize_examples(input_audio_path,
     ready_files = []
 
     # Split the audio files using claudio.sox
+    #  [or skip that and look at existing files.]
     if skip_processing or claudio.sox.split_along_silence(
                 input_audio_path, new_output_path):
 
@@ -79,17 +66,14 @@ def split_and_standardize_examples(input_audio_path,
         # For each file generated
         for file_name in process_files:
             audio_path = os.path.join(output_dir, file_name)
-            if skip_processing or \
-                    standardize_one(audio_path,
-                                    first_onset_start=first_onset_start,
-                                    final_duration=final_duration):
-                ready_files.append(audio_path)
+            ready_files.append(audio_path)
 
     return ready_files
 
 
 def standardize_one(input_audio_path,
-                    first_onset_start=.05,
+                    output_path=None,
+                    first_onset_start=None,
                     center_of_mass_alignment=False,
                     final_duration=None):
     """Takes a single audio file, and standardizes it based
@@ -101,6 +85,10 @@ def standardize_one(input_audio_path,
     ----------
     input_audio_path : str
         Full path to the audio file to work with.
+
+    output_path : str or None
+        Path to write updated files to. If None, overwrites the
+        input file.
 
     first_onset_start : float or None
         If not None, uses librosa's onset detection to find
@@ -121,7 +109,8 @@ def standardize_one(input_audio_path,
 
     Returns
     -------
-    True if all processes passed. False otherwise.
+    output_audio_path : str or None
+        Valid full file path if succeeded, or None if failed.
     """
     # Load the audio file
     audio_modified = False
@@ -168,10 +157,16 @@ def standardize_one(input_audio_path,
         # Otherwise, just leave it at the current length.
 
     if audio_modified:
-        # save the file back out again.
-        claudio.write(input_audio_path, audio, samplerate=sr)
+        output_audio_path = input_audio_path
+        if (output_path):
+            utils.create_directory(output_path)
+            output_audio_path = os.path.join(
+                output_path, os.path.basename(input_audio_path))
 
-        return True
+        # save the file back out again.
+        claudio.write(output_audio_path, audio, samplerate=sr)
+
+        return output_audio_path
     else:
         return False
 
@@ -198,7 +193,6 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
 
     Philharmonia : These files contain single notes,
         and so are just passed through.
-
 
     Parameters
     ----------
@@ -243,21 +237,31 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
             dataset = row['dataset']
             output_dir = os.path.join(extract_path, dataset)
 
+            # Get the note files.
             if dataset in ['uiowa', 'rwc']:
-                result_notes = split_and_standardize_examples(
+                result_notes = split_examples(
                     original_audio_path, output_dir,
-                    final_duration=max_duration,
                     skip_processing=skip_processing)
-            else: # for philharmonia, just pass it through.
+            else:  # for philharmonia, just pass it through.
                 result_notes = [original_audio_path]
 
             for note_file_path in result_notes:
+                audio_file_path = note_file_path
+                # For each note, do standardizing (aka check length)
+                if not skip_processing:
+                    audio_file_path = standardize_one(
+                        note_file_path, output_dir,
+                        final_duration=max_duration)
+                # If standardizing failed, don't keep this one.
+                if audio_file_path is None:
+                    continue
+
                 # Hierarchical indexing with (parent, new)
                 indexes[0].append(index)
                 indexes[1].append(wcqtlib.data.parse.generate_id(
                     dataset, note_file_path))
                 records.append(
-                    dict(audio_file=note_file_path,
+                    dict(audio_file=audio_file_path,
                          dataset=dataset,
                          instrument=row['instrument'],
                          dynamic=row['dynamic']))
@@ -294,7 +298,96 @@ def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
 
 def summarize_notes(notes_df):
     """Print a summary of the classes available in summarize_notes."""
-    pass
+    print("Total Note files generated:", len(notes_df))
+    print("Total RWC Notes generated:",
+          len(notes_df[notes_df["dataset"] == "rwc"]))
+    print("Total UIOWA Notes generated:",
+          len(notes_df[notes_df["dataset"] == "uiowa"]))
+    print("Total Philharmonia Notes generated:",
+          len(notes_df[notes_df["dataset"] == "philharmonia"]))
+
+
+def extract_notes(data_root, extract_path, datasets_df_fn, output_file,
+                  max_duration, skip_processing):
+    """Given a dataframe pointing to dataset files,
+    convert the dataset's original files into "note" files,
+    containing a single note, and of a maximum duration.
+
+    Parameters
+    ----------
+    data_root : str
+        Root data path. i.e. "~/data" (but expanded)
+
+    extract_path : str
+        Folder in the data_root where process files will get dumped
+
+    datasets_df_fn : str
+        Filename of the datasets dataframe json file.
+        This json file is expected to live at the extract_path.
+
+    output_file: str
+        Output filename the resulting notes dataframe will
+        get dumped to.
+
+        Note: as of this writing, this must be a .pkl file,
+        since this dataframe contains a multiindex, and
+        pandas can't currenty write multi-indexes to json
+        files.
+
+    max_duration : float
+        Maximum duration of each file in seconds.
+
+    skip_processing : bool
+        If true, simply examines the notes files already existing,
+        and doesn't try to regenerate them. [For debugging only]
+
+    Returns
+    -------
+    succeeded : bool
+        Returns True if the pickle was successfully created,
+        and False otherwise.
+    """
+    output_path = os.path.join(data_root, extract_path)
+    datasets_df_path = os.path.join(data_root,
+                                    extract_path,
+                                    datasets_df_fn)
+    output_df_path = os.path.join(data_root,
+                                  extract_path,
+                                  output_file)
+
+    print("Running Extraction Process")
+
+    print("Loading Datasets DataFrame")
+    datasets_df = pandas.read_json(datasets_df_path)
+    print("{} audio files in Datasets.".format(len(datasets_df)))
+
+    print("Filtering to selected instrument classes.")
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+    filtered_df = filter_datasets_on_selected_instruments(
+        datasets_df, classmap.allnames)
+    print("Loading Notes DataFrame from {} filtered dataset files".format(
+        len(filtered_df)))
+
+    notes_df = datasets_to_notes(filtered_df, output_path,
+                                 max_duration=args.max_duration,
+                                 skip_processing=args.skip_processing)
+    summarize_notes(notes_df)
+
+    # notes_df.to_json(output_df_path)
+    # notes_df.reset_index().to_json(output_df_path)
+    notes_df.to_pickle(output_df_path)
+
+    try:
+        # Try to load it and make sure it worked.
+        pandas.read_pickle(output_df_path)
+        return True
+    except ValueError:
+        logger.warning("Your file failed to save correctly; "
+                       "debugging so you can fix it and not have sadness.")
+        # If it didn't work, allow us to save it manually
+        # TODO: get rid of this? Or not...
+        import pdb; pdb.set_trace()
+        return False
 
 
 if __name__ == "__main__":
@@ -311,37 +404,7 @@ if __name__ == "__main__":
                              " generate the dataframe.")
     args = parser.parse_args()
 
-    output_path = os.path.join(args.data_root, args.extract_path)
-    datasets_df_path = os.path.join(args.data_root,
-                                    args.extract_path,
-                                    args.datasets_df)
-    output_df_path = os.path.join(args.data_root,
-                                  args.extract_path,
-                                  args.output_file)
-
-    logging.basicConfig(level=logging.DEBUG)
-    print("Running Extraction Process")
-
-    logger.info("Loading Datasets DataFrame")
-    datasets_df = pandas.read_json(datasets_df_path)
-
-    classmap = wcqtlib.data.parse.InstrumentClassMap()
-    filtered_df = filter_datasets_on_selected_instruments(
-        datasets_df, classmap.allnames)
-    logger.info("Loading Notes DataFrame from {} files".format(
-        len(filtered_df)))
-    notes_df = datasets_to_notes(filtered_df, output_path,
-                                 max_duration=args.max_duration,
-                                 skip_processing=args.skip_processing)
-    summarize_notes(notes_df)
-
-    # notes_df.to_json(output_df_path)
-    # notes_df.reset_index().to_json(output_df_path)
-    notes_df.to_pickle(output_df_path)
-
-    try:
-        # Try to load it and make sure it worked.
-        pandas.read_pickle(output_df_path)
-    except ValueError:
-        # If it didn't work, allow us to save it manually
-        import pdb; pdb.set_trace()
+    logging.basicConfig(format='%(levelname)s:%(message)s',
+                        level=logging.DEBUG)
+    extract_notes(args.data_root, args.extract_path, args.datasets_df,
+                  args.output_file, args.max_duration, args.skip_processing)

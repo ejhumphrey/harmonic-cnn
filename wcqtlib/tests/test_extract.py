@@ -82,8 +82,8 @@ def test_filter_datasets_on_selected_instruments():
     assert all([x in new_df["instrument"].unique() for x in inst_filter])
 
 
-def test_split_and_standardize_examples(testfile, workspace):
-    output_files = wcqtlib.data.extract.split_and_standardize_examples(
+def test_split_examples(testfile, workspace):
+    output_files = wcqtlib.data.extract.split_examples(
         testfile, workspace)
     assert all(map(os.path.exists, output_files))
 
