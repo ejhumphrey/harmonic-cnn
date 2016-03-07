@@ -309,6 +309,44 @@ def summarize_notes(notes_df):
 
 def extract_notes(data_root, extract_path, datasets_df_fn, output_file,
                   max_duration, skip_processing):
+    """Given a dataframe pointing to dataset files,
+    convert the dataset's original files into "note" files,
+    containing a single note, and of a maximum duration.
+
+    Parameters
+    ----------
+    data_root : str
+        Root data path. i.e. "~/data" (but expanded)
+
+    extract_path : str
+        Folder in the data_root where process files will get dumped
+
+    datasets_df_fn : str
+        Filename of the datasets dataframe json file.
+        This json file is expected to live at the extract_path.
+
+    output_file: str
+        Output filename the resulting notes dataframe will
+        get dumped to.
+
+        Note: as of this writing, this must be a .pkl file,
+        since this dataframe contains a multiindex, and
+        pandas can't currenty write multi-indexes to json
+        files.
+
+    max_duration : float
+        Maximum duration of each file in seconds.
+
+    skip_processing : bool
+        If true, simply examines the notes files already existing,
+        and doesn't try to regenerate them. [For debugging only]
+
+    Returns
+    -------
+    succeeded : bool
+        Returns True if the pickle was successfully created,
+        and False otherwise.
+    """
     output_path = os.path.join(data_root, extract_path)
     datasets_df_path = os.path.join(data_root,
                                     extract_path,
@@ -342,9 +380,14 @@ def extract_notes(data_root, extract_path, datasets_df_fn, output_file,
     try:
         # Try to load it and make sure it worked.
         pandas.read_pickle(output_df_path)
+        return True
     except ValueError:
+        logger.warning("Your file failed to save correctly; "
+                       "debugging so you can fix it and not have sadness.")
         # If it didn't work, allow us to save it manually
+        # TODO: get rid of this? Or not...
         import pdb; pdb.set_trace()
+        return False
 
 
 if __name__ == "__main__":
