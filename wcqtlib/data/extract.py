@@ -26,16 +26,11 @@ def get_onsets(audio, sr, **kwargs):
     return onset_samples
 
 
-def split_and_standardize_examples(input_audio_path,
-                                   output_dir,
-                                   first_onset_start=.05,
-                                   final_duration=None,
-                                   skip_processing=False):
+def split_examples(input_audio_path,
+                   output_dir,
+                   skip_processing=False):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
-
-    Once they are split, the onset, as detected by librosa,
-    is then placed at the location specified by first_onset_start.
 
     Parameters
     ----------
@@ -45,14 +40,6 @@ def split_and_standardize_examples(input_audio_path,
     output_dir : str
         Full path to the folder where you want to place the
         result files. Will be created if it does not exist.
-
-    first_onset_start : float
-        Value in seconds where the first onset will
-        be set, for a sort of normalization of the audio.
-
-    final_duration : float or None
-        If not None, trims the final audio file to final_duration
-        seconds.
 
     Returns
     -------
@@ -68,6 +55,7 @@ def split_and_standardize_examples(input_audio_path,
     ready_files = []
 
     # Split the audio files using claudio.sox
+    #  [or skip that and look at existing files.]
     if skip_processing or claudio.sox.split_along_silence(
                 input_audio_path, new_output_path):
 
@@ -79,17 +67,14 @@ def split_and_standardize_examples(input_audio_path,
         # For each file generated
         for file_name in process_files:
             audio_path = os.path.join(output_dir, file_name)
-            if skip_processing or \
-                    standardize_one(audio_path,
-                                    first_onset_start=first_onset_start,
-                                    final_duration=final_duration):
-                ready_files.append(audio_path)
+            ready_files.append(audio_path)
 
     return ready_files
 
 
 def standardize_one(input_audio_path,
-                    first_onset_start=.05,
+                    output_path=None,
+                    first_onset_start=None,
                     center_of_mass_alignment=False,
                     final_duration=None):
     """Takes a single audio file, and standardizes it based
@@ -101,6 +86,10 @@ def standardize_one(input_audio_path,
     ----------
     input_audio_path : str
         Full path to the audio file to work with.
+
+    output_path : str or None
+        Path to write updated files to. If None, overwrites the
+        input file.
 
     first_onset_start : float or None
         If not None, uses librosa's onset detection to find
@@ -121,7 +110,8 @@ def standardize_one(input_audio_path,
 
     Returns
     -------
-    True if all processes passed. False otherwise.
+    output_audio_path : str or None
+        Valid full file path if succeeded, or None if failed.
     """
     # Load the audio file
     audio_modified = False
@@ -168,10 +158,16 @@ def standardize_one(input_audio_path,
         # Otherwise, just leave it at the current length.
 
     if audio_modified:
-        # save the file back out again.
-        claudio.write(input_audio_path, audio, samplerate=sr)
+        output_audio_path = input_audio_path
+        if (output_path):
+            utils.create_directory(output_path)
+            output_audio_path = os.path.join(
+                output_path, os.path.basename(input_audio_path))
 
-        return True
+        # save the file back out again.
+        claudio.write(output_audio_path, audio, samplerate=sr)
+
+        return output_audio_path
     else:
         return False
 
@@ -198,7 +194,6 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
 
     Philharmonia : These files contain single notes,
         and so are just passed through.
-
 
     Parameters
     ----------
@@ -243,21 +238,31 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
             dataset = row['dataset']
             output_dir = os.path.join(extract_path, dataset)
 
+            # Get the note files.
             if dataset in ['uiowa', 'rwc']:
-                result_notes = split_and_standardize_examples(
+                result_notes = split_examples(
                     original_audio_path, output_dir,
-                    final_duration=max_duration,
                     skip_processing=skip_processing)
-            else: # for philharmonia, just pass it through.
+            else:  # for philharmonia, just pass it through.
                 result_notes = [original_audio_path]
 
             for note_file_path in result_notes:
+                audio_file_path = note_file_path
+                # For each note, do standardizing (aka check length)
+                if not skip_processing:
+                    audio_file_path = standardize_one(
+                        note_file_path, output_dir,
+                        final_duration=max_duration)
+                # If standardizing failed, don't keep this one.
+                if audio_file_path is None:
+                    continue
+
                 # Hierarchical indexing with (parent, new)
                 indexes[0].append(index)
                 indexes[1].append(wcqtlib.data.parse.generate_id(
                     dataset, note_file_path))
                 records.append(
-                    dict(audio_file=note_file_path,
+                    dict(audio_file=audio_file_path,
                          dataset=dataset,
                          instrument=row['instrument'],
                          dynamic=row['dynamic']))
