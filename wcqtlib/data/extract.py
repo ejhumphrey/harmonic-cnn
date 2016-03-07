@@ -258,7 +258,7 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                     dataset, note_file_path))
                 records.append(
                     dict(audio_file=note_file_path,
-                         datset=dataset,
+                         dataset=dataset,
                          instrument=row['instrument'],
                          dynamic=row['dynamic']))
             progress.update(i)
