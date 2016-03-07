@@ -3,7 +3,6 @@
 import argparse
 import claudio
 import claudio.sox
-import json
 import librosa
 import logging
 import numpy as np
@@ -299,7 +298,53 @@ def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
 
 def summarize_notes(notes_df):
     """Print a summary of the classes available in summarize_notes."""
-    pass
+    print("Total Note files generated:", len(notes_df))
+    print("Total RWC Notes generated:",
+          len(notes_df[notes_df["dataset"] == "rwc"]))
+    print("Total RWC Notes generated:",
+          len(notes_df[notes_df["dataset"] == "uiowa"]))
+    print("Total RWC Notes generated:",
+          len(notes_df[notes_df["dataset"] == "philharmonia"]))
+
+
+def extract_notes(data_root, extract_path, datasets_df_fn, output_file,
+                  max_duration, skip_processing):
+    output_path = os.path.join(data_root, extract_path)
+    datasets_df_path = os.path.join(data_root,
+                                    extract_path,
+                                    datasets_df_fn)
+    output_df_path = os.path.join(data_root,
+                                  extract_path,
+                                  output_file)
+
+    print("Running Extraction Process")
+
+    print("Loading Datasets DataFrame")
+    datasets_df = pandas.read_json(datasets_df_path)
+    print("{} audio files in Datasets.".format(len(datasets_df)))
+
+    print("Filtering to selected instrument classes.")
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+    filtered_df = filter_datasets_on_selected_instruments(
+        datasets_df, classmap.allnames)
+    print("Loading Notes DataFrame from {} filtered dataset files".format(
+        len(filtered_df)))
+
+    notes_df = datasets_to_notes(filtered_df, output_path,
+                                 max_duration=args.max_duration,
+                                 skip_processing=args.skip_processing)
+    summarize_notes(notes_df)
+
+    # notes_df.to_json(output_df_path)
+    # notes_df.reset_index().to_json(output_df_path)
+    notes_df.to_pickle(output_df_path)
+
+    try:
+        # Try to load it and make sure it worked.
+        pandas.read_pickle(output_df_path)
+    except ValueError:
+        # If it didn't work, allow us to save it manually
+        import pdb; pdb.set_trace()
 
 
 if __name__ == "__main__":
@@ -316,37 +361,7 @@ if __name__ == "__main__":
                              " generate the dataframe.")
     args = parser.parse_args()
 
-    output_path = os.path.join(args.data_root, args.extract_path)
-    datasets_df_path = os.path.join(args.data_root,
-                                    args.extract_path,
-                                    args.datasets_df)
-    output_df_path = os.path.join(args.data_root,
-                                  args.extract_path,
-                                  args.output_file)
-
-    logging.basicConfig(level=logging.DEBUG)
-    print("Running Extraction Process")
-
-    logger.info("Loading Datasets DataFrame")
-    datasets_df = pandas.read_json(datasets_df_path)
-
-    classmap = wcqtlib.data.parse.InstrumentClassMap()
-    filtered_df = filter_datasets_on_selected_instruments(
-        datasets_df, classmap.allnames)
-    logger.info("Loading Notes DataFrame from {} files".format(
-        len(filtered_df)))
-    notes_df = datasets_to_notes(filtered_df, output_path,
-                                 max_duration=args.max_duration,
-                                 skip_processing=args.skip_processing)
-    summarize_notes(notes_df)
-
-    # notes_df.to_json(output_df_path)
-    # notes_df.reset_index().to_json(output_df_path)
-    notes_df.to_pickle(output_df_path)
-
-    try:
-        # Try to load it and make sure it worked.
-        pandas.read_pickle(output_df_path)
-    except ValueError:
-        # If it didn't work, allow us to save it manually
-        import pdb; pdb.set_trace()
+    logging.basicConfig(format='%(levelname)s:%(message)s',
+                        level=logging.DEBUG)
+    extract_notes(args.data_root, args.extract_path, args.datasets_df,
+                  args.output_file, args.max_duration, args.skip_processing)
