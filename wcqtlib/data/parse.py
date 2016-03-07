@@ -135,6 +135,8 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
             instrument : instrument label.
             dynamic : dynamic tag
     """
+    logger.info("Scanning RWC directory for audio files.")
+
     indexes = []
     records = []
     for audio_file_path in glob.glob(os.path.join(base_dir, "*/*/*.flac")):
@@ -147,6 +149,8 @@ def rwc_to_dataframe(base_dir, dataset="rwc"):
                  dataset=dataset,
                  instrument=instrument_name,
                  dynamic=dynamic_code))
+
+    logger.info("Using {} files from RWC.".format(len(records)))
 
     return pandas.DataFrame(records, index=indexes)
 
@@ -189,6 +193,8 @@ def uiowa_to_dataframe(base_dir, dataset="uiowa"):
             note
             parent : instrument category.
     """
+    logger.info("Scanning UIOWA directory for audio files.")
+
     indexes = []
     records = []
     root_dir = os.path.join(base_dir, "theremin.music.uiowa.edu",
@@ -209,6 +215,8 @@ def uiowa_to_dataframe(base_dir, dataset="uiowa"):
                          dynamic=dynamic,
                          note=notevalue,
                          parent=parent_cagetegory))
+
+    logger.info("Using {} files from UIOWA.".format(len(records)))
 
     return pandas.DataFrame(records, index=indexes)
 
@@ -252,6 +260,8 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
             note
             dynamic
     """
+    logger.info("Scanning Philharmonia directory for audio files.")
+
     root_dir = os.path.join(base_dir, "www.philharmonia.co.uk",
                             "assets", "audio", "samples")
 
@@ -259,19 +269,28 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     zip_files = glob.glob(os.path.join(root_dir, "*/*.zip"))
     utils.unzip_files(zip_files)
 
+    n_articulation_skipped = 0
+
     indexes = []
     records = []
     for audio_file_path in glob.glob(os.path.join(root_dir, "*/*/*.mp3")):
-        instrument, note, duration, dynamic, _ = \
+        instrument, note, duration, dynamic, articulation = \
             parse_phil_path(audio_file_path)
 
-        indexes.append(generate_id(dataset, audio_file_path))
-        records.append(
-            dict(audio_file=audio_file_path,
-                 dataset=dataset,
-                 instrument=instrument,
-                 note=note,
-                 dynamic=dynamic))
+        if articulation == "normal":
+            indexes.append(generate_id(dataset, audio_file_path))
+            records.append(
+                dict(audio_file=audio_file_path,
+                     dataset=dataset,
+                     instrument=instrument,
+                     note=note,
+                     dynamic=dynamic))
+        else:
+            n_articulation_skipped += 1
+
+    logger.info("Using {} files from Philharmonia.".format(len(records)))
+    logger.warn("Skipped {} files in Philharmonia with articulation != "
+                "'normal'".format(n_articulation_skipped))
 
     return pandas.DataFrame(records, index=indexes)
 
@@ -293,7 +312,10 @@ def load_dataframes(data_dir):
     philharmonia_df = philharmonia_to_dataframe(
         os.path.join(data_dir, "philharmonia"))
 
-    return pandas.concat([rwc_df, uiowa_df, philharmonia_df])
+    result = pandas.concat([rwc_df, uiowa_df, philharmonia_df])
+    logger.info("Total dataset records: {}".format(len(result)))
+
+    return result
 
 
 class InstrumentClassMap(object):
@@ -339,6 +361,8 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--output_name",
                         default="datasets.json")
     args = parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG)
 
     # Load the datasets dataframe
     print("Loading dataset...")

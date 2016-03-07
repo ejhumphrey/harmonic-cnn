@@ -23,3 +23,9 @@ $ python wcqtlib/tools/download.py data/uiowa.json ~/data/uiowa
 ...
 $ python wcqtlib/tools/download.py data/philharmonia.json ~/data/philharmonia
 ```
+
+
+# Tracking Experiment Decisions
+- Skipping all Philharmonia files with the articulation in the filename != "normal", since they do not have well-defined or regular note patters.
+Some of them seem to have multiple notes, slurs, etc. Keeping just the "normal"
+should fix all of that.
