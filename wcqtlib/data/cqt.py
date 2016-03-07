@@ -172,20 +172,20 @@ def cqt_from_df(data_root, extract_path, notes_df_fn, features_df_path,
                                   features_df_path)
     # Load the dataframe
     notes_df = pandas.read_pickle(notes_df_path)
+    # Clear out any bad values here.
+    features_df = notes_df[notes_df["audio_file"] != False]
 
     def features_path_for_audio(audio_path):
         return os.path.join(data_root, extract_path, "cqt",
                             utils.filebase(audio_path) + ".npz")
 
-    import pdb; pdb.set_trace()
-    audio_paths = notes_df["audio_file"]
+    audio_paths = features_df["audio_file"].tolist()
     cqt_paths = [features_path_for_audio(x) for x in audio_paths]
 
     # Create a new column in the new dataframe pointing to these new paths
-    features_df = notes_df.copy()
     features_df["cqt"] = pandas.Series(cqt_paths, index=features_df.index)
 
-    result = cqt_many(audio_files, output_files, cqt_params, audio_params,
+    result = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
                       num_cpus, verbose, skip_existing)
 
     # If succeeded, write the new dataframe as a pkl.
