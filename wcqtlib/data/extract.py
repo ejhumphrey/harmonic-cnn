@@ -301,9 +301,9 @@ def summarize_notes(notes_df):
     print("Total Note files generated:", len(notes_df))
     print("Total RWC Notes generated:",
           len(notes_df[notes_df["dataset"] == "rwc"]))
-    print("Total RWC Notes generated:",
+    print("Total UIOWA Notes generated:",
           len(notes_df[notes_df["dataset"] == "uiowa"]))
-    print("Total RWC Notes generated:",
+    print("Total Philharmonia Notes generated:",
           len(notes_df[notes_df["dataset"] == "philharmonia"]))
 
 
