@@ -97,3 +97,25 @@ def unzip_files(file_list):
                 result_list.append(new_folder_path)
 
     return result_list
+
+
+def slice_ndarray(x_in, idx, length, axis=0):
+    """Extract a slice from an ndarray, along a given axis.
+    Parameters
+    ----------
+    x_in : np.ndarray
+        Array to slice.
+    idx : int, 0 < n < x_in.shape[axis] - length
+        Index to start the resulting tile.
+    length : int
+        Total length for the output tile.
+    axis : int, default=0
+        Axis over which to slice the ndarray.
+    Returns
+    -------
+    z_out : np.ndarray
+        The sliced subtensor.
+    """
+    slice_idxs = [slice(None, ) for n in range(x_in.ndim)]
+    slice_idxs[axis] = slice(idx, idx + length)
+    return x_in[tuple(slice_idxs)]
