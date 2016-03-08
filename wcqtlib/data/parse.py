@@ -371,6 +371,10 @@ class InstrumentClassMap(object):
         """
         return self.index_map[self[searchkey]]
 
+    def from_index(self, index):
+        """Get the instrument name for an index."""
+        return sorted(self.data.keys())[index]
+
     @property
     def size(self):
         """Return the size of the index map (the number of
