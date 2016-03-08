@@ -3,6 +3,7 @@ Generators/Streams for generating data.
 """
 
 import numpy as np
+import pescador
 
 import wcqtlib.data.parse as parse
 import wcqtlib.common.utils as utils
@@ -71,14 +72,19 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
     ----------
     stash : biggie.Stash
         Stash to draw the datapoint from.
+
     key : str
         Key of the entity to slice.
+
     t_len : int
         Length of the CQT slice in time.
+
     p_len : int
         Number of adjacent pitch bins.
+
     p_stride : int
         Number of pitch bins to stride when wrapping.
+
     Yields
     ------
     sample : dict with fields {cqt, label}
@@ -87,8 +93,128 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
     pass
 
 
-def buffer_streams(stream, batch_size=50):
+class InstrumentStreamer(object):
+    """Class wrapping the creation of a pescador streamer
+    to sample equally from each instrument class available in
+    the features dataframe."""
+
+    def __init__():
+        pass
+
+
+def instrument_streams(features_df, instrument, hold_out_dataset=[],
+                       t_len=1):
+    """Return a list of generators for all records in the dataframe
+    which match the instrument given, but are not in the hold_out_dataset.
+
+    Parameters
+    ----------
+    features_df : pandas.DataFrame
+        Dataframe which points to the features files and has ground truth data.
+
+    instrument : str
+        Instrument to select.
+
+    hold_out_dataset : list of str
+        Dataset(s) to exclude from searching in.
+
+    t_len : int
+        Number of frames in the time dimension to return for each sample.
+
+    Returns
+    -------
+    streams : list of pescador.Streamer
+        One streamer for each instrument file.
+    """
+    pass
+
+
+def instrument_mux(features_df, instrument, hold_out_dataset=[],
+                   t_len=1, k=10, lam=20, **kwargs):
+    """Return a pescador.mux for a single instrument.
+
+    Parameters
+    ----------
+    features_df : pandas.DataFrame
+        Dataframe which points to the features files and has ground truth data.
+
+    instrument : str
+        Instrument to select.
+
+    hold_out_dataset : list of str
+        Dataset(s) to exclude from searching in.
+
+    t_len : int
+        Number of frames in the time dimension to return for each sample.
+
+    k : int
+    lam : int
+    **kwargs : dict
+        See pescador.Mux. kwargs get passed to the mux.
+
+    Returns
+    -------
+    mux : pescador.mux
+        A pescador.mux for a single instrument.
+    """
+    pass
+
+
+def all_instrument_streams(features_df, hold_out_dataset,
+                           t_len=1, k=10, lam=20, **kwargs):
+    """Return a list of pescador.Streamers for each instrument,
+    where each Streamer is wrapping a pescador.Mux sampling
+    every instrument file.
+
+    Parameters
+    ----------
+    features_df : pandas.DataFrame
+        Dataframe which points to the features files and has ground truth data.
+
+    hold_out_dataset : list of str
+        Dataset(s) to exclude from searching in.
+
+    t_len : int
+        Number of frames in the time dimension to return for each sample.
+
+    k : int
+    lam : int
+    **kwargs : dict
+        See pescador.Mux. kwargs get passed to the mux.
+
+    Returns
+    -------
+    streamers : list of pescador.Steamer
+        One pescador.Streamer for each instrument type in the dataframe.
+    """
+    pass
+
+
+def buffer_stream(stream, batch_size=50):
     """Buffer stream into ndarrays.
+
+    TODO: Try to make this return samples equally from
+        different classes.
+
+    Parameters
+    ----------
+    stream : generator
+        Stream of similar pairs, yielding dicts like
+            {'x_in', 'target'}
+
+    batch_size : int
+        Number of similar pairs to buffer.
+
+    Yields
+    ------
+    batch : dict
+        Dense ndarrays.
+    """
+    pass
+
+
+def zmq_buffered_stream(stream, batch_size=50):
+    """Buffer stream using zmq in a separate python process.
 
     Parameters
     ----------
@@ -99,6 +225,6 @@ def buffer_streams(stream, batch_size=50):
     Yields
     ------
     batch : dict
-        Dense ndarrays.
+        Dense ndarrays
     """
     pass
