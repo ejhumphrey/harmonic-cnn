@@ -6,6 +6,7 @@ in the same format.
 """
 
 import os
+import pandas
 import pytest
 
 import wcqtlib.data.parse
@@ -132,6 +133,15 @@ def test_philharmonia_to_dataframe():
     philharmonia_df = wcqtlib.data.parse.philharmonia_to_dataframe(PHIL_ROOT)
     yield __test_df_has_data, philharmonia_df
     yield __test_pd_output, philharmonia_df, PHIL_ROOT, "philharmonia"
+
+
+def test_normalize_instrument_names(classmap):
+    example_data = {"instrument": classmap.allnames}
+    df = pandas.DataFrame(example_data)
+
+    norm_df = wcqtlib.data.parse.normalize_instrument_names(df)
+    assert not norm_df.empty
+    assert set(norm_df["instrument"].unique()) == set(classmap.classnames)
 
 
 @pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),

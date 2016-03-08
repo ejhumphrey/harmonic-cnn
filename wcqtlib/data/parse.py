@@ -295,6 +295,29 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     return pandas.DataFrame(records, index=indexes)
 
 
+def normalize_instrument_names(datasets_df):
+    """Convert all the varied datasets representation of
+    instrument names to the single one used in
+    our class set.
+
+    Parameters
+    ----------
+    datasets_df : pandas.DataFrame with an "instrument" column.
+
+    Returns
+    -------
+    normalized_df : pandas.DataFrame
+        A copy of your dataframe, with instruments only from
+        the InstrumentClassMap
+    """
+    classmap = InstrumentClassMap()
+    new_df = datasets_df.copy()
+    for i in range(len(new_df)):
+        old_class = new_df.iloc[i]["instrument"]
+        new_df.iloc[i]["instrument"] = classmap[old_class]
+    return new_df
+
+
 def load_dataframes(data_dir):
     """Load all the datasets into a single dataframe.
 
