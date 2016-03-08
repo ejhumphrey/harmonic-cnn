@@ -1,0 +1,11 @@
+paths:
+  data_dir: "~/data"
+  extract_dir: "~/data/ismir2016-wcqt-data"
+
+datasets:
+  rwc:
+  uiowa:
+  philharmonia:
+
+dataframes:
+  datasets: "datasets.json"

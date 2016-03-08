@@ -4,9 +4,6 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PATH = os.path.join(os.path.dirname(__file__),
-                            os.pardir, "data", "config.yaml")
-
 
 class Config(object):
     """Simple class for loading config files, with
@@ -47,3 +44,6 @@ class Config(object):
 
     def __getitem__(self, key):
         return self.get(key)
+
+    def __bool__(self):
+        return bool(self.data)

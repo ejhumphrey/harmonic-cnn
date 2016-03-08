@@ -1,13 +1,20 @@
+import os
 import pytest
 import wcqtlib.config as config
+
+DEFAULT_PATH = os.path.join(os.path.dirname(__file__),
+                            os.pardir, "data", "master_config.yaml")
 
 
 def __test_config(obj, key, expected_value):
     assert obj[key] == expected_value
 
 
+@pytest.mark.skipif(not all([os.path.exists(DEFAULT_PATH)]),
+                    reason="Config doesn't exist")
 def test_from_yaml():
-    pass
+    primary_config = config.Config.from_yaml(DEFAULT_PATH)
+    assert bool(primary_config)
 
 
 def test_load_config_simple():
@@ -43,11 +50,3 @@ def test_load_config_hierarchical():
     yield __test_config, c, "foo", "bar"
     yield __test_config, c, "key2", {"key2b": "ornot2b"}
     yield __test_config, c, "key2/key2b", "ornot2b"
-
-
-def test_get_config_property():
-    pass
-
-
-def test_get_property_recursive():
-    pass

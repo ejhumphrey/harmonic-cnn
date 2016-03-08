@@ -41,7 +41,9 @@ import logging
 import os
 import pandas
 import re
+import sys
 
+import wcqtlib.config as C
 import wcqtlib.common.utils as utils
 
 logger = logging.getLogger(__name__)
@@ -162,11 +164,11 @@ def parse_uiowa_path(uiowa_path):
     # This regex matches note names with a preceeding and following '.'
     note_match = re.search(r"(?<=\.)[A-Fb#0-6]*(?<!\.)", filename)
     notevalue = filename[note_match.start():note_match.end()] \
-                if note_match else None
+        if note_match else None
     # This regex matches dynamic chars with a preceeding and following '.'
     dynamic_match = re.search(r"(?<=\.)[f|p|m]*(?<!\.)", filename)
     dynamic = filename[dynamic_match.start():dynamic_match.end()] \
-              if dynamic_match else None
+        if dynamic_match else None
     return instrument, dynamic, notevalue
 
 
@@ -263,7 +265,7 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     logger.info("Scanning Philharmonia directory for audio files.")
 
     root_dir = os.path.join(base_dir, "www.philharmonia.co.uk",
-                            "assets", "audio", "samples")
+                            "assets/audio/samples")
 
     # These files come in zips. Extract them as necessary.
     zip_files = glob.glob(os.path.join(root_dir, "*/*.zip"))
@@ -406,6 +408,38 @@ class InstrumentClassMap(object):
         return len(self.data.keys())
 
 
+def parse_files_to_dataframe(config):
+    """Do-the-thing function for loading all of the
+    datasets in and creating a dataframe pointing to all
+    of the files and their metadata.
+
+    Results in the creation of the datasets_df
+    at the path specified by the config.
+
+    Parameters
+    ----------
+    config : config.Config
+        The config specifying where all the important stuff lives.
+    """
+    # Load the datasets dataframe
+    print("Loading dataset...")
+    data_dir = os.path.expanduser(config["paths/data_dir"])
+    dfs = load_dataframes(data_dir)
+    print("Datasets contain {} audio files.".format(len(dfs)))
+    # Save it to a json file
+    extract_dir = os.path.expanduser(config["paths/extract_dir"])
+    utils.create_directory(extract_dir)
+    output_path = os.path.join(extract_dir, config["dataframes/datasets"])
+    print("Saving to", output_path)
+    dfs.to_json(output_path)
+    try:
+        df = pandas.read_json(output_path)
+        if not df.empty:
+            return 0
+    finally:
+        return 1
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description='Parse raw data into dataframe')
@@ -417,13 +451,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.DEBUG)
 
-    # Load the datasets dataframe
-    print("Loading dataset...")
-    dfs = load_dataframes(args.data_root)
-    print("Datasets contain {} audio files.".format(len(dfs)))
-    # Save it to a json file
-    write_folder = os.path.join(args.data_root, args.write_folder)
-    utils.create_directory(write_folder)
-    output_path = os.path.join(write_folder, args.output_name)
-    print("Saving to", output_path)
-    dfs.to_json(output_path)
+    # Load the config
+    config = C.Config.from_yaml(args.config_path)
+    sys.exit(parse_files_to_dataframe(config))
