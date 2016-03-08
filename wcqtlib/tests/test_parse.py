@@ -169,3 +169,9 @@ def test_classmap_getattr(classmap):
     assert classmap["bassoon"] == "bassoon"
     assert classmap["acoustic-guitar"] == "guitar"
     assert classmap["Trumpet"] == "trumpet"
+
+
+def test_classmap_get_index(classmap):
+    assert classmap.get_index("bassoon") == 0
+    assert classmap.get_index("violin") == 11
+    assert classmap.size == 12

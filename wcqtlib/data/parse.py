@@ -338,6 +338,10 @@ class InstrumentClassMap(object):
             for item in self.data[classname]:
                 self.reverse_map[item] = classname
 
+        self.index_map = {}
+        for i, classname in enumerate(sorted(self.data.keys())):
+            self.index_map[classname] = i
+
     @property
     def allnames(self):
         """Return a complete list of all class names for searching the
@@ -351,6 +355,28 @@ class InstrumentClassMap(object):
     def __getitem__(self, searchkey):
         """Get the actual class name. (Actually the reverse map)."""
         return self.reverse_map[searchkey]
+
+    def get_index(self, searchkey):
+        """Get the class index for training.
+
+        This is actually the index of the sorted keys.
+
+        Parameters
+        ----------
+        searchkey : str
+
+        Returns
+        -------
+        index : int
+        """
+        return self.index_map[self[searchkey]]
+
+    @property
+    def size(self):
+        """Return the size of the index map (the number of
+        data keys)
+        """
+        return len(self.data.keys())
 
 
 if __name__ == "__main__":
