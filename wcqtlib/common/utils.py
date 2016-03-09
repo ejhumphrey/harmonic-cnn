@@ -2,6 +2,18 @@ import numpy as np
 import os
 import zipfile
 
+import colorama
+
+COLOR_MAP = {
+    "yellow": colorama.Fore.YELLOW,
+    "red": colorama.Fore.RED,
+    "green": colorama.Fore.GREEN,
+    "blue": colorama.Fore.BLUE,
+    "magenta": colorama.Fore.MAGENTA,
+    "cyan": colorama.Fore.CYAN,
+    "white": colorama.Fore.WHITE
+}
+
 
 def create_directory(dname):
     """Create the output directory recursively if it doesn't already exist.
@@ -119,3 +131,24 @@ def slice_ndarray(x_in, idx, length, axis=0):
     slice_idxs = [slice(None, ) for n in range(x_in.ndim)]
     slice_idxs[axis] = slice(idx, idx + length)
     return x_in[tuple(slice_idxs)]
+
+
+def colored(text, color="yellow"):
+    """Color terminal text
+
+    Parameters
+    ----------
+    text : str
+        Text to color.
+    color : string
+        Name of color to print
+
+    Returns
+    ------
+    colored_text : str
+        String of colored text.
+    """
+
+    return "{0}{1}{2}".format(
+            COLOR_MAP[color], text,
+            colorama.Style.RESET_ALL)

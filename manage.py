@@ -4,6 +4,8 @@ import os
 
 import wcqtlib.config as C
 import wcqtlib.data.parse as parse
+import wcqtlib.data.extract as E
+import wcqtlib.common.utils as utils
 
 CONFIG_PATH = os.path.join(os.path.dirname(__name__),
                            "data", "master_config.yaml")
@@ -13,29 +15,40 @@ logger = logging.getLogger(__name__)
 
 def extract(master_config):
     """Prepare data for experiments."""
+    print(utils.colored("Parsing directories to collect datasets"))
     # Load the config.
     config = C.Config.from_yaml(master_config)
-    return parse.parse_files_to_dataframe(config)
+    parse_result = parse.parse_files_to_dataframe(config)
+
+    print(utils.colored("Spliting audio files to notes."))
+    extract_result = E.extract_notes(config)
+
+    return not all([parse_result,
+                    extract_result])
 
 
 def train(master_config):
     """Run training loop."""
-    pass
+    print(utils.colored("Training"))
+    raise NotImplementedError("train not yet implemented")
 
 
 def evaluate(master_config):
     """Evaluate datasets and report results."""
-    pass
+    print(utils.colored("Evaluating"))
+    raise NotImplementedError("evaluate not yet implemented")
 
 
 def analyze(master_config):
     """Analyze results from an experiment."""
-    pass
+    print(utils.colored("Analyzing"))
+    raise NotImplementedError("analyze not yet implemented")
 
 
 def notebook(master_config):
     """Launch the associated notebook."""
-    pass
+    print(utils.colored("Launching notebook."))
+    raise NotImplementedError("notebook not yet implemented")
 
 
 if __name__ == "__main__":
