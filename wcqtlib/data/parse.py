@@ -420,6 +420,11 @@ def parse_files_to_dataframe(config):
     ----------
     config : config.Config
         The config specifying where all the important stuff lives.
+
+    Returns
+    -------
+    success : bool
+        True if succeeded, else False
     """
     # Load the datasets dataframe
     print("Loading dataset...")
@@ -435,22 +440,22 @@ def parse_files_to_dataframe(config):
     try:
         df = pandas.read_json(output_path)
         if not df.empty:
-            return 0
+            return True
     finally:
-        return 1
+        return False
 
 
 if __name__ == "__main__":
+    CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
+                               os.pardir, "data", "master_config.yaml")
     parser = argparse.ArgumentParser(
         description='Parse raw data into dataframe')
-    parser.add_argument("--data_root", default=os.path.expanduser("~/data/"))
-    parser.add_argument("--write_folder", default="ismir2016-wcqt-data")
-    parser.add_argument("-o", "--output_name",
-                        default="datasets.json")
+    parser.add_argument("-c", "--config_path", default=CONFIG_PATH)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.DEBUG)
 
     # Load the config
     config = C.Config.from_yaml(args.config_path)
-    sys.exit(parse_files_to_dataframe(config))
+    result = parse_files_to_dataframe(config)
+    sys.exit(result is not True)

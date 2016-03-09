@@ -2,3 +2,4 @@ git+git://github.com/ejhumphrey/claudio.git
 pescador
 progressbar2
 pyyaml
+colorama

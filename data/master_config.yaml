@@ -9,3 +9,7 @@ datasets:
 
 dataframes:
   datasets: "datasets.json"
+  notes: "notes.pkl"
+
+extract:
+  max_duration: 2.0
