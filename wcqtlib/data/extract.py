@@ -364,12 +364,17 @@ def extract_notes(config, skip_processing=False):
     classmap = wcqtlib.data.parse.InstrumentClassMap()
     filtered_df = filter_datasets_on_selected_instruments(
         datasets_df, classmap.allnames)
+    # Make sure only valid class names remain in the instrument field.
+    print("Normalizing instrument names.")
+    filtered_df = wcqtlib.data.parse.normalize_instrument_names(filtered_df)
+
     print("Loading Notes DataFrame from {} filtered dataset files".format(
         len(filtered_df)))
 
     notes_df = datasets_to_notes(filtered_df, output_path,
                                  max_duration=config['extract/max_duration'],
                                  skip_processing=skip_processing)
+
     summarize_notes(notes_df)
 
     # notes_df.to_json(notes_df_path)
