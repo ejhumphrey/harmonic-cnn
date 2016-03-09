@@ -167,17 +167,18 @@ def cqt_from_df(config,
     success : bool
         True if all files were processed successfully.
     """
-    notes_df_path = os.path.join(config["paths/extract_dir"],
+    extract_dir = os.path.expanduser(config["paths/extract_dir"])
+    notes_df_path = os.path.join(extract_dir,
                                  config["dataframes/notes"])
-    output_df_path = os.path.join(config["paths/extract_dir"],
+    output_df_path = os.path.join(extract_dir,
                                   config["dataframes/features"])
     # Load the dataframe
     notes_df = pandas.read_pickle(notes_df_path)
     # Clear out any bad values here.
-    features_df = notes_df[notes_df["audio_file"] is not False]
+    features_df = notes_df[notes_df["audio_file"] != False]
 
     def features_path_for_audio(audio_path):
-        return os.path.join(config["paths/extract_dir"], "cqt",
+        return os.path.join(extract_dir, "cqt",
                             utils.filebase(audio_path) + ".npz")
 
     audio_paths = features_df["audio_file"].tolist()

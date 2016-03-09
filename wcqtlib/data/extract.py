@@ -348,7 +348,7 @@ def extract_notes(config, skip_processing=False):
         Returns True if the pickle was successfully created,
         and False otherwise.
     """
-    output_path = os.path.join(config["paths/extract_dir"])
+    output_path = os.path.expanduser(config["paths/extract_dir"])
     datasets_df_path = os.path.join(output_path,
                                     config["dataframes/datasets"])
     notes_df_path = os.path.join(output_path,

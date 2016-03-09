@@ -61,6 +61,12 @@ def notebook(master_config):
     raise NotImplementedError("notebook not yet implemented")
 
 
+def test(master_config):
+    """Launch all unit tests."""
+    print(utils.colored("Running unit tests."))
+    raise NotImplementedError("notebook not yet implemented")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--master_config", default=CONFIG_PATH)
@@ -78,6 +84,8 @@ if __name__ == "__main__":
     analyze_parser.set_defaults(func=analyze)
     notebook_parser = subparsers.add_parser('notebook')
     notebook_parser.set_defaults(func=notebook)
+    test_parser = subparsers.add_parser('test')
+    test_parser.set_defaults(func=test)
 
     logging.basicConfig(level=logging.DEBUG)
 
