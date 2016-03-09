@@ -54,7 +54,7 @@ def test_wcqt_slices():
     pass
 
 
-@pytest.mark.xfail(reason="zmq is always generating batches will only one.")
+@pytest.mark.xfail(reason="zmq is always generating batches of only one.")
 def __test_streamer(streamer, t_len, batch_size):
     counter = 0
     while counter < 5:
