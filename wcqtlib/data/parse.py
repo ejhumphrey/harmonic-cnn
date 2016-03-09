@@ -430,16 +430,18 @@ def parse_files_to_dataframe(config):
     print("Loading dataset...")
     data_dir = os.path.expanduser(config["paths/data_dir"])
     dfs = load_dataframes(data_dir)
-    print("Datasets contain {} audio files.".format(len(dfs)))
+    logger.info("Datasets contain {} audio files.".format(len(dfs)))
     # Save it to a json file
     extract_dir = os.path.expanduser(config["paths/extract_dir"])
     utils.create_directory(extract_dir)
     output_path = os.path.join(extract_dir, config["dataframes/datasets"])
-    print("Saving to", output_path)
+    logger.debug("Saving to", output_path)
     dfs.to_json(output_path)
     try:
         df = pandas.read_json(output_path)
         if not df.empty:
+            print("Created artifact: {}".format(
+                utils.colored(output_path, "cyan")))
             return True
     finally:
         return False
@@ -457,5 +459,5 @@ if __name__ == "__main__":
 
     # Load the config
     config = C.Config.from_yaml(args.config_path)
-    result = parse_files_to_dataframe(config)
-    sys.exit(result is not True)
+    success = parse_files_to_dataframe(config)
+    sys.exit(0 if success else 1)

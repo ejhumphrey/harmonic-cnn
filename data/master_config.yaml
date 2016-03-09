@@ -8,8 +8,14 @@ datasets:
   philharmonia:
 
 dataframes:
-  datasets: "datasets.json"
-  notes: "notes.pkl"
+  datasets: "datasets_df.json"
+  notes: "notes_df.pkl"
+  features: "features_df.pkl"
 
 extract:
   max_duration: 2.0
+
+features:
+  cqt:
+    num_cpus: -1
+    skip_existing: true

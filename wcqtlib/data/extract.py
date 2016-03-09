@@ -379,6 +379,8 @@ def extract_notes(config, skip_processing=False):
     try:
         # Try to load it and make sure it worked.
         pandas.read_pickle(notes_df_path)
+        print("Created artifact: {}".format(
+                utils.colored(notes_df_path, "cyan")))
         return True
     except ValueError:
         logger.warning("Your file failed to save correctly; "
@@ -405,5 +407,5 @@ if __name__ == "__main__":
                         level=logging.DEBUG)
 
     config = C.Config.from_yaml(args.config_path)
-    result = extract_notes(config, args.skip_processing)
-    sys.exit(result is not True)
+    success = extract_notes(config, args.skip_processing)
+    sys.exit(0 if success else 1)

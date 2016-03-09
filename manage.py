@@ -1,10 +1,12 @@
 import argparse
 import logging
 import os
+import sys
 
 import wcqtlib.config as C
 import wcqtlib.data.parse as parse
 import wcqtlib.data.extract as E
+import wcqtlib.data.cqt
 import wcqtlib.common.utils as utils
 
 CONFIG_PATH = os.path.join(os.path.dirname(__name__),
@@ -13,18 +15,26 @@ CONFIG_PATH = os.path.join(os.path.dirname(__name__),
 logger = logging.getLogger(__name__)
 
 
-def extract(master_config):
-    """Prepare data for experiments."""
-    print(utils.colored("Parsing directories to collect datasets"))
-    # Load the config.
+def collect(master_config):
+    """Prepare dataframes of notes for experiments."""
     config = C.Config.from_yaml(master_config)
+
+    print(utils.colored("Parsing directories to collect datasets"))
     parse_result = parse.parse_files_to_dataframe(config)
 
     print(utils.colored("Spliting audio files to notes."))
     extract_result = E.extract_notes(config)
 
-    return not all([parse_result,
-                    extract_result])
+    return all([parse_result,
+                extract_result])
+
+
+def extract_features(master_config):
+    """Extract CQTs from all files collected in collect."""
+    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Extracting CQTs from note audio."))
+    success = wcqtlib.data.cqt.cqt_from_df(config, **config["features/cqt"])
+    return success
 
 
 def train(master_config):
@@ -56,8 +66,10 @@ if __name__ == "__main__":
     parser.add_argument("--master_config", default=CONFIG_PATH)
 
     subparsers = parser.add_subparsers()
-    extract_parser = subparsers.add_parser('extract')
-    extract_parser.set_defaults(func=extract)
+    collect_parser = subparsers.add_parser('collect')
+    collect_parser.set_defaults(func=collect)
+    extract_features_parser = subparsers.add_parser('extract_features')
+    extract_features_parser.set_defaults(func=extract_features)
     train_parser = subparsers.add_parser('train')
     train_parser.set_defaults(func=train)
     evaluate_parser = subparsers.add_parser('evaluate')
@@ -72,7 +84,8 @@ if __name__ == "__main__":
     args = vars(parser.parse_args())
     fx = args.pop('func', None)
     if fx:
-        fx(**args)
+        success = fx(**args)
+        sys.exit(0 if success else 1)
     else:
         parser.print_help()
-OSError
+
