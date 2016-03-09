@@ -51,7 +51,29 @@ def test_cqt_slices():
                              not features_df.empty]),
                     reason="Data not found.")
 def test_wcqt_slices():
-    pass
+    def __test_valid_wcqt(wcqt_frame, expected_len):
+        assert len(wcqt_frame.shape) == 4
+        assert wcqt_frame.shape[0] == 1
+        assert wcqt_frame.shape[2] == expected_len
+
+    t_len = 5
+    # Sample the first avialble featuer file
+    generator = streams.wcqt_slices(features_df.iloc[0], t_len)
+    data = next(generator)
+    yield __test_valid_wcqt, data['x_in'], t_len
+
+    t_len = 1
+    generator = streams.wcqt_slices(features_df.iloc[1], t_len)
+    data = next(generator)
+    yield __test_valid_wcqt, data['x_in'], t_len
+
+    # Now for fun, do it for 100 of them just to make sure
+    # it keeps working after one cycle of frames.
+    t_len = 10
+    generator = streams.wcqt_slices(features_df.iloc[2], t_len)
+    for i in range(50):
+        data = next(generator)
+        yield __test_valid_wcqt, data['x_in'], t_len
 
 
 @pytest.mark.xfail(reason="zmq is always generating batches of only one.")
@@ -74,12 +96,26 @@ def __test_streamer(streamer, t_len, batch_size):
                              os.path.exists(features_path),
                              not features_df.empty]),
                     reason="Data not found.")
-def test_instrument_streamer():
+def test_instrument_streamer_cqt():
     t_len = 10
     batch_size = 12
     datasets = ["rwc"]
     streamer = streams.InstrumentStreamer(
         features_df, datasets, streams.cqt_slices,
+        t_len=t_len, batch_size=batch_size)
+    yield __test_streamer, streamer, t_len, batch_size
+
+
+@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
+                             os.path.exists(features_path),
+                             not features_df.empty]),
+                    reason="Data not found.")
+def test_instrument_streamer_wcqt():
+    t_len = 10
+    batch_size = 12
+    datasets = ["rwc"]
+    streamer = streams.InstrumentStreamer(
+        features_df, datasets, streams.wcqt_slices,
         t_len=t_len, batch_size=batch_size)
     yield __test_streamer, streamer, t_len, batch_size
 

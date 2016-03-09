@@ -37,7 +37,7 @@ def cqt_slices(record, t_len):
 
     Yields
     -------
-    sample : dict with fields {cqt, label}
+    sample : dict with fields {x_in, label}
         The windowed observation.
     """
     # Load the npz
@@ -89,10 +89,35 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
 
     Yields
     ------
-    sample : dict with fields {cqt, label}
+    sample : dict with fields {x_in, label}
         The windowed observation.
     """
-    pass
+    # Load the npz
+    cqt = np.load(record['cqt'])['cqt']
+    wcqt = utils.fold_array(cqt[0], length=p_len, stride=p_stride)
+    target = instrument_map.get_index(record["instrument"])
+
+    num_obs = wcqt.shape[1] - t_len
+
+    # Get the frame means, and remove the lowest 1/4
+    cqt_mu = cqt[0, :num_obs].mean(axis=1)
+    threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
+    idx = (cqt_mu[:num_obs] > threshold).nonzero()[0]
+    np.random.shuffle(idx)
+
+    counter = 0
+    while True:
+        obs = utils.slice_ndarray(wcqt, idx[counter], length=t_len, axis=1)
+        data = dict(
+            x_in=obs[np.newaxis, ...],
+            target=np.asarray((target,)))
+        yield data
+
+        # Once we have used all of the frames once, reshuffle.
+        counter += 1
+        if counter >= len(idx):
+            np.random.shuffle(idx)
+            counter = 0
 
 
 def buffer_stream(stream, batch_size):
