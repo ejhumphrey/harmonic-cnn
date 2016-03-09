@@ -9,7 +9,7 @@ import wcqtlib.data.extract as E
 import wcqtlib.data.cqt
 import wcqtlib.common.utils as utils
 
-CONFIG_PATH = os.path.join(os.path.dirname(__name__),
+CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
 
 logger = logging.getLogger(__name__)
