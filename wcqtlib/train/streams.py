@@ -57,7 +57,7 @@ def cqt_slices(record, t_len):
         obs = utils.slice_ndarray(cqt, idx[counter], length=t_len, axis=1)
         data = dict(
             x_in=obs[np.newaxis, ...],
-            target=target)
+            target=np.asarray((target,)))
         yield data
 
         # Once we have used all of the frames once, reshuffle.
@@ -213,15 +213,18 @@ class InstrumentStreamer(collections.Iterator):
         mux_streams = [pescador.Streamer(x) for x in inst_muxes]
 
         # Construct the master mux
-        self.master_mux = pescador.mux(mux_streams, **self.master_mux_params)
+        master_mux = pescador.mux(mux_streams, **self.master_mux_params)
+        # We have to wrap the mux in a stream so that the buffer
+        #  knows what to do with it.
+        self.master_stream = pescador.Streamer(master_mux)
 
         # Now construct the final streamer
         if self.use_zmq:
             self.buffered_streamer = zmq_buffered_stream(
-                self.master_mux, self.batch_size)
+                self.master_stream, self.batch_size)
         else:
             self.buffered_streamer = buffer_stream(
-                self.master_mux, self.batch_size)
+                self.master_stream, self.batch_size)
 
     def _instrument_streams(self, instrument):
         """Return a list of generators for all records in the dataframe
@@ -242,7 +245,7 @@ class InstrumentStreamer(collections.Iterator):
             self.features_df, instrument=instrument, datasets=self.datasets)
         seed_pool = [pescador.Streamer(self.record_slicer, record, self.t_len,
                                        **self.slicer_kwargs)
-                     for record in instrument_records.iterrows()]
+                     for _, record in instrument_records.iterrows()]
         return seed_pool
 
     def _instrument_mux(self, instrument):

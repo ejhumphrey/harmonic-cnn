@@ -54,15 +54,27 @@ def test_wcqt_slices():
     pass
 
 
+@pytest.mark.xfail(reason="zmq is always generating batches will only one.")
+def __test_streamer(streamer, t_len, batch_size):
+    counter = 0
+    while counter < 5:
+        batch = next(streamer)
+        assert batch is not None
+        assert 'x_in' in batch and 'target' in batch
+        assert len(batch['x_in'].shape) == 4
+        assert len(batch['target'].shape) == 1
+        assert batch['x_in'].shape[2] == t_len
+        assert batch['x_in'].shape[0] == batch_size
+        assert batch['target'].shape[0] == batch_size
+        print("Result batch size:", batch['x_in'].shape[0])
+        counter += 1
+
+
 @pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
                              os.path.exists(features_path),
                              not features_df.empty]),
                     reason="Data not found.")
 def test_instrument_streamer():
-    def __test_streamer(streamer, t_len, batch_size):
-        batch = next(streamer)
-        import pdb; pdb.set_trace()
-
     t_len = 10
     batch_size = 12
     datasets = ["rwc"]
@@ -77,4 +89,10 @@ def test_instrument_streamer():
                              not features_df.empty]),
                     reason="Data not found.")
 def test_instrument_streamer_with_zmq():
-    pass
+    t_len = 10
+    batch_size = 12
+    datasets = ["rwc"]
+    streamer = streams.InstrumentStreamer(
+        features_df, datasets, streams.cqt_slices,
+        t_len=t_len, batch_size=batch_size, use_zmq=True)
+    yield __test_streamer, streamer, t_len, batch_size
