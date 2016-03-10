@@ -3,3 +3,4 @@ pescador
 progressbar2
 pyyaml
 colorama
+lasagne
