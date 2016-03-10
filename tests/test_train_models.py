@@ -84,10 +84,10 @@ def test_overfit_two_samples_cqt():
     # Create a new model
     train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
 
-    # Train the model for N epochs (TODO), till it fits the damn thing
-    max_batches = 100
+    # Train the model for N epochs, till it fits the damn thing
+    max_batches = 250
     i = 0
-    for batch in iter(streamer):
+    for batch in streamer:
         x, y = batch["x_in"], np.asarray(batch["target"], dtype=np.int32)
         train_loss = train(x, y)
 
@@ -97,4 +97,12 @@ def test_overfit_two_samples_cqt():
             break
 
     # Evaluate it. On the original files. Should do well.
+    eval_batch = next(streamer)
+    eval_loss, accuracy = predict(eval_batch["x_in"],
+                                  np.asarray(eval_batch["target"],
+                                             dtype=np.int32))
+    print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
+    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
+    np.testing.assert_approx_equal(accuracy, 1.0, significant=1)
+
     # Evaluate it on a random other file. Should do terribly.
