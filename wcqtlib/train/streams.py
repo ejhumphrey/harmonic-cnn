@@ -110,7 +110,7 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
         obs = utils.slice_ndarray(wcqt, idx[counter], length=t_len, axis=1)
         data = dict(
             x_in=obs[np.newaxis, ...],
-            target=np.asarray((target,)), dtype=np.int32)
+            target=np.asarray((target,), dtype=np.int32))
         yield data
 
         # Once we have used all of the frames once, reshuffle.
