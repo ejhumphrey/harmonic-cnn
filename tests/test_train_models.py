@@ -245,12 +245,24 @@ def test_networkmanager_save(workspace, simple_network_def):
     assert model._network is not None
 
 
-def test_networkmanager_train():
-    pass
+def test_networkmanager_train_and_predict(simple_network_def):
+    input_shape = (None, 1, 5, 5)
 
+    model = models.NetworkManager(simple_network_def)
+    assert model is not None
 
-def test_networkmanager_predict():
-    pass
+    batch_size = 8
+    input_shape = (batch_size,) + input_shape[1:]
+
+    batch = dict(
+        x_in=np.random.random(input_shape),
+        target=np.asarray(np.random.randint(2, size=batch_size),
+                          dtype=np.int32))
+    loss = model.train(batch)
+    assert np.isfinite(loss)
+
+    loss, acc = model.predict(batch)
+    assert np.isfinite(loss) and np.isfinite(acc)
 
 
 def test_modelbuilder_cqt():
