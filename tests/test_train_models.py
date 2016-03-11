@@ -1,3 +1,4 @@
+import lasagne
 import logging
 import numpy as np
 import os
@@ -21,183 +22,386 @@ features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
 features_df = pandas.read_pickle(features_path)
 
 
-@pytest.mark.cqt
-def test_push_data_through_simple_network_cqt():
-    """Prove that the network accepts data in the expected shape,
-    and returns data in the expected shape."""
-    # Create some random data in the right shape
-    t_len = 8
-    n_targets = 2
-    x_in = np.random.random((1, 1, t_len, 252))
-    target = np.asarray((np.random.randint(n_targets),), dtype=np.int32)
-
-    # Create the network
-    train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
-
-    # Push it through
-    train_loss = train(x_in, target)
-    assert np.isfinite(train_loss)
-
-    predict_loss, predict_acc = predict(x_in, target)
-    assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
-
-    # Create some more data, perhaps of a different batch size
-    n = 24
-    x_in = np.random.random((n, 1, t_len, 252))
-    target = np.asarray(np.random.randint(n_targets, size=n), dtype=np.int32)
-
-    # Push it through
-    train_loss = train(x_in, target)
-    assert np.isfinite(train_loss)
-
-    predict_loss, predict_acc = predict(x_in, target)
-    assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
+def test_names_to_objects():
+    test_dict = {
+        "i'm_a_layer": "layers.Conv1DLayer",
+        "i'm_a_list": [{
+            "anotherlayer": "init.glorot"},
+            {"yetanother": "i shouldn't work",
+             "butishould": "nonlin.rectify"}
+        ]
+    }
+    object_dict = models.names_to_objects(test_dict)
+    assert object_dict["i'm_a_layer"] == lasagne.layers.Conv1DLayer
+    assert isinstance(object_dict["i'm_a_list"][0]["anotherlayer"],
+                      lasagne.init.GlorotUniform)
+    assert object_dict["i'm_a_list"][1]["yetanother"] == \
+        "i shouldn't work"
+    assert object_dict["i'm_a_list"][1]["butishould"] == \
+        lasagne.nonlinearities.rectify
 
 
-@pytest.mark.runthis
-@pytest.mark.wcqt
-def test_push_data_through_simple_network_wcqt():
-    """Prove that the network accepts data in the expected shape,
-    and returns data in the expected shape."""
-    # Create some random data in the right shape
-    t_len = 8
-    n_targets = 2
-    x_in = np.random.random((1, 6, t_len, 252))
-    target = np.asarray((np.random.randint(n_targets),), dtype=np.int32)
+def __test_network(network_def, input_shape):
+    model = models.NetworkManager(network_def)
+    assert model is not None
 
-    # Create the network
-    train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
-
-    # Push it through
-    train_loss = train(x_in, target)
-    assert np.isfinite(train_loss)
-
-    predict_loss, predict_acc = predict(x_in, target)
-    assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
-
-    # Create some more data, perhaps of a different batch size
-    n = 24
-    x_in = np.random.random((n, 6, t_len, 252))
-    target = np.asarray(np.random.randint(n_targets, size=n), dtype=np.int32)
-
-    # Push it through
-    train_loss = train(x_in, target)
-    assert np.isfinite(train_loss)
-
-    predict_loss, predict_acc = predict(x_in, target)
-    assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
-
-
-@pytest.mark.cqt
-@pytest.mark.slowtest
-def test_overfit_two_samples_cqt():
-    """Prove that our network works by training it with two random files
-    from our dataset, intentionally overfitting it.
-
-    Warning: not deterministic, but you could make it.
-    """
-
-    # Get list of instruments
-    instruments = sorted(features_df["instrument"].unique())
-    selected_instruments = instruments[:2]
-
-    # Create a dataframe from our dataframe with only two files in it
-    test_df = pandas.concat([
-        features_df[features_df["instrument"] ==
-                    selected_instruments[0]].sample(),
-        features_df[features_df["instrument"] ==
-                    selected_instruments[1]].sample()])
-
-    t_len = 8
     batch_size = 8
-    datasets = ["rwc"]
-    n_targets = 2
-    # Create a streamer that samples just those two files.
-    streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.cqt_slices,
-        t_len=t_len, batch_size=batch_size)
+    input_shape = (batch_size,) + input_shape[1:]
+    test_batch = np.random.random(input_shape)
+    test_target = np.asarray(np.random.randint(2, size=batch_size),
+                             dtype=np.int32)
+    loss = model.train_fx(test_batch, test_target)
+    assert np.isfinite(loss)
 
-    # Create a new model
-    train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
-
-    # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
-    i = 0
-    for batch in streamer:
-        x, y = batch["x_in"], np.asarray(batch["target"], dtype=np.int32)
-        train_loss = train(x, y)
-
-        i += 1
-        print("Batch: ", i, "Loss: ", train_loss)
-        if i >= max_batches:
-            break
-
-    # Evaluate it. On the original files. Should do well.
-    eval_batch = next(streamer)
-    eval_loss, accuracy = predict(eval_batch["x_in"],
-                                  np.asarray(eval_batch["target"],
-                                             dtype=np.int32))
-    print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
-    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
-    np.testing.assert_approx_equal(accuracy, 1.0, significant=1)
-
-    # Evaluate it on a random other file. Should do terribly.
+    loss, acc = model.predict_fx(test_batch, test_target)
+    assert np.isfinite(loss) and np.isfinite(acc)
 
 
-@pytest.mark.wcqt
-@pytest.mark.slowtest
-def test_overfit_two_samples_wcqt():
-    """Prove that our network works by training it with two random files
-    from our dataset, intentionally overfitting it.
+def test_networkmanager_buildnetwork():
+    # 1c 1f
+    input_shape = (None, 1, 5, 5)
+    network_def = {
+        "input_shape": input_shape,
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 4,
+            "filter_size": (2, 2),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        },
+        {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 2)
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 2,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    yield __test_network, network_def, input_shape
 
-    Warning: not deterministic, but you could make it.
-    """
+    # 0c 3f
+    input_shape = (None, 1, 8, 252)
+    network_def = {
+        "input_shape": input_shape,
+        "layers": [
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.25
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 512,
+            "nonlinearity": "nonlin.rectify"
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 512,
+            "nonlinearity": "nonlin.rectify"
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 2,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    yield __test_network, network_def, input_shape
 
-    # Get list of instruments
-    instruments = sorted(features_df["instrument"].unique())
-    selected_instruments = instruments[:2]
+    # 3c 3f
+    {
+        "input_shape": input_shape,
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 16,
+            "filter_size": (1, 3),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"},
+        {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (1, 2)  # 8 x 125
+            },
+        {
+            "type": "layers.Conv2DLayer",
+            "num_filters": 32,
+            "filter_size": (3, 4),  # -> 6x122
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        },
+        {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 2)  # -> 3 x 61
+        },
+        {
+            "type": "layers.Conv2DLayer",
+            "num_filters": 64,
+            "filter_size": (2, 4),  # -> 2 x 58
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        },
+        {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (1, 2)  # -> 2 x 29
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 256,
+            "nonlinearity": "nonlin.rectify"
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 256,
+            "nonlinearity": "nonlin.rectify"
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 2,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    yield __test_network, network_def, input_shape
 
-    # Create a dataframe from our dataframe with only two files in it
-    test_df = pandas.concat([
-        features_df[features_df["instrument"] ==
-                    selected_instruments[0]].sample(),
-        features_df[features_df["instrument"] ==
-                    selected_instruments[1]].sample()])
 
-    t_len = 8
-    batch_size = 8
-    datasets = ["rwc"]
-    n_targets = 2
-    # Create a streamer that samples just those two files.
-    streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.wcqt_slices,
-        t_len=t_len, batch_size=batch_size)
-    input_shape = next(streamer)['x_in'].shape
-    print(input_shape)
-    import pdb; pdb.set_trace()
+def test_networkmanager_deserialize():
+    pass
 
-    # Create a new model
-    train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
 
-    # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
-    i = 0
-    for batch in streamer:
-        x, y = batch["x_in"], np.asarray(batch["target"], dtype=np.int32)
-        train_loss = train(x, y)
+def test_networkmanager():
+    pass
 
-        i += 1
-        print("Batch: ", i, "Loss: ", train_loss)
-        if i >= max_batches:
-            break
 
-    # Evaluate it. On the original files. Should do well.
-    eval_batch = next(streamer)
-    eval_loss, accuracy = predict(eval_batch["x_in"],
-                                  np.asarray(eval_batch["target"],
-                                             dtype=np.int32))
-    print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
-    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
-    np.testing.assert_approx_equal(accuracy, 1.0, significant=1)
+def test_networkmanager_loadparams():
+    pass
 
-    # Evaluate it on a random other file. Should do terribly.
+
+def test_networkmanager_updatehypers():
+    pass
+
+
+def test_networkmanager_save():
+    pass
+
+
+def test_networkmanager_train():
+    pass
+
+
+def test_networkmanager_predict():
+    pass
+
+
+def test_modelbuilder_cqt():
+    pass
+
+
+def test_modelbuilder_wcqt():
+    pass
+
+
+# @pytest.mark.cqt
+# def test_push_data_through_simple_network_cqt():
+#     """Prove that the network accepts data in the expected shape,
+#     and returns data in the expected shape."""
+#     # Create some random data in the right shape
+#     t_len = 8
+#     n_targets = 2
+#     x_in = np.random.random((1, 1, t_len, 252))
+#     target = np.asarray((np.random.randint(n_targets),), dtype=np.int32)
+
+#     # Create the network
+#     train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
+
+#     # Push it through
+#     train_loss = train(x_in, target)
+#     assert np.isfinite(train_loss)
+
+#     predict_loss, predict_acc = predict(x_in, target)
+#     assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
+
+#     # Create some more data, perhaps of a different batch size
+#     n = 24
+#     x_in = np.random.random((n, 1, t_len, 252))
+#     target = np.asarray(np.random.randint(n_targets, size=n), dtype=np.int32)
+
+#     # Push it through
+#     train_loss = train(x_in, target)
+#     assert np.isfinite(train_loss)
+
+#     predict_loss, predict_acc = predict(x_in, target)
+#     assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
+
+
+# @pytest.mark.runthis
+# @pytest.mark.wcqt
+# def test_push_data_through_simple_network_wcqt():
+#     """Prove that the network accepts data in the expected shape,
+#     and returns data in the expected shape."""
+#     # Create some random data in the right shape
+#     t_len = 8
+#     n_targets = 2
+#     x_in = np.random.random((1, 6, t_len, 252))
+#     target = np.asarray((np.random.randint(n_targets),), dtype=np.int32)
+
+#     # Create the network
+#     train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
+
+#     # Push it through
+#     train_loss = train(x_in, target)
+#     assert np.isfinite(train_loss)
+
+#     predict_loss, predict_acc = predict(x_in, target)
+#     assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
+
+#     # Create some more data, perhaps of a different batch size
+#     n = 24
+#     x_in = np.random.random((n, 6, t_len, 252))
+#     target = np.asarray(np.random.randint(n_targets, size=n), dtype=np.int32)
+
+#     # Push it through
+#     train_loss = train(x_in, target)
+#     assert np.isfinite(train_loss)
+
+#     predict_loss, predict_acc = predict(x_in, target)
+#     assert np.isfinite(predict_loss) and np.isfinite(predict_acc)
+
+
+# @pytest.mark.cqt
+# @pytest.mark.slowtest
+# def test_overfit_two_samples_cqt():
+#     """Prove that our network works by training it with two random files
+#     from our dataset, intentionally overfitting it.
+
+#     Warning: not deterministic, but you could make it.
+#     """
+
+#     # Get list of instruments
+#     instruments = sorted(features_df["instrument"].unique())
+#     selected_instruments = instruments[:2]
+
+#     # Create a dataframe from our dataframe with only two files in it
+#     test_df = pandas.concat([
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[0]].sample(),
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[1]].sample()])
+
+#     t_len = 8
+#     batch_size = 8
+#     datasets = ["rwc"]
+#     n_targets = 2
+#     # Create a streamer that samples just those two files.
+#     streamer = streams.InstrumentStreamer(
+#         test_df, datasets, streams.cqt_slices,
+#         t_len=t_len, batch_size=batch_size)
+
+#     # Create a new model
+#     train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
+
+#     # Train the model for N epochs, till it fits the damn thing
+#     max_batches = 250
+#     i = 0
+#     for batch in streamer:
+#         x, y = batch["x_in"], np.asarray(batch["target"], dtype=np.int32)
+#         train_loss = train(x, y)
+
+#         i += 1
+#         print("Batch: ", i, "Loss: ", train_loss)
+#         if i >= max_batches:
+#             break
+
+#     # Evaluate it. On the original files. Should do well.
+#     eval_batch = next(streamer)
+#     eval_loss, accuracy = predict(eval_batch["x_in"],
+#                                   np.asarray(eval_batch["target"],
+#                                              dtype=np.int32))
+#     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
+#     assert np.isfinite(eval_loss) and np.isfinite(accuracy)
+#     np.testing.assert_approx_equal(accuracy, 1.0, significant=1)
+
+#     # Evaluate it on a random other file. Should do terribly.
+
+
+# @pytest.mark.wcqt
+# @pytest.mark.slowtest
+# def test_overfit_two_samples_wcqt():
+#     """Prove that our network works by training it with two random files
+#     from our dataset, intentionally overfitting it.
+
+#     Warning: not deterministic, but you could make it.
+#     """
+
+#     # Get list of instruments
+#     instruments = sorted(features_df["instrument"].unique())
+#     selected_instruments = instruments[:2]
+
+#     # Create a dataframe from our dataframe with only two files in it
+#     test_df = pandas.concat([
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[0]].sample(),
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[1]].sample()])
+
+#     t_len = 8
+#     batch_size = 8
+#     datasets = ["rwc"]
+#     n_targets = 2
+#     # Create a streamer that samples just those two files.
+#     streamer = streams.InstrumentStreamer(
+#         test_df, datasets, streams.wcqt_slices,
+#         t_len=t_len, batch_size=batch_size)
+#     input_shape = next(streamer)['x_in'].shape
+#     print(input_shape)
+#     import pdb; pdb.set_trace()
+
+#     # Create a new model
+#     train, predict = models.cqt_iX_c1f1_oY(t_len, n_targets)
+
+#     # Train the model for N epochs, till it fits the damn thing
+#     max_batches = 250
+#     i = 0
+#     for batch in streamer:
+#         x, y = batch["x_in"], np.asarray(batch["target"], dtype=np.int32)
+#         train_loss = train(x, y)
+
+#         i += 1
+#         print("Batch: ", i, "Loss: ", train_loss)
+#         if i >= max_batches:
+#             break
+
+#     # Evaluate it. On the original files. Should do well.
+#     eval_batch = next(streamer)
+#     eval_loss, accuracy = predict(eval_batch["x_in"],
+#                                   np.asarray(eval_batch["target"],
+#                                              dtype=np.int32))
+#     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
+#     assert np.isfinite(eval_loss) and np.isfinite(accuracy)
+#     np.testing.assert_approx_equal(accuracy, 1.0, significant=1)
+
+#     # Evaluate it on a random other file. Should do terribly.
