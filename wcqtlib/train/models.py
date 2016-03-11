@@ -8,6 +8,8 @@
 import copy
 import lasagne
 import logging
+import numpy as np
+import os
 import theano
 import theano.tensor as T
 
@@ -32,6 +34,10 @@ __layermap__ = {
 
 
 class InvalidNetworkDefinition(Exception):
+    pass
+
+
+class ParamLoadingError(Exception):
     pass
 
 
@@ -76,14 +82,13 @@ class NetworkManager(object):
         """
         self.network_definition = network_definition
         self.hyperparameters = hyperparameters
-        self._network_params = params
 
         self._network = self._build_network()
-        if self.params:
-            self._load_params()
+        if params:
+            self._load_params(params)
 
     @classmethod
-    def deserialize(cls, path):
+    def deserialize_npz(cls, path):
         """
         Parameters
         ----------
@@ -91,7 +96,8 @@ class NetworkManager(object):
             Full path to a npz? containing the a network definition
             and optionally serialized params.
         """
-        pass
+        data = np.load(path)
+        return cls(data['definition'].item(), params=data['params'].tolist())
 
     def _build_network(self):
         """Constructs the netork from the definition."""
@@ -140,11 +146,18 @@ class NetworkManager(object):
         self.predict_fx = theano.function(
             [input_var, target_var], [test_loss, test_acc])
 
-        self._network = network
+        return network
 
-    def _load_params(self):
-        """Loads the serialized parameters into model."""
-        pass
+    def _load_params(self, params):
+        """Loads the serialized parameters into model.
+        The network must exist first, but there's no way you should be calling
+        this unless that's true.
+        """
+        try:
+            lasagne.layers.set_all_param_values(self._network, params)
+        except ValueError:
+            raise ParamLoadingError("Check to make sure your params "
+                                    "match your model.")
 
     def update_hyperparameters(self, **hyperparams):
         """Update some hyperparameters."""
@@ -162,7 +175,11 @@ class NetworkManager(object):
         -------
         success : bool
         """
-        pass
+        param_values = lasagne.layers.get_all_param_values(self._network)
+        np.savez(write_path,
+                 definition=self.network_definition,
+                 params=param_values)
+        return os.path.exists(write_path)
 
     def train(self, batch):
         """Trains the network using a pescador batch.
@@ -181,7 +198,7 @@ class NetworkManager(object):
         training_loss : float
             The loss over this batch.
         """
-        pass
+        return self.train_fx(batch['x_in'], batch['target'])
 
     def predict(self, batch):
         """Predict values on a batch.
@@ -202,7 +219,7 @@ class NetworkManager(object):
         prediction_acc : float
             The accuracy over this batch.
         """
-        pass
+        return self.predict_fx(batch['x_in'], batch['target'])
 
 
 class ModelBuilder(object):

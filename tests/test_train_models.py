@@ -219,10 +219,6 @@ def test_networkmanager_buildnetwork():
     yield __test_network, network_def, input_shape
 
 
-def test_networkmanager_deserialize():
-    pass
-
-
 def test_networkmanager_loadparams():
     pass
 
@@ -232,6 +228,7 @@ def test_networkmanager_updatehypers():
 
 
 def test_networkmanager_save(workspace, simple_network_def):
+    """Also test deserialization."""
     save_path = os.path.join(workspace, "output.npz")
 
     model = models.NetworkManager(simple_network_def)
@@ -242,6 +239,10 @@ def test_networkmanager_save(workspace, simple_network_def):
 
     data = np.load(save_path)
     assert "definition" in data and "params" in data
+
+    model = models.NetworkManager.deserialize_npz(save_path)
+    assert model is not None
+    assert model._network is not None
 
 
 def test_networkmanager_train():
