@@ -16,8 +16,11 @@ import theano.tensor as T
 
 logger = logging.getLogger(__name__)
 
+CQT_DIMS = 252
+WCQT_DIMS = (6, 48)
 
-__all__ = ['ModelBuilder', 'NetworkManager']
+
+__all__ = ['NetworkManager']
 
 __layermap__ = {
     "layers.Conv1DLayer": lasagne.layers.Conv1DLayer,
@@ -81,11 +84,19 @@ class NetworkManager(object):
             If None, randomly initializes the model.
         """
         self.network_definition = network_definition
-        self.hyperparameters = hyperparameters
+        self._init_hyperparam_defaults()
+        if hyperparameters:
+            self.update_hyperparameters(**hyperparameters)
 
         self._network = self._build_network()
         if params:
             self._load_params(params)
+
+    def _init_hyperparam_defaults(self):
+        self.hyperparams = {
+            "learning_rate": theano.shared(lasagne.utils.floatX(0.01)),
+            "momentum": theano.shared(lasagne.utils.floatX(.9))
+        }
 
     @classmethod
     def deserialize_npz(cls, path):
@@ -132,7 +143,9 @@ class NetworkManager(object):
         # Collect params and update expressions.
         self.params = lasagne.layers.get_all_params(network, trainable=True)
         updates = lasagne.updates.nesterov_momentum(
-            train_loss, self.params, learning_rate=0.01, momentum=0.9)
+            train_loss, self.params,
+            learning_rate=self.hyperparams["learning_rate"],
+            momentum=self.hyperparams["momentum"])
 
         test_prediction = lasagne.layers.get_output(network,
                                                     deterministic=True)
@@ -161,7 +174,12 @@ class NetworkManager(object):
 
     def update_hyperparameters(self, **hyperparams):
         """Update some hyperparameters."""
-        pass
+        for key, value in hyperparams.items():
+            if key in self.hyperparams:
+                self.hyperparams[key].set_value(value)
+
+    def get_hyperparameter(self, name):
+        return self.hyperparams[name].get_value()
 
     def save(self, write_path):
         """Write an npz containing the network definition and the parameters
@@ -198,7 +216,8 @@ class NetworkManager(object):
         training_loss : float
             The loss over this batch.
         """
-        return self.train_fx(batch['x_in'], batch['target'])
+        return self.train_fx(batch['x_in'],
+                             np.asarray(batch['target'], dtype=np.int32))
 
     def predict(self, batch):
         """Predict values on a batch.
@@ -219,179 +238,55 @@ class NetworkManager(object):
         prediction_acc : float
             The accuracy over this batch.
         """
-        return self.predict_fx(batch['x_in'], batch['target'])
+        return self.predict_fx(batch['x_in'],
+                               np.asarray(batch['target'], dtype=np.int32))
 
 
-class ModelBuilder(object):
-    """A helper class that knows how to build networks given simple parameters
-    with a simpler interface than the NetworkManager."""
-    CQT_SHAPE = (None, 1, None, 252)
-    WCQT_SHAPE = (None, 6, None, 252)
-
-    def __init__(self,
-                 n_classes, t_len,
-                 feature_type="wcqt",
-                 n_convs=1, n_dense=1):
-        """
-        Parameters
-        ----------
-        n_classes : int
-            Number of output classes.
-
-        t_len : int
-            Number of cqt frames to use at a time.
-
-        feature_type : enum(["cqt", "wcqt"])
-
-        n_convs : int
-            Number of convolutional layers.
-
-        n_dense : int
-            Number of dense layers
-        """
-        self.n_classes = n_classes
-        self.t_len = t_len
-        self.feature_type = feature_type
-
-    def build(self):
-        if self.feature_type == "cqt":
-            return self.build_cqt_network()
-        else:
-            return self.build_wcqt_network()
-
-    def build_cqt_network(self):
-        definition = {}
-        return NetworkManager(definition)
-
-    def build_wcqt_network(self):
-        definition = {}
-        return NetworkManager(definition)
+def cqt_iX_c1f1_oY(n_in, n_out):
+    network_def = {
+        "input_shape": (None, 1, n_in, CQT_DIMS),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 4,
+            "filter_size": (1, 3),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 5)
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def
 
 
-def cqt_iX_c1f1_oY(n_in, n_out, verbose=False):
-    """Variable length input cqt learning model.
-
-    Parameters
-    ----------
-    n_in : int
-        Length of the input window (in frames).
-
-    n_out : int
-        Number of output dimensions (aka number of classes to learn).
-
-    Returns
-    -------
-    trainer, predictor : theano Functions
-    """
-    input_var = T.tensor4('inputs')
-    target_var = T.ivector('targets')
-
-    network = lasagne.layers.InputLayer((None, 1, n_in, 252),
-                                        input_var=input_var)
-
-    # A convolution layer
-    network = lasagne.layers.Conv2DLayer(
-        network, num_filters=16, filter_size=(3, 3),
-        nonlinearity=lasagne.nonlinearities.rectify,
-        W=lasagne.init.GlorotUniform())
-
-    # Max Pooling
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
-
-    # Fully connected with 256 units & 50% dropout on inputs
-    # network = lasagne.layers.DenseLayer(
-    #     lasagne.layers.dropout(network, p=0.5),
-    #     num_units=256,
-    #     nonlinearity=lasagne.nonlinearities.rectify)
-
-    # Output unit with parameterized output dimension.
-    network = lasagne.layers.DenseLayer(
-        lasagne.layers.dropout(network, p=0.5),
-        num_units=n_out,
-        nonlinearity=lasagne.nonlinearities.softmax)
-
-    # Create the loss expression for training.
-    prediction = lasagne.layers.get_output(network)
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    loss = loss.mean()
-
-    # Collect params and update expressions.
-    params = lasagne.layers.get_all_params(network, trainable=True)
-    updates = lasagne.updates.nesterov_momentum(
-        loss, params, learning_rate=0.01, momentum=0.9)
-    # TODO: Make these hyperparameters accessible outside.
-
-    # Loss expression for evaluation.
-    test_prediction = lasagne.layers.get_output(network, deterministic=True)
-    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                            target_var)
-    test_loss = test_loss.mean()
-    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-                      dtype=theano.config.floatX)
-
-    train_fn = theano.function([input_var, target_var], loss, updates=updates)
-    val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-
-    return train_fn, val_fn
-
-
-def wcqt_iX_c1_f1_oY(n_in, n_out, verbose=False):
-    """Variable length input wcqt learning model.
-
-    Parameters
-    ----------
-    n_in : int
-        Length of the input window (in frames).
-
-    n_out : int
-        Number of output dimensions (aka number of classes to learn).
-
-    Returns
-    -------
-    trainer, predictor : theano functions
-    """
-
-    # A convolution layer
-    network = lasagne.layers.Conv2DLayer(
-        network, num_filters=16, filter_size=(3, 3),
-        nonlinearity=lasagne.nonlinearities.rectify,
-        W=lasagne.init.GlorotUniform())
-
-    # Max Pooling
-    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(2, 2))
-
-    # Fully connected with 256 units & 50% dropout on inputs
-    # network = lasagne.layers.DenseLayer(
-    #     lasagne.layers.dropout(network, p=0.5),
-    #     num_units=256,
-    #     nonlinearity=lasagne.nonlinearities.rectify)
-
-    # Output unit with parameterized output dimension.
-    network = lasagne.layers.DenseLayer(
-        lasagne.layers.dropout(network, p=0.5),
-        num_units=n_out,
-        nonlinearity=lasagne.nonlinearities.softmax)
-
-    # Create the loss expression for training.
-    prediction = lasagne.layers.get_output(network)
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
-    loss = loss.mean()
-
-    # Collect params and update expressions.
-    params = lasagne.layers.get_all_params(network, trainable=True)
-    updates = lasagne.updates.nesterov_momentum(
-        loss, params, learning_rate=0.01, momentum=0.9)
-    # TODO: Make these hyperparameters accessible outside.
-
-    # Loss expression for evaluation.
-    test_prediction = lasagne.layers.get_output(network, deterministic=True)
-    test_loss = lasagne.objectives.categorical_crossentropy(test_prediction,
-                                                            target_var)
-    test_loss = test_loss.mean()
-    test_acc = T.mean(T.eq(T.argmax(test_prediction, axis=1), target_var),
-                      dtype=theano.config.floatX)
-
-    train_fn = theano.function([input_var, target_var], loss, updates=updates)
-    val_fn = theano.function([input_var, target_var], [test_loss, test_acc])
-
-    return train_fn, val_fn
+def wcqt_iX_c1f1_oY(n_in, n_out):
+    network_def = {
+        "input_shape": (None, WCQT_DIMS[0], n_in, WCQT_DIMS[1]),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 4,
+            "filter_size": (2, 3),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 2)
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def
