@@ -47,3 +47,7 @@ class Config(object):
 
     def __bool__(self):
         return bool(self.data)
+
+    def save(self, path):
+        with open(path, 'w') as fh:
+            yaml.dump(self.data, fh, default_flow_style=False)

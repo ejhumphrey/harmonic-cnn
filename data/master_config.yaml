@@ -1,11 +1,9 @@
 paths:
   data_dir: "~/data"
   extract_dir: "~/data/ismir2016-wcqt-data"
+  model_dir: "~/data/ismir2016-wcqt-models"
 
-datasets:
-  rwc:
-  uiowa:
-  philharmonia:
+datasets: ["rwc", "uiowa", "philharmonia"]
 
 dataframes:
   datasets: "datasets_df.json"
@@ -19,3 +17,15 @@ features:
   cqt:
     num_cpus: -1
     skip_existing: true
+
+training:
+  t_len: 8
+  max_epochs: 1000
+  batch_size: 60
+  n_targets: 12
+  train_print_frequency_batches: 10
+  predict_frequency_epochs: 1
+  param_write_frequency_epochs: 5
+  hyperparameters:
+    learning_rate: 0.01
+    momentum: 0.9
