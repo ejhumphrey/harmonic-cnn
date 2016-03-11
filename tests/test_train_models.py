@@ -22,6 +22,36 @@ features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
 features_df = pandas.read_pickle(features_path)
 
 
+@pytest.fixture
+def simple_network_def():
+    input_shape = (None, 1, 5, 5)
+    network_def = {
+        "input_shape": input_shape,
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 4,
+            "filter_size": (2, 2),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        },
+        {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 2)
+        },
+        {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        },
+        {
+            "type": "layers.DenseLayer",
+            "num_units": 2,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def
+
+
 def test_names_to_objects():
     test_dict = {
         "i'm_a_layer": "layers.Conv1DLayer",
@@ -193,10 +223,6 @@ def test_networkmanager_deserialize():
     pass
 
 
-def test_networkmanager():
-    pass
-
-
 def test_networkmanager_loadparams():
     pass
 
@@ -205,8 +231,17 @@ def test_networkmanager_updatehypers():
     pass
 
 
-def test_networkmanager_save():
-    pass
+def test_networkmanager_save(workspace, simple_network_def):
+    save_path = os.path.join(workspace, "output.npz")
+
+    model = models.NetworkManager(simple_network_def)
+    assert model is not None
+
+    success = model.save(save_path)
+    assert success and os.path.exists(save_path)
+
+    data = np.load(save_path)
+    assert "definition" in data and "params" in data
 
 
 def test_networkmanager_train():
