@@ -1,3 +1,4 @@
+import copy
 import lasagne
 import logging
 import numpy as np
@@ -36,3 +37,23 @@ def test_construct_training_df():
     new_df = driver.construct_training_df(
         features_df, datasets, n_files_per_inst)
     yield __test_result_df, new_df, datasets, n_files_per_inst
+
+
+@pytest.mark.runme
+@pytest.mark.slowtest
+def test_train_simple_model(workspace):
+    thisconfig = copy.deepcopy(config)
+    thisconfig.data['training']['max_epochs'] = 5
+    thisconfig.data['training']['batch_size'] = 12
+    thisconfig.data['paths']['model_dir'] = workspace
+    experiment_name = "testexperiment"
+
+    driver.train_model(thisconfig, 'wcqt_iX_c1f1_oY',
+                       experiment_name, "rwc",
+                       max_files_per_class=1)
+
+    # Expected files this should generate
+    new_config = os.path.join(workspace, experiment_name, "config.yaml")
+    final_params = os.path.join(workspace, experiment_name, "params",
+                                "final.npz")
+    assert os.path.exists(new_config) and os.path.exists(final_params)

@@ -23,7 +23,7 @@ training:
   max_epochs: 1000
   batch_size: 60
   n_targets: 12
-  train_print_frequency_batches: 10
+  train_print_frequency_batches: 1
   predict_frequency_epochs: 1
   param_write_frequency_epochs: 5
   hyperparameters:

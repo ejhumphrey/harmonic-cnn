@@ -314,7 +314,6 @@ def test_overfit_two_samples_cqt():
     # Evaluate it on a random other file. Should do terribly.
 
 
-@pytest.mark.runme
 @pytest.mark.wcqt
 @pytest.mark.slowtest
 def test_overfit_two_samples_wcqt():
