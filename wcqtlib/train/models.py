@@ -157,6 +157,8 @@ class NetworkManager(object):
         self.train_fx = theano.function(
             [input_var, target_var], train_loss, updates=updates)
         self.predict_fx = theano.function(
+            [input_var], test_prediction)
+        self.eval_fx = theano.function(
             [input_var, target_var], [test_loss, test_acc])
 
         return network
@@ -227,6 +229,22 @@ class NetworkManager(object):
         batch : dict
             With at least keys:
             x_in : np.ndarray
+
+        Returns
+        -------
+        predictions : np.ndarray
+            Returns the predictions for this batch.
+        """
+        return self.predict_fx(batch['x_in'])
+
+    def evaluate(self, batch):
+        """Get evaluation scores for a batch using the prediction.
+
+        Parameters
+        ----------
+        batch : dict
+            With at least keys:
+            x_in : np.ndarray
             target : np.ndarray
 
             where len(x_in) == len(target)
@@ -238,8 +256,8 @@ class NetworkManager(object):
         prediction_acc : float
             The accuracy over this batch.
         """
-        return self.predict_fx(batch['x_in'],
-                               np.asarray(batch['target'], dtype=np.int32))
+        return self.eval_fx(batch['x_in'],
+                            np.asarray(batch['target'], dtype=np.int32))
 
 
 def cqt_iX_c1f1_oY(n_in, n_out):

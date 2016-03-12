@@ -83,7 +83,10 @@ def __test_network(network_def, input_shape):
     loss = model.train_fx(test_batch, test_target)
     assert np.isfinite(loss)
 
-    loss, acc = model.predict_fx(test_batch, test_target)
+    probs = model.predict_fx(test_batch)
+    assert np.all(np.isfinite(probs))
+
+    loss, acc = model.eval_fx(test_batch, test_target)
     assert np.isfinite(loss) and np.isfinite(acc)
 
 
@@ -219,6 +222,7 @@ def test_networkmanager_buildnetwork():
     yield __test_network, network_def, input_shape
 
 
+@pytest.mark.skip(reason="ToDo")
 def test_networkmanager_updatehypers():
     pass
 
@@ -257,7 +261,10 @@ def test_networkmanager_train_and_predict(simple_network_def):
     loss = model.train(batch)
     assert np.isfinite(loss)
 
-    loss, acc = model.predict(batch)
+    probs = model.predict(batch)
+    assert np.all(np.isfinite(probs))
+
+    loss, acc = model.evaluate(batch)
     assert np.isfinite(loss) and np.isfinite(acc)
 
 
@@ -307,11 +314,12 @@ def test_overfit_two_samples_cqt():
 
     # Evaluate it. On the original files. Should do well.
     eval_batch = next(streamer)
-    eval_loss, accuracy = model.predict(eval_batch)
+    eval_probs = model.predict(eval_batch)
+    eval_loss, accuracy = model.evaluate(eval_batch)
+    print("Predictions:", eval_probs)
     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
-    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
-
-    # Evaluate it on a random other file. Should do terribly.
+    assert np.all(np.isfinite(eval_probs)) and np.isfinite(eval_loss) and \
+        np.isfinite(accuracy)
 
 
 @pytest.mark.wcqt
@@ -362,8 +370,8 @@ def test_overfit_two_samples_wcqt():
 
     # Evaluate it. On the original files. Should do well.
     eval_batch = next(streamer)
-    eval_loss, accuracy = model.predict(eval_batch)
+    eval_probs = model.predict(eval_batch)
+    eval_loss, accuracy = model.evaluate(eval_batch)
+    print("Eval predictions:", eval_probs)
     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
     assert np.isfinite(eval_loss) and np.isfinite(accuracy)
-
-    # Evaluate it on a random other file. Should do terribly.
