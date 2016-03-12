@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import os
 import pandas
+from sklearn.cross_validation import train_test_split
 
 import wcqtlib.common.utils as utils
 import wcqtlib.train.models as models
@@ -10,17 +11,49 @@ import wcqtlib.train.streams as streams
 logger = logging.getLogger(__name__)
 
 
-def construct_training_df(features_df, datasets, max_files_per_class):
-    if max_files_per_class:
-        search_df = features_df[features_df["dataset"].isin(datasets)]
-        selected_instruments = []
-        for instrument in search_df["instrument"].unique():
-            selected_instruments.append(
-                search_df[search_df["instrument"] == instrument].sample(
-                    n=max_files_per_class))
-        return pandas.concat(selected_instruments)
-    else:
-        return features_df
+def construct_training_valid_df(features_df, datasets,
+                                validation_split=0.2,
+                                max_files_per_class=None):
+    """Prepare training and validation dataframes from the features df.
+     * First selects from only the datasets given in datasets.
+     * Then **for each instrument** (so the distribution from each instrument
+        doesn't change)
+        * train_test_split to generate training and validation sets.
+        * if max_files_per_class, also then restrict it to
+            a maximum of that number of files for each train and test
+
+    Parameters
+    ----------
+    features_df : pandas.DataFrame
+
+    datasets : list of str
+        List of datasets to use.
+
+    validation_spilt : float
+        Train/validation split.
+
+    max_files_per_class : int
+        Number of files to restrict the dataset to.
+
+    """
+    search_df = features_df[features_df["dataset"].isin(datasets)]
+
+    selected_instruments_train = []
+    selected_instruments_valid = []
+    for instrument in search_df["instrument"].unique():
+        instrument_df = search_df[search_df["instrument"] == instrument]
+        traindf, validdf = train_test_split(
+            instrument_df, test_size=validation_split)
+
+        if max_files_per_class:
+            traindf = traindf.sample(n=max_files_per_class)
+            validdf = traindf.sample(n=max_files_per_class)
+
+        selected_instruments_train.append(traindf)
+        selected_instruments_valid.append(validdf)
+
+    return pandas.concat(selected_instruments_train), \
+        pandas.concat(selected_instruments_valid)
 
 
 def train_model(config, model_selector, experiment_name,
@@ -74,9 +107,8 @@ def train_model(config, model_selector, experiment_name,
 
     # Set up the dataframe we're going to train with.
     logger.info("[{}] Constructing training df".format(experiment_name))
-    training_df = construct_training_df(features_df,
-                                        datasets,
-                                        max_files_per_class)
+    training_df, valid_df = construct_training_valid_df(
+        features_df, datasets, max_files_per_class=max_files_per_class)
     logger.debug("[{}] training_df : {} rows".format(experiment_name,
                                                      len(training_df)))
 
@@ -98,7 +130,7 @@ def train_model(config, model_selector, experiment_name,
     if 'wcqt' in model_selector:
         slicer = streams.wcqt_slices
     else:
-        slicer = streams.wcqt_slices
+        slicer = streams.cqt_slices
 
     # Set up our streamer
     logger.info("[{}] Setting up streamer".format(experiment_name))

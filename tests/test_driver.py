@@ -22,24 +22,41 @@ features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
 features_df = pandas.read_pickle(features_path)
 
 
-def test_construct_training_df():
-    def __test_result_df(df, datasets, n_per_inst):
-        assert len(df) == 12 * n_per_inst
-        assert set(datasets) == set(df['dataset'])
+def test_construct_training_valid_df():
+    def __test_result_df(traindf, validdf, datasets, n_per_inst):
+        if n_per_inst:
+            assert len(traindf) == 12 * n_per_inst
+            assert len(validdf) == 12 * n_per_inst
+        else:
+            total_len = len(traindf) + len(validdf)
+            np.testing.assert_almost_equal((total_len*.8)/100.,
+                                           len(traindf)/100.,
+                                           decimal=0)
+            np.testing.assert_almost_equal((total_len*.2)/100.,
+                                           len(validdf)/100.,
+                                           decimal=0)
+        assert set(datasets) == set(traindf['dataset'])
+        assert set(datasets) == set(validdf['dataset'])
+
     datasets = ["rwc"]
     n_files_per_inst = 1
-    new_df = driver.construct_training_df(
-        features_df, datasets, n_files_per_inst)
-    yield __test_result_df, new_df, datasets, n_files_per_inst
+    train_df, valid_df = driver.construct_training_valid_df(
+        features_df, datasets, max_files_per_class=n_files_per_inst)
+    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
 
     datasets = ["rwc", "uiowa"]
     n_files_per_inst = 5
-    new_df = driver.construct_training_df(
-        features_df, datasets, n_files_per_inst)
-    yield __test_result_df, new_df, datasets, n_files_per_inst
+    train_df, valid_df = driver.construct_training_valid_df(
+        features_df, datasets, max_files_per_class=n_files_per_inst)
+    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
+
+    datasets = ["rwc", "philharmonia"]
+    n_files_per_inst = None
+    train_df, valid_df = driver.construct_training_valid_df(
+        features_df, datasets, max_files_per_class=n_files_per_inst)
+    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
 
 
-@pytest.mark.runme
 @pytest.mark.slowtest
 def test_train_simple_model(workspace):
     thisconfig = copy.deepcopy(config)
