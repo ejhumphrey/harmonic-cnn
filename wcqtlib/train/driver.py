@@ -155,6 +155,7 @@ def train_model(config, model_selector, experiment_name,
     logger.info("[{}] Beginning training loop".format(experiment_name))
     epoch_count = 0
     epoch_mean_loss = []
+    validation_losses = []
     try:
         while epoch_count < max_epochs:
             logger.debug("Beginning epoch: ", epoch_count)
@@ -177,7 +178,14 @@ def train_model(config, model_selector, experiment_name,
 
             # print valid, maybe
             if predict_freq and (epoch_count % predict_freq == 0):
-                eval_df = evaluate.evaluate_dataframe(valid_df, model, slicer, t_len)
+                eval_df = evaluate.evaluate_dataframe(
+                    valid_df, model, slicer, t_len)
+                val_loss = eval_df['mean_loss'].mean()
+                val_acc = eval_df['mean_acc'].mean()
+                validation_losses += [val_loss]
+                print("Epoch {} | Train Loss: [{:0.3f}] | Validation Loss "
+                      "[{:0.3f}] Acc [{:0.3f}]".format(
+                        epoch_count, epoch_mean_loss[-1], val_loss, val_acc))
 
             # save model, maybe
             if param_write_freq and (epoch_count % param_write_freq == 0):
