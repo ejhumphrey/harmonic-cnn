@@ -4,6 +4,7 @@ import os
 import pandas
 from sklearn.cross_validation import train_test_split
 from sklearn.metrics import classification_report
+import datetime
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
@@ -12,6 +13,13 @@ import wcqtlib.train.streams as streams
 import wcqtlib.train.evaluate as evaluate
 
 logger = logging.getLogger(__name__)
+
+
+def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
+    val_str = formatstr.format(value)
+    if value < minval:
+        val_str = utils.colored(val_str, color)
+    return val_str
 
 
 def construct_training_valid_df(features_df, datasets,
@@ -163,9 +171,12 @@ def train_model(config, model_selector, experiment_name,
     epoch_count = 0
     epoch_mean_loss = []
     validation_losses = []
+    min_train_loss = np.inf
+    min_val_loss = np.inf
     try:
         while epoch_count < max_epochs:
-            logger.debug("Beginning epoch: ", epoch_count)
+            epoch_t0 = datetime.datetime.now()
+            logger.debug("Beginning epoch: ", epoch_count, "at", epoch_t0)
             # train, storing loss for each batchself.
             batch_count = 0
             epoch_losses = []
@@ -190,9 +201,17 @@ def train_model(config, model_selector, experiment_name,
                 val_loss = eval_df['mean_loss'].mean()
                 val_acc = eval_df['mean_acc'].mean()
                 validation_losses += [val_loss]
-                print("Epoch {} | Train Loss: [{:0.3f}] | Validation Loss "
-                      "[{:0.3f}] | Acc [{:0.3f}]".format(
-                        epoch_count, epoch_mean_loss[-1], val_loss, val_acc))
+
+                print("Epoch {} | Train Loss: [{}] | Validation Loss "
+                      "[{}] | Acc [{:0.3f}]   Length: {}".format(
+                        epoch_count,
+                        conditional_colored(epoch_mean_loss[-1],
+                                            min_train_loss),
+                        conditional_colored(val_loss, min_val_loss),
+                        val_acc,
+                        datetime.datetime.now() - epoch_t0))
+                min_train_loss = min(epoch_mean_loss[-1], min_train_loss)
+                min_val_loss = min(val_loss, min_val_loss)
 
             # save model, maybe
             if param_write_freq and (epoch_count % param_write_freq == 0):
