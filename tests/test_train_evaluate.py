@@ -92,7 +92,7 @@ def test_evalute_dataframe(slicer_and_model):
     max_count = 100
     for batch in streamer:
         loss = model.train(batch)
-        print("Quick train ", iter_count, "loss:", loss)
+        print("Batch ", iter_count, "loss:", loss)
         iter_count += 1
         if iter_count >= max_count:
             break
@@ -107,3 +107,7 @@ def test_evalute_dataframe(slicer_and_model):
     print("File Class Targets", np.bincount(eval_df["target"]))
     print(classification_report(eval_df["max_likelyhood"].tolist(),
                                 eval_df["target"].tolist()))
+
+    analysis = evaluate.analyze_results(eval_df, "unit test")
+    assert not analysis.empty
+    print(analysis)

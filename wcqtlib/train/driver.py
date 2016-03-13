@@ -7,6 +7,7 @@ from sklearn.cross_validation import train_test_split
 import wcqtlib.common.utils as utils
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
+import wcqtlib.train.evaluate as evaluate
 
 logger = logging.getLogger(__name__)
 
