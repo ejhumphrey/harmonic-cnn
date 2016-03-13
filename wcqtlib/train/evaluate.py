@@ -1,5 +1,6 @@
 import numpy as np
 import pandas
+import progressbar
 
 import wcqtlib.data.parse as parse
 instrument_map = parse.InstrumentClassMap()
@@ -91,8 +92,12 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len):
             * target
     """
     results = []
-    for index, row in test_df.iterrows():
-        results += [evaluate_one(row, model, slicer_fx, t_len)]
+    i = 0
+    with progressbar.ProgressBar(max_value=len(test_df)) as progress:
+        for index, row in test_df.iterrows():
+            results += [evaluate_one(row, model, slicer_fx, t_len)]
+            progress.update(i)
+            i += 1
 
     return pandas.DataFrame(results)
 

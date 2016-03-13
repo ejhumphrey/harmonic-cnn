@@ -3,7 +3,9 @@ import numpy as np
 import os
 import pandas
 from sklearn.cross_validation import train_test_split
+from sklearn.metrics import classification_report
 
+import wcqtlib.config as C
 import wcqtlib.common.utils as utils
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
@@ -55,6 +57,14 @@ def construct_training_valid_df(features_df, datasets,
 
     return pandas.concat(selected_instruments_train), \
         pandas.concat(selected_instruments_valid)
+
+
+def get_slicer_from_network_def(network_def_name):
+    if 'wcqt' in network_def_name:
+        slicer = streams.wcqt_slices
+    else:
+        slicer = streams.cqt_slices
+    return slicer
 
 
 def train_model(config, model_selector, experiment_name,
@@ -128,10 +138,7 @@ def train_model(config, model_selector, experiment_name,
                  .format(t_len, batch_size, n_targets, max_epochs,
                          epoch_length))
 
-    if 'wcqt' in model_selector:
-        slicer = streams.wcqt_slices
-    else:
-        slicer = streams.cqt_slices
+    slicer = get_slicer_from_network_def(model_selector)
 
     # Set up our streamer
     logger.info("[{}] Setting up streamer".format(experiment_name))
@@ -184,7 +191,7 @@ def train_model(config, model_selector, experiment_name,
                 val_acc = eval_df['mean_acc'].mean()
                 validation_losses += [val_loss]
                 print("Epoch {} | Train Loss: [{:0.3f}] | Validation Loss "
-                      "[{:0.3f}] Acc [{:0.3f}]".format(
+                      "[{:0.3f}] | Acc [{:0.3f}]".format(
                         epoch_count, epoch_mean_loss[-1], val_loss, val_acc))
 
             # save model, maybe
@@ -203,3 +210,39 @@ def train_model(config, model_selector, experiment_name,
     save_path = os.path.join(params_dir, "final.npz".format(epoch_count))
     model.save(save_path)
     logger.info("Completed training for experiment:", experiment_name)
+
+
+def evaluate_and_analyze(config, experiment_name, selected_model_file):
+    print("Evaluating experient {} with params from {}".format(
+        utils.colored(experiment_name, "magenta"),
+        utils.colored(selected_model_file, "cyan")))
+
+    print("Loading DataFrame...")
+    features_path = os.path.join(
+        os.path.expanduser(config["paths/extract_dir"]),
+        config["dataframes/features"])
+    features_df = pandas.read_pickle(features_path)
+
+    experiment_dir = os.path.join(
+        os.path.expanduser(config['paths/model_dir']),
+        experiment_name)
+    experiment_config_path = os.path.join(experiment_dir, "config.yaml")
+    original_config = C.Config.from_yaml(experiment_config_path)
+    params_file = os.path.join(experiment_dir, "params", selected_model_file)
+    slicer = get_slicer_from_network_def(original_config['model'])
+
+    print("Deserializing Network & Params...")
+    model = models.NetworkManager.deserialize_npz(params_file)
+
+    t_len = original_config['training/t_len']
+    print("Running evaluation on all files...")
+    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len)
+    print("Calculating results...")
+    results = evaluate.analyze_results(eval_df, experiment_name)
+    print("{:*^30}".format(utils.colored("Results", "green")))
+    print(results)
+
+    print("File Class Predictions", np.bincount(eval_df["max_likelyhood"]))
+    print("File Class Targets", np.bincount(eval_df["target"]))
+    print(classification_report(eval_df["max_likelyhood"].tolist(),
+                                eval_df["target"].tolist()))

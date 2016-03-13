@@ -1,5 +1,6 @@
 import argparse
 import logging
+import pandas
 import os
 import sys
 
@@ -7,6 +8,7 @@ import wcqtlib.config as C
 import wcqtlib.data.parse as parse
 import wcqtlib.data.extract as E
 import wcqtlib.data.cqt
+import wcqtlib.train.driver as driver
 import wcqtlib.common.utils as utils
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
@@ -37,16 +39,58 @@ def extract_features(master_config):
     return success
 
 
-def train(master_config):
-    """Run training loop."""
+def train(master_config,
+          experiment_name):
+    """Run training loop.
+
+    Parameters
+    ----------
+    master_config : str
+        Full path
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+    """
     print(utils.colored("Training"))
-    raise NotImplementedError("train not yet implemented")
+    config = C.Config.from_yaml(master_config)
+
+    model_definition = config["model"]
+    hold_out_set = config["training/hold_out_set"]
+    max_files_per_class = config.get(
+        "training/max_files_per_class", None)
+
+    driver.train_model(config,
+                       model_selector=model_definition,
+                       experiment_name=experiment_name,
+                       hold_out_set=hold_out_set,
+                       max_files_per_class=max_files_per_class)
 
 
-def evaluate(master_config):
-    """Evaluate datasets and report results."""
+def evaluate(master_config,
+             experiment_name,
+             select_epoch=None):
+    """Evaluate datasets and report results.
+
+    Parameters
+    ----------
+    master_config : str
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+
+    select_epoch : str or None
+        Which model params to select. Use the epoch number for this, for
+        instance "1830" would use the model file "params1830.npz".
+        If None, uses "final.npz"
+    """
     print(utils.colored("Evaluating"))
-    raise NotImplementedError("evaluate not yet implemented")
+    config = C.Config.from_yaml(master_config)
+
+    selected_model_file = "params{}.npz".format(select_epoch) \
+        if select_epoch else "final.npz"
+
+    driver.evaluate_and_analyze(
+        config, experiment_name, selected_model_file)
 
 
 def analyze(master_config):
@@ -77,8 +121,16 @@ if __name__ == "__main__":
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
     train_parser = subparsers.add_parser('train')
+    train_parser.add_argument('experiment_name',
+                              help="Name of the experiment. "
+                                   "Files go in a directory of this name.")
     train_parser.set_defaults(func=train)
     evaluate_parser = subparsers.add_parser('evaluate')
+    evaluate_parser.add_argument('experiment_name',
+                                 help="Name of the experiment. "
+                                      "Files go in a directory of this name.")
+    evaluate_parser.add_argument('-s', '--select_epoch',
+                                 default=None, type=int)
     evaluate_parser.set_defaults(func=evaluate)
     analyze_parser = subparsers.add_parser('analyze')
     analyze_parser.set_defaults(func=analyze)
