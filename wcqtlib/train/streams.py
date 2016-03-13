@@ -13,13 +13,17 @@ import wcqtlib.common.utils as utils
 instrument_map = parse.InstrumentClassMap()
 
 
-def cqt_slices(record, t_len):
+def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
     """Generate slices from a cqt file.
-    Designed to be used in a Pescador stream.
 
     Thresholds the frames by finding the cqt means, and
     only returning frames with means greater than the lowest
     quarter of the means.
+
+    To use this for training, use the following parameters:
+        cqt_slices(..., shuffle=True, auto_restart=True)
+    To use this for prediction / eval, use the following parameters:
+        cqt_slices(..., shuffle=False, auto_restart=False)
 
     Parameters
     ----------
@@ -29,11 +33,16 @@ def cqt_slices(record, t_len):
         Also must contain an "instrument" column
         which contains the ground truth.
 
-    length : int
-        Length of the sliced array
+    t_len : int
+        Length of the sliced array [in time/frames]
 
-    idx : int, or None
-        Centered frame index for the slice, or random if not provided.
+    shuffle : bool
+        If True, shuffles the frames every time through the file.
+        If False, Reads frames from start fo finish.
+
+    auto_restart : bool
+        If True, yields infinitely.
+        If False, only goes through the file once.
 
     Yields
     -------
@@ -50,7 +59,8 @@ def cqt_slices(record, t_len):
     cqt_mu = cqt[0, :num_obs].mean(axis=1)
     threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
     idx = (cqt_mu[:num_obs] > threshold).nonzero()[0]
-    np.random.shuffle(idx)
+    if shuffle:
+        np.random.shuffle(idx)
 
     counter = 0
     while True:
@@ -63,23 +73,37 @@ def cqt_slices(record, t_len):
         # Once we have used all of the frames once, reshuffle.
         counter += 1
         if counter >= len(idx):
-            np.random.shuffle(idx)
+            if not auto_restart:
+                break
+            if shuffle:
+                np.random.shuffle(idx)
             counter = 0
 
 
-def wcqt_slices(record, t_len, p_len=48, p_stride=36):
+def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
+                p_len=48, p_stride=36):
     """Generate slices of wrapped CQT observations.
+
+    To use this for training, use the following parameters:
+        wcqt_slices(..., shuffle=True, auto_restart=True, ...)
+    To use this for prediction / eval, use the following parameters:
+        wcqt_slices(..., shuffle=False, auto_restart=False, ...)
 
     Parameters
     ----------
     stash : biggie.Stash
         Stash to draw the datapoint from.
 
-    key : str
-        Key of the entity to slice.
-
     t_len : int
         Length of the CQT slice in time.
+
+    shuffle : bool
+        If True, shuffles the frames every time through the file.
+        If False, Reads frames from start fo finish.
+
+    auto_restart : bool
+        If True, yields infinitely.
+        If False, only goes through the file once.
 
     p_len : int
         Number of adjacent pitch bins.
@@ -103,7 +127,8 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
     cqt_mu = cqt[0, :num_obs].mean(axis=1)
     threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
     idx = (cqt_mu[:num_obs] > threshold).nonzero()[0]
-    np.random.shuffle(idx)
+    if shuffle:
+        np.random.shuffle(idx)
 
     counter = 0
     while True:
@@ -116,7 +141,10 @@ def wcqt_slices(record, t_len, p_len=48, p_stride=36):
         # Once we have used all of the frames once, reshuffle.
         counter += 1
         if counter >= len(idx):
-            np.random.shuffle(idx)
+            if not auto_restart:
+                break
+            if shuffle:
+                np.random.shuffle(idx)
             counter = 0
 
 
@@ -235,7 +263,8 @@ class InstrumentStreamer(collections.Iterator):
         inst_muxes = [self._instrument_mux(i) for i in instruments]
 
         # Construct the streams for each mux.
-        mux_streams = [pescador.Streamer(x) for x in inst_muxes]
+        mux_streams = [pescador.Streamer(x) for x in inst_muxes \
+                       if x is not None]
 
         # Construct the master mux
         master_mux = pescador.mux(mux_streams, **self.master_mux_params)
@@ -287,8 +316,11 @@ class InstrumentStreamer(collections.Iterator):
             A pescador.mux for a single instrument.
         """
         streams = self._instrument_streams(instrument)
-        return pescador.mux(streams, n_samples=None,
-                            **self.instrument_mux_params)
+        if len(streams):
+            return pescador.mux(streams, n_samples=None,
+                                **self.instrument_mux_params)
+        else:
+            return None
 
     def __iter__(self):
         return self.buffered_streamer

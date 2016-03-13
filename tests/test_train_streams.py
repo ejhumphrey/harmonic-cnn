@@ -1,7 +1,6 @@
 import numpy as np
 import os
 import pandas
-import pescador
 import pytest
 
 import wcqtlib.config as C
@@ -45,6 +44,13 @@ def test_cqt_slices():
         data = next(generator)
         yield __test_valid_cqt, data['x_in'], t_len
 
+    # Now do it for validate mode
+    t_len = 8
+    generator = streams.cqt_slices(features_df.iloc[3], t_len,
+                                   shuffle=False, auto_restart=False)
+    for frames in generator:
+        yield __test_valid_cqt, frames['x_in'], t_len
+
 
 @pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
                              os.path.exists(features_path),
@@ -70,10 +76,10 @@ def test_wcqt_slices():
     # Now for fun, do it for 100 of them just to make sure
     # it keeps working after one cycle of frames.
     t_len = 10
-    generator = streams.wcqt_slices(features_df.iloc[2], t_len)
-    for i in range(50):
-        data = next(generator)
-        yield __test_valid_wcqt, data['x_in'], t_len
+    generator = streams.wcqt_slices(features_df.iloc[2], t_len,
+                                    shuffle=False, auto_restart=False)
+    for frame in generator:
+        yield __test_valid_wcqt, frame['x_in'], t_len
 
 
 @pytest.mark.xfail(reason="zmq is always generating batches of only one.")
