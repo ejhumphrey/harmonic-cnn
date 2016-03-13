@@ -33,12 +33,19 @@ def evaluate_one(dfrecord, model, slicer_fx, t_len):
     """
     # Get predictions for every timestep in the file.
     results = []
+    losses = []
+    accs = []
     target = instrument_map.get_index(dfrecord["instrument"])
 
     for frames in slicer_fx(dfrecord, t_len=t_len,
                             shuffle=False, auto_restart=False):
         results += [model.predict(frames)]
+        loss, acc = model.evaluate(frames)
+        losses += [loss]
+        accs += [acc]
     results = np.concatenate(results)
+    mean_loss = np.mean(losses)
+    mean_acc = np.mean(accs)
 
     class_predictions = results.argmax(axis=1)
 
@@ -47,12 +54,13 @@ def evaluate_one(dfrecord, model, slicer_fx, t_len):
     max_likelyhood_class = results.max(axis=0).argmax()
 
     # Also calculate the highest voted frame.
-    vote_class = np.bincount(class_predictions).argmax()
+    vote_class = np.asarray(np.bincount(class_predictions).argmax(),
+                            dtype=np.int)
 
     # Return both of these as a dataframe.
     return pandas.Series(
-        data=[max_likelyhood_class, vote_class, target],
-        index=["max_likelyhood", "vote", "target"],
+        data=[mean_loss, mean_acc, max_likelyhood_class, vote_class, target],
+        index=["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"],
         name=dfrecord.name)
 
 

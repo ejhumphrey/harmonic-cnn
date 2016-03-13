@@ -57,16 +57,16 @@ def test_evaluate_one(slicer_and_model):
             break
 
     result = evaluate.evaluate_one(test_record, model, slicer, t_len)
-    for key in ["max_likelyhood", "vote", "target"]:
+    for key in ["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"]:
         assert key in result
     assert result['max_likelyhood'] == result['target']
     assert result['vote'] == result['target']
-    print("Test Result:", result)
+    print("Test Result:\n", result)
 
     other = evaluate.evaluate_one(other_record, model, slicer, t_len)
-    for key in ["max_likelyhood", "vote", "target"]:
+    for key in ["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"]:
         assert key in other
-    print("Other Result:", other)
+    print("Other Result:\n", other)
 
 
 def test_evalute_dataframe(slicer_and_model):

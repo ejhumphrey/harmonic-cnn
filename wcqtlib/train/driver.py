@@ -149,6 +149,8 @@ def train_model(config, model_selector, experiment_name,
                                   None)
     param_write_freq = config.get('training/param_write_frequency_epochs',
                                   None)
+    predict_freq = config.get('training/predict_frequency_epochs',
+                              None)
 
     logger.info("[{}] Beginning training loop".format(experiment_name))
     epoch_count = 0
@@ -174,6 +176,9 @@ def train_model(config, model_selector, experiment_name,
             epoch_mean_loss += [np.mean(epoch_losses)]
 
             # print valid, maybe
+            if predict_freq and (epoch_count % predict_freq == 0):
+                eval_df = evaluate.evaluate_dataframe(valid_df, model, slicer, t_len)
+
             # save model, maybe
             if param_write_freq and (epoch_count % param_write_freq == 0):
                 save_path = os.path.join(
