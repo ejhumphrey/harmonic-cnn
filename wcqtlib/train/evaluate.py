@@ -65,7 +65,7 @@ def evaluate_one(dfrecord, model, slicer_fx, t_len):
         name=dfrecord.name)
 
 
-def evaluate_dataframe(test_df, model, slicer_fx, t_len):
+def evaluate_dataframe(test_df, model, slicer_fx, t_len, show_progress=False):
     """Run evaluation on the files in a dataframe.
 
     Parameters
@@ -92,10 +92,14 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len):
             * target
     """
     results = []
-    i = 0
-    with progressbar.ProgressBar(max_value=len(test_df)) as progress:
-        for index, row in test_df.iterrows():
-            results += [evaluate_one(row, model, slicer_fx, t_len)]
+    if show_progress:
+        i = 0
+        progress = progressbar.ProgressBar(max_value=len(test_df))
+
+    for index, row in test_df.iterrows():
+        results += [evaluate_one(row, model, slicer_fx, t_len)]
+
+        if show_progress:
             progress.update(i)
             i += 1
 

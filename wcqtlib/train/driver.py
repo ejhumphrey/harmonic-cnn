@@ -205,7 +205,9 @@ def train_model(config, model_selector, experiment_name,
         print("User cancelled training at epoch:", epoch_count)
 
     # Print final training & validation loss & acc
+    print("Last Epoch:", epoch_count)
     print("Final training loss:", epoch_mean_loss[-1])
+    print("Final validation loss:", validation_losses[-1])
     # Make sure to save the final model.
     save_path = os.path.join(params_dir, "final.npz".format(epoch_count))
     model.save(save_path)
@@ -236,7 +238,8 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
 
     t_len = original_config['training/t_len']
     print("Running evaluation on all files...")
-    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len)
+    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len,
+                                          show_progress=True)
     print("Calculating results...")
     results = evaluate.analyze_results(eval_df, experiment_name)
     print("{:*^30}".format(utils.colored("Results", "green")))
@@ -246,3 +249,6 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
     print("File Class Targets", np.bincount(eval_df["target"]))
     print(classification_report(eval_df["max_likelyhood"].tolist(),
                                 eval_df["target"].tolist()))
+
+    print("Random baseline should be: {:0.3f}".format(
+          1.0 / original_config['training/n_targets']))
