@@ -168,6 +168,8 @@ def cqt_from_df(config,
         True if all files were processed successfully.
     """
     extract_dir = os.path.expanduser(config["paths/extract_dir"])
+    cqt_dir = os.path.join(extract_dir, "cqt")
+    utils.create_directory(cqt_dir)
     notes_df_path = os.path.join(extract_dir,
                                  config["dataframes/notes"])
     output_df_path = os.path.join(extract_dir,
@@ -178,7 +180,7 @@ def cqt_from_df(config,
     features_df = notes_df[notes_df["audio_file"] != False]
 
     def features_path_for_audio(audio_path):
-        return os.path.join(extract_dir, "cqt",
+        return os.path.join(cqt_dir,
                             utils.filebase(audio_path) + ".npz")
 
     audio_paths = features_df["audio_file"].tolist()
