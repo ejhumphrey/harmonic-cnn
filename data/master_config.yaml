@@ -32,4 +32,4 @@ training:
     learning_rate: 0.01
     momentum: 0.9
   hold_out_set: "philharmonia"
-  max_files_per_class: 40
+  max_files_per_class: 160
