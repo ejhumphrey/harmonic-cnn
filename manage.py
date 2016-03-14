@@ -1,5 +1,6 @@
 import argparse
 import logging
+import logging.config
 import pandas
 import os
 import sys
@@ -150,8 +151,9 @@ if __name__ == "__main__":
         },
         'handlers': {
             'default': {
-                'level': 'INFO',
+                'level': 'DEBUG',
                 'class': 'logging.StreamHandler',
+                'formatter': "standard"
             },
         },
         'loggers': {

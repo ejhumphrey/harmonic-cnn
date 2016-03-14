@@ -15,8 +15,12 @@ import wcqtlib.train.evaluate as evaluate
 logger = logging.getLogger(__name__)
 
 
+class EarlyStoppingException(Exception):
+    pass
+
+
 def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
-    val_str = formatstr.format(value)
+    val_str = formatstr.format(float(value))
     if value < minval:
         val_str = utils.colored(val_str, color)
     return val_str
@@ -104,7 +108,7 @@ def train_model(config, model_selector, experiment_name,
         limit the training set to this number of files
         per class.
     """
-    logger.info("Starting training for experiment:", experiment_name)
+    logger.info("Starting training for experiment: {}".format(experiment_name))
     # Important paths & things to load.
     features_path = os.path.join(
         os.path.expanduser(config["paths/extract_dir"]),
@@ -186,11 +190,12 @@ def train_model(config, model_selector, experiment_name,
                             ))
             # Print status
             if iter_print_freq and (iter_count % iter_print_freq == 0):
-                print("Iteration: {} | | Train_loss: {}"
-                      .format(iter_count,
-                              conditional_colored(train_losses[-1],
+                mean_train_loss = np.mean(train_losses[-iter_print_freq:])
+                logger.info("Iteration: {} | Mean_Train_loss: {}"
+                            .format(iter_count,
+                              conditional_colored(mean_train_loss,
                                                   min_train_loss)))
-                min_train_loss = min(train_losses[-1], min_train_loss)
+                min_train_loss = min(mean_train_loss, min_train_loss)
 
             # save model, maybe
             if iter_write_freq and (iter_count % iter_write_freq == 0):
@@ -202,21 +207,29 @@ def train_model(config, model_selector, experiment_name,
 
             # Stopping conditions
             batch_end = datetime.datetime.now()
-            if (iter_count >= max_iterations) or \
-                    batch_end > (train_t0 + max_time):
-                break
+            if (iter_count >= max_iterations):
+                raise EarlyStoppingException("Max Iterations Reached")
+            if batch_end > (train_t0 + datetime.timedelta(seconds=max_time)):
+                raise EarlyStoppingException("Max Time reached")
 
     except KeyboardInterrupt:
+        logger.warn(utils.colored("Training Cancelled", "red"))
         print("User cancelled training at epoch:", iter_count)
+    except EarlyStoppingException as e:
+        logger.warn(utils.colored("Training Stopped for {}".format(e), "red"))
+        print("Training halted for: ", e)
+    t_end = datetime.datetime.now()
 
     # Print final training loss
     print("Last Epoch:", iter_count)
+    print("Trained for ", t_end - train_t0)
     print("Final training loss:", train_losses[-1])
 
     # Make sure to save the final model.
     save_path = os.path.join(params_dir, "final.npz".format(iter_count))
     model.save(save_path)
-    logger.info("Completed training for experiment:", experiment_name)
+    logger.info("Completed training for experiment: {}".format(
+        experiment_name))
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):
