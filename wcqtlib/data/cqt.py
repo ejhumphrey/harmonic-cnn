@@ -125,7 +125,7 @@ def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
     pool = Parallel(n_jobs=num_cpus, verbose=50)
     dcqt = delayed(cqt_one)
     pairs = zip(audio_files, output_files)
-    return all(pool(dcqt(fin, fout, cqt_params, audio_params)
+    return all(pool(dcqt(fin, fout, cqt_params, audio_params, skip_existing)
                     for fin, fout in pairs))
 
 
