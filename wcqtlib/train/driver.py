@@ -111,7 +111,7 @@ def construct_training_valid_df(features_df, datasets,
 
         if max_files_per_class:
             traindf = traindf.sample(n=max_files_per_class)
-            validdf = traindf.sample(n=max_files_per_class)
+            validdf = validdf.sample(n=max_files_per_class)
 
         selected_instruments_train.append(traindf)
         selected_instruments_valid.append(validdf)
@@ -279,7 +279,7 @@ def train_model(config, model_selector, experiment_name,
     timers.end("train")
 
     # Print final training loss
-    print("Last Epoch:", iter_count)
+    print("Total iterations:", iter_count)
     print("Trained for ", timers.get("train"))
     print("Final training loss:", train_losses[-1])
 
