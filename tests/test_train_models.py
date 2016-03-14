@@ -77,9 +77,8 @@ def __test_network(network_def, input_shape):
 
     batch_size = 8
     input_shape = (batch_size,) + input_shape[1:]
-    test_batch = np.asarray(np.random.random(input_shape), dtype=np.float32)
-    test_target = np.asarray(np.random.randint(2, size=batch_size),
-                             dtype=np.int32)
+    test_batch = np.random.random(input_shape)
+    test_target = np.random.randint(2, size=batch_size)
     loss = model.train_fx(test_batch, test_target)
     assert np.isfinite(loss)
 
@@ -256,8 +255,7 @@ def test_networkmanager_train_and_predict(simple_network_def):
 
     batch = dict(
         x_in=np.random.random(input_shape),
-        target=np.asarray(np.random.randint(2, size=batch_size),
-                          dtype=np.int32))
+        target=np.random.randint(2, size=batch_size))
     loss = model.train(batch)
     assert np.isfinite(loss)
 

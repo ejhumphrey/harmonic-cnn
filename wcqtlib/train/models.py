@@ -218,7 +218,8 @@ class NetworkManager(object):
         training_loss : float
             The loss over this batch.
         """
-        return self.train_fx(batch['x_in'],
+        return self.train_fx(np.asarray(batch['x_in'],
+                             dtype=theano.config.floatX),
                              np.asarray(batch['target'], dtype=np.int32))
 
     def predict(self, batch):
@@ -235,7 +236,8 @@ class NetworkManager(object):
         predictions : np.ndarray
             Returns the predictions for this batch.
         """
-        return self.predict_fx(batch['x_in'])
+        return self.predict_fx(np.asarray(batch['x_in'],
+                               dtype=theano.config.floatX))
 
     def evaluate(self, batch):
         """Get evaluation scores for a batch using the prediction.
@@ -256,7 +258,8 @@ class NetworkManager(object):
         prediction_acc : float
             The accuracy over this batch.
         """
-        return self.eval_fx(batch['x_in'],
+        return self.eval_fx(np.asarray(batch['x_in'],
+                            dtype=theano.config.floatX),
                             np.asarray(batch['target'], dtype=np.int32))
 
 
