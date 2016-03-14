@@ -29,10 +29,10 @@ import time
 import wcqtlib.common.utils as utils
 
 CQT_PARAMS = dict(
-    hop_length=512, fmin=27.5, n_bins=252, bins_per_octave=36, tuning=0.0,
+    hop_length=1024, fmin=27.5, n_bins=204, bins_per_octave=24, tuning=0.0,
     filter_scale=1, aggregate=None, norm=1, sparsity=0.0, real=False)
 
-AUDIO_PARAMS = dict(samplerate=11025.0, channels=1, bytedepth=2)
+AUDIO_PARAMS = dict(samplerate=22050.0, channels=1, bytedepth=2)
 
 
 def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
