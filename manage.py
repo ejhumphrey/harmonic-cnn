@@ -139,7 +139,30 @@ if __name__ == "__main__":
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)
 
-    logging.basicConfig(level=logging.DEBUG)
+    # TODO MOve this to a file config.
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': 'INFO',
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': 'DEBUG',
+                'propagate': True
+            }
+        }
+    })
+    # logging.basicConfig(level=logging.DEBUG)
 
     args = vars(parser.parse_args())
     fx = args.pop('func', None)
@@ -148,4 +171,3 @@ if __name__ == "__main__":
         sys.exit(0 if success else 1)
     else:
         parser.print_help()
-

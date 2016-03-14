@@ -82,10 +82,8 @@ def train_model(config, model_selector, experiment_name,
     Train a model, writing intermediate params
     to disk.
 
-    Trains for max_epochs epochs, where an epoch is:
-     # 44 is the approximate number of average frames in one file.
-     total_dataset_frames = n_training_files * (44 / t_len)
-     epoch_size = total_dataset_frames / batch_size
+    Trains for max_iterations or max_time, whichever is fewer.
+    [Specified in the config.]
 
     config: wcqtlib.config.Config
         Instantiated config.
@@ -134,17 +132,18 @@ def train_model(config, model_selector, experiment_name,
     # Save the config we used in the model directory, just in case.
     config.save(os.path.join(model_dir, "config.yaml"))
 
+    # Duration parameters
+    max_iterations = config['training/max_iterations']
+    max_time = config['training/max_time']  # in seconds
+
     # Collect various necessary parameters
     t_len = config['training/t_len']
     batch_size = config['training/batch_size']
     n_targets = config['training/n_targets']
-    max_epochs = config['training/max_epochs']
-    epoch_length = int(len(training_df) * (44 / float(t_len)) /
-                       float(batch_size))
     logger.debug("Hyperparams:\nt_len: {}\nbatch_size: {}\n"
-                 "n_targets: {}\nmax_epochs: {}\nepoch_length: {}"
-                 .format(t_len, batch_size, n_targets, max_epochs,
-                         epoch_length))
+                 "n_targets: {}\max_iterations: {}\nmax_time: {}s or {}h"
+                 .format(t_len, batch_size, n_targets, max_iterations,
+                         max_time, (max_time / 60. / 60.)))
 
     slicer = get_slicer_from_network_def(model_selector)
 
@@ -160,75 +159,60 @@ def train_model(config, model_selector, experiment_name,
     network_def = getattr(models, model_selector)(t_len, n_targets)
     model = models.NetworkManager(network_def)
 
-    batch_print_freq = config.get('training/train_print_frequency_batches',
-                                  None)
-    param_write_freq = config.get('training/param_write_frequency_epochs',
-                                  None)
-    predict_freq = config.get('training/predict_frequency_epochs',
-                              None)
+    iter_print_freq = config.get('training/iteration_print_frequency', None)
+    iter_write_freq = config.get('training/iteration_write_frequency', None)
 
-    logger.info("[{}] Beginning training loop".format(experiment_name))
-    epoch_count = 0
-    epoch_mean_loss = []
-    validation_losses = []
+    train_t0 = datetime.datetime.now()
+    logger.info("[{}] Beginning training loop at {}".format(
+        experiment_name, train_t0))
+    iter_count = 0
+    train_losses = []
     min_train_loss = np.inf
-    min_val_loss = np.inf
+    batch_start, batch_end = [None]*2
     try:
-        while epoch_count < max_epochs:
-            epoch_t0 = datetime.datetime.now()
-            logger.debug("Beginning epoch: ", epoch_count, "at", epoch_t0)
-            # train, storing loss for each batchself.
-            batch_count = 0
-            epoch_losses = []
-            for batch in streamer:
-                logger.debug("Beginning ")
-                train_loss = model.train(batch)
-                epoch_losses += [train_loss]
+        for batch in streamer:
+            batch_start = datetime.datetime.now()
+            train_losses += [model.train(batch)]
+            train_end = datetime.datetime.now()
 
-                if batch_print_freq and (batch_count % batch_print_freq == 0):
-                    print("Epoch: {} | Batch: {} | Train_loss: {}"
-                          .format(epoch_count, batch_count, train_loss))
-
-                batch_count += 1
-                if batch_count >= epoch_length:
-                    break
-            epoch_mean_loss += [np.mean(epoch_losses)]
-
-            # print valid, maybe
-            if predict_freq and (epoch_count % predict_freq == 0):
-                eval_df = evaluate.evaluate_dataframe(
-                    valid_df, model, slicer, t_len)
-                val_loss = eval_df['mean_loss'].mean()
-                val_acc = eval_df['mean_acc'].mean()
-                validation_losses += [val_loss]
-
-                print("Epoch {} | Train Loss: [{}] | Validation Loss "
-                      "[{}] | Acc [{:0.3f}]   Length: {}".format(
-                        epoch_count,
-                        conditional_colored(epoch_mean_loss[-1],
-                                            min_train_loss),
-                        conditional_colored(val_loss, min_val_loss),
-                        val_acc,
-                        datetime.datetime.now() - epoch_t0))
-                min_train_loss = min(epoch_mean_loss[-1], min_train_loss)
-                min_val_loss = min(val_loss, min_val_loss)
+            # Time Logging
+            logger.debug("[Iter timing] iter: {} | loss: {} | "
+                         "stream: {} | train: {}".format(
+                            iter_count, train_losses[-1],
+                            (batch_start - batch_end) if batch_end else
+                            (batch_start - train_t0),
+                            (train_end - batch_start)
+                            ))
+            # Print status
+            if iter_print_freq and (iter_count % iter_print_freq == 0):
+                print("Iteration: {} | | Train_loss: {}"
+                      .format(iter_count,
+                              conditional_colored(train_losses[-1],
+                                                  min_train_loss)))
+                min_train_loss = min(train_losses[-1], min_train_loss)
 
             # save model, maybe
-            if param_write_freq and (epoch_count % param_write_freq == 0):
+            if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
-                    params_dir, "params{0:0>4}.npz".format(epoch_count))
+                    params_dir, "params{0:0>4}.npz".format(iter_count))
                 model.save(save_path)
 
-            epoch_count += 1
-    except KeyboardInterrupt:
-        print("User cancelled training at epoch:", epoch_count)
+            iter_count += 1
 
-    # Print final training & validation loss & acc
-    print("Last Epoch:", epoch_count)
-    print("Final training loss:", epoch_mean_loss[-1])
-    print("Final validation loss:", validation_losses[-1])
+            # Stopping conditions
+            batch_end = datetime.datetime.now()
+            if (iter_count >= max_iterations) or \
+                    batch_end > (train_t0 + max_time):
+                break
+    except KeyboardInterrupt:
+        print("User cancelled training at epoch:", iter_count)
+
+    # Print final training loss
+    print("Last Epoch:", iter_count)
+    print("Final training loss:", train_losses[-1])
+
     # Make sure to save the final model.
-    save_path = os.path.join(params_dir, "final.npz".format(epoch_count))
+    save_path = os.path.join(params_dir, "final.npz".format(iter_count))
     model.save(save_path)
     logger.info("Completed training for experiment:", experiment_name)
 
