@@ -59,7 +59,7 @@ def test_construct_training_valid_df():
 @pytest.mark.slowtest
 def test_train_simple_model(workspace):
     thisconfig = copy.deepcopy(config)
-    thisconfig.data['training']['max_epochs'] = 5
+    thisconfig.data['training']['max_iterations'] = 200
     thisconfig.data['training']['batch_size'] = 12
     thisconfig.data['paths']['model_dir'] = workspace
     experiment_name = "testexperiment"

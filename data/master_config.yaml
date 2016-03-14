@@ -22,14 +22,14 @@ model: "cqt_iX_c2f2_oY"
 
 training:
   t_len: 8
-  max_iterations: 100000
+  max_iterations: 500
   max_time: 8000
   batch_size: 60
   n_targets: 12
-  iteration_print_frequency: 10
-  iteration_write_frequency: 5
+  iteration_print_frequency: 50
+  iteration_write_frequency: 500
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9
   hold_out_set: "philharmonia"
-  max_files_per_class: 5
+  max_files_per_class: null

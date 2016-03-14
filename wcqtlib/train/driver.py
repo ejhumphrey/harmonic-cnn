@@ -15,11 +15,64 @@ import wcqtlib.train.evaluate as evaluate
 logger = logging.getLogger(__name__)
 
 
+class EarlyStoppingException(Exception):
+    pass
+
+
 def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
-    val_str = formatstr.format(value)
+    val_str = formatstr.format(float(value))
     if value < minval:
         val_str = utils.colored(val_str, color)
     return val_str
+
+
+class TimerHolder(object):
+    def __init__(self):
+        self.timers = {}
+
+    def start(self, tuple_or_list):
+        """
+        Note: tuples can be keys.
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list] = [datetime.datetime.now(), None]
+        elif isinstance(tuple_or_list, list):
+            for key in tuple_or_list:
+                self.timers[key] = [datetime.datetime.now(), None]
+
+    def end(self, tuple_or_list):
+        """
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list][1] = datetime.datetime.now()
+            return self.timers[tuple_or_list][1] - \
+                self.timers[tuple_or_list][0]
+        elif isinstance(tuple_or_list, list):
+            results = []
+            for key in tuple_or_list:
+                self.timers[key][1] = datetime.datetime.now()
+                results += [self.timers[key][1] - self.timers[key][0]]
+            return results
+
+    def get(self, key):
+        if key in self.timers:
+            if self.timers[key][1]:
+                return self.timers[key][1] - self.timers[key][0]
+            else:
+                return self.timers[key][0]
+        else:
+            return None
+
+    def mean(self, key_root, start_ind, end_ind):
+        keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
+        values = [self.get(k) for k in keys if k in self.timers]
+        return np.mean(values)
 
 
 def construct_training_valid_df(features_df, datasets,
@@ -58,7 +111,7 @@ def construct_training_valid_df(features_df, datasets,
 
         if max_files_per_class:
             traindf = traindf.sample(n=max_files_per_class)
-            validdf = traindf.sample(n=max_files_per_class)
+            validdf = validdf.sample(n=max_files_per_class)
 
         selected_instruments_train.append(traindf)
         selected_instruments_valid.append(validdf)
@@ -82,10 +135,8 @@ def train_model(config, model_selector, experiment_name,
     Train a model, writing intermediate params
     to disk.
 
-    Trains for max_epochs epochs, where an epoch is:
-     # 44 is the approximate number of average frames in one file.
-     total_dataset_frames = n_training_files * (44 / t_len)
-     epoch_size = total_dataset_frames / batch_size
+    Trains for max_iterations or max_time, whichever is fewer.
+    [Specified in the config.]
 
     config: wcqtlib.config.Config
         Instantiated config.
@@ -106,7 +157,7 @@ def train_model(config, model_selector, experiment_name,
         limit the training set to this number of files
         per class.
     """
-    logger.info("Starting training for experiment:", experiment_name)
+    logger.info("Starting training for experiment: {}".format(experiment_name))
     # Important paths & things to load.
     features_path = os.path.join(
         os.path.expanduser(config["paths/extract_dir"]),
@@ -134,17 +185,18 @@ def train_model(config, model_selector, experiment_name,
     # Save the config we used in the model directory, just in case.
     config.save(os.path.join(model_dir, "config.yaml"))
 
+    # Duration parameters
+    max_iterations = config['training/max_iterations']
+    max_time = config['training/max_time']  # in seconds
+
     # Collect various necessary parameters
     t_len = config['training/t_len']
     batch_size = config['training/batch_size']
     n_targets = config['training/n_targets']
-    max_epochs = config['training/max_epochs']
-    epoch_length = int(len(training_df) * (44 / float(t_len)) /
-                       float(batch_size))
     logger.debug("Hyperparams:\nt_len: {}\nbatch_size: {}\n"
-                 "n_targets: {}\nmax_epochs: {}\nepoch_length: {}"
-                 .format(t_len, batch_size, n_targets, max_epochs,
-                         epoch_length))
+                 "n_targets: {}\nmax_iterations: {}\nmax_time: {}s or {}h"
+                 .format(t_len, batch_size, n_targets, max_iterations,
+                         max_time, (max_time / 60. / 60.)))
 
     slicer = get_slicer_from_network_def(model_selector)
 
@@ -160,77 +212,82 @@ def train_model(config, model_selector, experiment_name,
     network_def = getattr(models, model_selector)(t_len, n_targets)
     model = models.NetworkManager(network_def)
 
-    batch_print_freq = config.get('training/train_print_frequency_batches',
-                                  None)
-    param_write_freq = config.get('training/param_write_frequency_epochs',
-                                  None)
-    predict_freq = config.get('training/predict_frequency_epochs',
-                              None)
+    iter_print_freq = config.get('training/iteration_print_frequency', None)
+    iter_write_freq = config.get('training/iteration_write_frequency', None)
 
-    logger.info("[{}] Beginning training loop".format(experiment_name))
-    epoch_count = 0
-    epoch_mean_loss = []
-    validation_losses = []
+    timers = TimerHolder()
+    iter_count = 0
+    train_losses = []
     min_train_loss = np.inf
-    min_val_loss = np.inf
+
+    timers.start("train")
+    logger.info("[{}] Beginning training loop at {}".format(
+        experiment_name, timers.get("train")))
     try:
-        while epoch_count < max_epochs:
-            epoch_t0 = datetime.datetime.now()
-            logger.debug("Beginning epoch: ", epoch_count, "at", epoch_t0)
-            # train, storing loss for each batchself.
-            batch_count = 0
-            epoch_losses = []
-            for batch in streamer:
-                logger.debug("Beginning ")
-                train_loss = model.train(batch)
-                epoch_losses += [train_loss]
+        timers.start(("stream", iter_count))
+        for batch in streamer:
+            timers.end(("stream", iter_count))
+            timers.start(("batch_train", iter_count))
+            train_losses += [model.train(batch)]
+            timers.end(("batch_train", iter_count))
 
-                if batch_print_freq and (batch_count % batch_print_freq == 0):
-                    print("Epoch: {} | Batch: {} | Train_loss: {}"
-                          .format(epoch_count, batch_count, train_loss))
-
-                batch_count += 1
-                if batch_count >= epoch_length:
-                    break
-            epoch_mean_loss += [np.mean(epoch_losses)]
-
-            # print valid, maybe
-            if predict_freq and (epoch_count % predict_freq == 0):
-                eval_df = evaluate.evaluate_dataframe(
-                    valid_df, model, slicer, t_len)
-                val_loss = eval_df['mean_loss'].mean()
-                val_acc = eval_df['mean_acc'].mean()
-                validation_losses += [val_loss]
-
-                print("Epoch {} | Train Loss: [{}] | Validation Loss "
-                      "[{}] | Acc [{:0.3f}]   Length: {}".format(
-                        epoch_count,
-                        conditional_colored(epoch_mean_loss[-1],
-                                            min_train_loss),
-                        conditional_colored(val_loss, min_val_loss),
-                        val_acc,
-                        datetime.datetime.now() - epoch_t0))
-                min_train_loss = min(epoch_mean_loss[-1], min_train_loss)
-                min_val_loss = min(val_loss, min_val_loss)
+            # Time Logging
+            logger.debug("[Iter timing] iter: {} | loss: {} | "
+                         "stream: {} | train: {}".format(
+                            iter_count, train_losses[-1],
+                            timers.get(("stream", iter_count)),
+                            timers.get(("batch_train", iter_count))
+                            ))
+            # Print status
+            if iter_print_freq and (iter_count % iter_print_freq == 0):
+                mean_train_loss = np.mean(train_losses[-iter_print_freq:])
+                logger.info("Iteration: {} | Mean_Train_loss: {}"
+                            .format(iter_count,
+                                    conditional_colored(mean_train_loss,
+                                                        min_train_loss)))
+                min_train_loss = min(mean_train_loss, min_train_loss)
+                # Print the mean times for the last n frames
+                logger.info("Mean stream time: {}, Mean train time: {}".format(
+                    timers.mean("stream", iter_count - iter_print_freq,
+                                iter_count),
+                    timers.mean("batch_train", iter_count - iter_print_freq,
+                                iter_count)))
 
             # save model, maybe
-            if param_write_freq and (epoch_count % param_write_freq == 0):
+            if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
-                    params_dir, "params{0:0>4}.npz".format(epoch_count))
+                    params_dir, "params{0:0>4}.npz".format(iter_count))
                 model.save(save_path)
 
-            epoch_count += 1
-    except KeyboardInterrupt:
-        print("User cancelled training at epoch:", epoch_count)
+            if datetime.datetime.now() > \
+                    (timers.get("train") + datetime.timedelta(
+                        seconds=max_time)):
+                raise EarlyStoppingException("Max Time reached")
 
-    # Print final training & validation loss & acc
-    print("Last Epoch:", epoch_count)
-    print("Final training loss:", epoch_mean_loss[-1])
-    print("Final validation loss:", validation_losses[-1])
+            iter_count += 1
+            timers.start(("stream", iter_count))
+            # Stopping conditions
+            if (iter_count >= max_iterations):
+                raise EarlyStoppingException("Max Iterations Reached")
+
+    except KeyboardInterrupt:
+        logger.warn(utils.colored("Training Cancelled", "red"))
+        print("User cancelled training at epoch:", iter_count)
+    except EarlyStoppingException as e:
+        logger.warn(utils.colored("Training Stopped for {}".format(e), "red"))
+        print("Training halted for: ", e)
+    timers.end("train")
+
+    # Print final training loss
+    print("Total iterations:", iter_count)
+    print("Trained for ", timers.get("train"))
+    print("Final training loss:", train_losses[-1])
+
     # Make sure to save the final model.
-    save_path = os.path.join(params_dir, "final.npz".format(epoch_count))
+    save_path = os.path.join(params_dir, "final.npz".format(iter_count))
     model.save(save_path)
-    logger.info("Completed training for experiment:", experiment_name)
+    logger.info("Completed training for experiment: {}".format(
+        experiment_name))
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):
