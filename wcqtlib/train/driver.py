@@ -168,6 +168,7 @@ def train_model(config, model_selector, experiment_name,
     iter_count = 0
     train_losses = []
     min_train_loss = np.inf
+
     batch_start, batch_end = [None]*2
     try:
         for batch in streamer:
@@ -204,6 +205,7 @@ def train_model(config, model_selector, experiment_name,
             if (iter_count >= max_iterations) or \
                     batch_end > (train_t0 + max_time):
                 break
+
     except KeyboardInterrupt:
         print("User cancelled training at epoch:", iter_count)
 
