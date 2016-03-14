@@ -111,7 +111,6 @@ def construct_training_valid_df(features_df, datasets,
 
         if max_files_per_class:
             traindf = traindf.sample(n=max_files_per_class)
-            validdf = validdf.sample(n=max_files_per_class)
 
         selected_instruments_train.append(traindf)
         selected_instruments_valid.append(validdf)

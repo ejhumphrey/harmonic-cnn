@@ -77,7 +77,7 @@ def __test_network(network_def, input_shape):
 
     batch_size = 8
     input_shape = (batch_size,) + input_shape[1:]
-    test_batch = np.random.random(input_shape)
+    test_batch = np.random.random(input_shape, dtype=np.float32)
     test_target = np.asarray(np.random.randint(2, size=batch_size),
                              dtype=np.int32)
     loss = model.train_fx(test_batch, test_target)
