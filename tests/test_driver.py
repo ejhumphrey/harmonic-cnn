@@ -25,7 +25,7 @@ def test_construct_training_valid_df():
     def __test_result_df(traindf, validdf, datasets, n_per_inst):
         if n_per_inst:
             assert len(traindf) == 12 * n_per_inst
-            assert len(validdf) == 12 * n_per_inst
+            assert len(validdf)
         else:
             total_len = len(traindf) + len(validdf)
             np.testing.assert_almost_equal((total_len*.8)/100.,
