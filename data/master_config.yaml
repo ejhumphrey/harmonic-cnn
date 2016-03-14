@@ -16,20 +16,20 @@ extract:
 features:
   cqt:
     num_cpus: -1
-    skip_existing: true
+    skip_existing: false
 
 model: "cqt_iX_c2f2_oY"
 
 training:
   t_len: 8
-  max_epochs: 1000
+  max_iterations: 100000
+  max_time: 8000
   batch_size: 60
   n_targets: 12
-  train_print_frequency_batches: null
-  predict_frequency_epochs: 5
-  param_write_frequency_epochs: 5
+  iteration_print_frequency: 10
+  iteration_write_frequency: 5
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9
   hold_out_set: "philharmonia"
-  max_files_per_class: 160
+  max_files_per_class: 5
