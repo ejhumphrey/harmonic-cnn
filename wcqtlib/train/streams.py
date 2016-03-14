@@ -81,7 +81,7 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
 
 
 def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
-                p_len=48, p_stride=36):
+                p_len=36, p_stride=24):
     """Generate slices of wrapped CQT observations.
 
     To use this for training, use the following parameters:
