@@ -151,7 +151,7 @@ if __name__ == "__main__":
         },
         'handlers': {
             'default': {
-                'level': 'DEBUG',
+                'level': 'INFO',
                 'class': 'logging.StreamHandler',
                 'formatter': "standard"
             },
