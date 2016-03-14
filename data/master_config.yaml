@@ -22,7 +22,7 @@ model: "cqt_iX_c2f2_oY"
 
 training:
   t_len: 8
-  max_epochs: 5000
+  max_epochs: 1000
   batch_size: 60
   n_targets: 12
   train_print_frequency_batches: null
