@@ -165,7 +165,12 @@ def train_model(config, model_selector, experiment_name,
     model_dir = os.path.join(
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
-    params_dir = os.path.join(model_dir, "params")
+    params_dir = os.path.join(model_dir, config["experiment/params_dir"])
+    param_format_str = config['experiment/params_format']
+    experiment_config_path = os.path.join(model_dir,
+                                          config['experiment/config_path'])
+    training_loss_path = os.path.join(model_dir,
+                                      config['experiment/training_loss'])
     utils.create_directory(model_dir)
     utils.create_directory(params_dir)
 
@@ -182,7 +187,7 @@ def train_model(config, model_selector, experiment_name,
                                                      len(training_df)))
 
     # Save the config we used in the model directory, just in case.
-    config.save(os.path.join(model_dir, "config.yaml"))
+    config.save(experiment_config_path)
 
     # Duration parameters
     max_iterations = config['training/max_iterations']
@@ -255,7 +260,7 @@ def train_model(config, model_selector, experiment_name,
             # save model, maybe
             if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
-                    params_dir, "params{0:0>4}.npz".format(iter_count))
+                    params_dir, param_format_str.format(iter_count))
                 model.save(save_path)
 
             if datetime.datetime.now() > \
@@ -287,6 +292,10 @@ def train_model(config, model_selector, experiment_name,
     model.save(save_path)
     logger.info("Completed training for experiment: {}".format(
         experiment_name))
+
+    # Save training loss
+    with open(training_loss_path, 'w') as fh:
+        np.save(fh, train_losses)
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):

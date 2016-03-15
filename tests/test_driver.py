@@ -72,4 +72,7 @@ def test_train_simple_model(workspace):
     new_config = os.path.join(workspace, experiment_name, "config.yaml")
     final_params = os.path.join(workspace, experiment_name, "params",
                                 "final.npz")
+    train_loss_fp = os.path.join(workspace,
+                                 experiment_name, "training_loss.npy")
     assert os.path.exists(new_config) and os.path.exists(final_params)
+    assert os.path.exists(train_loss_fp)

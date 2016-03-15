@@ -20,6 +20,12 @@ features:
 
 model: "cqt_iX_c2f2_oY"
 
+experiment:
+  params_dir: "params"
+  params_format: "params{0:0>4}.npz"
+  config_path: "config.yaml"
+  training_loss: "training_loss.npy"
+
 training:
   t_len: 8
   max_iterations: 100000
