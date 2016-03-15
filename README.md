@@ -37,6 +37,8 @@ python manage.py extract_features
 To run an experiment using existing configurations, first take a look at 
 wcqtlib/train/models.py, and select a network definition function.
 
+i.e. `cqt_iX_c2f2_oY`
+
 ### Update your config
 Open data/master_config.yaml, and put your model name in the "model" field.
 
