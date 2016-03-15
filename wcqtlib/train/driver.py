@@ -171,6 +171,12 @@ def train_model(config, model_selector, experiment_name,
                                           config['experiment/config_path'])
     training_loss_path = os.path.join(model_dir,
                                       config['experiment/training_loss'])
+    training_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "train", hold_out_set))
+    valid_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
     utils.create_directory(model_dir)
     utils.create_directory(params_dir)
 
@@ -185,6 +191,9 @@ def train_model(config, model_selector, experiment_name,
         features_df, datasets, max_files_per_class=max_files_per_class)
     logger.debug("[{}] training_df : {} rows".format(experiment_name,
                                                      len(training_df)))
+    # Save the dfs to disk so we can use them for validation later.
+    training_df.to_pickle(training_df_save_path)
+    valid_df.to_pickle(valid_df_save_path)
 
     # Save the config we used in the model directory, just in case.
     config.save(experiment_config_path)

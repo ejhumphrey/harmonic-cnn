@@ -63,9 +63,10 @@ def test_train_simple_model(workspace):
     thisconfig.data['training']['batch_size'] = 12
     thisconfig.data['paths']['model_dir'] = workspace
     experiment_name = "testexperiment"
+    hold_out = "rwc"
 
     driver.train_model(thisconfig, 'wcqt_iX_c1f1_oY',
-                       experiment_name, "rwc",
+                       experiment_name, hold_out,
                        max_files_per_class=1)
 
     # Expected files this should generate
@@ -76,3 +77,11 @@ def test_train_simple_model(workspace):
                                  experiment_name, "training_loss.npy")
     assert os.path.exists(new_config) and os.path.exists(final_params)
     assert os.path.exists(train_loss_fp)
+
+    # Also make sure the training & validation splits got written out
+    train_fp = os.path.join(workspace, experiment_name,
+                            "train_df_{}.pkl".format(hold_out))
+    assert os.path.exists(train_fp)
+    valid_fp = os.path.join(workspace, experiment_name,
+                            "train_df_{}.pkl".format(hold_out))
+    assert os.path.exists(valid_fp)
