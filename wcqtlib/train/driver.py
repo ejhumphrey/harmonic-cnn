@@ -294,8 +294,7 @@ def train_model(config, model_selector, experiment_name,
         experiment_name))
 
     # Save training loss
-    with open(training_loss_path, 'w') as fh:
-        np.save(fh, train_losses)
+    np.save(training_loss_path, np.asarray(train_losses))
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):
