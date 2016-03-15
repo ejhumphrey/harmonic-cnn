@@ -24,6 +24,36 @@ $ python wcqtlib/tools/download.py data/uiowa.json ~/data/uiowa
 $ python wcqtlib/tools/download.py data/philharmonia.json ~/data/philharmonia
 ```
 
+## Preparing the data for training
+```bash
+python manage.py collect
+
+# Extract features from note files.
+python manage.py extract_features
+```
+
+## Run an experiment
+### Select your model
+To run an experiment using existing configurations, first take a look at 
+wcqtlib/train/models.py, and select a network definition function.
+
+### Update your config
+Open data/master_config.yaml, and put your model name in the "model" field.
+
+Then, update your training parameters.
+
+### Train your model
+```bash
+# All your model / training data will be saved in a folder with the name
+# of your experiment.
+python manage.py train exp001
+```
+
+### Evaluate your model
+```bash
+# Use the same experiment name as in train
+python manage.py evaluate exp001
+```
 
 # Tracking Experiment Decisions
 - Skipping all Philharmonia files with the articulation in the filename != "normal", since they do not have well-defined or regular note patters.
