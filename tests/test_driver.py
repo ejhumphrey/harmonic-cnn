@@ -1,16 +1,38 @@
 import copy
 import logging
+import logging.config
 import numpy as np
 import os
 import pandas
 import pytest
-import sys
 
 import wcqtlib.config as C
 import wcqtlib.train.driver as driver
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': 'DEBUG',
+                'class': 'logging.StreamHandler',
+                'formatter': "standard"
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': 'DEBUG',
+                'propagate': True
+            }
+        }
+    })
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
@@ -70,18 +92,24 @@ def test_train_simple_model(workspace):
                        max_files_per_class=1)
 
     # Expected files this should generate
+    logger.debug("1")
     new_config = os.path.join(workspace, experiment_name, "config.yaml")
     final_params = os.path.join(workspace, experiment_name, "params",
                                 "final.npz")
     train_loss_fp = os.path.join(workspace,
-                                 experiment_name, "training_loss.npy")
+                                 experiment_name, "training_loss.pkl")
+    logger.debug("2")
     assert os.path.exists(new_config) and os.path.exists(final_params)
     assert os.path.exists(train_loss_fp)
 
     # Also make sure the training & validation splits got written out
+    logger.debug("3")
     train_fp = os.path.join(workspace, experiment_name,
                             "train_df_{}.pkl".format(hold_out))
+    logger.debug("4")
     assert os.path.exists(train_fp)
+    logger.debug("5")
     valid_fp = os.path.join(workspace, experiment_name,
                             "train_df_{}.pkl".format(hold_out))
+    logger.debug("6")
     assert os.path.exists(valid_fp)
