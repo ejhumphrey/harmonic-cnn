@@ -20,6 +20,14 @@ features:
 
 model: "cqt_iX_c2f2_oY"
 
+experiment:
+  params_dir: "params"
+  params_format: "params{0:0>4}.npz"
+  config_path: "config.yaml"
+  training_loss: "training_loss.pkl"
+  data_split_format: "{}_df_{}.pkl"
+  hold_out_set: "philharmonia"
+
 training:
   t_len: 8
   max_iterations: 100000
@@ -31,5 +39,4 @@ training:
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9
-  hold_out_set: "philharmonia"
   max_files_per_class: null

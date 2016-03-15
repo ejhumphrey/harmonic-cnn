@@ -69,6 +69,12 @@ class TimerHolder(object):
         else:
             return None
 
+    def get_start(self, key):
+        return self.timers.get(key, None)[0]
+
+    def get_end(self, key):
+        return self.timers.get(key, None)[1]
+
     def mean(self, key_root, start_ind, end_ind):
         keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
         values = [self.get(k) for k in keys if k in self.timers]
@@ -165,7 +171,18 @@ def train_model(config, model_selector, experiment_name,
     model_dir = os.path.join(
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
-    params_dir = os.path.join(model_dir, "params")
+    params_dir = os.path.join(model_dir, config["experiment/params_dir"])
+    param_format_str = config['experiment/params_format']
+    experiment_config_path = os.path.join(model_dir,
+                                          config['experiment/config_path'])
+    training_loss_path = os.path.join(model_dir,
+                                      config['experiment/training_loss'])
+    training_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "train", hold_out_set))
+    valid_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
     utils.create_directory(model_dir)
     utils.create_directory(params_dir)
 
@@ -180,9 +197,12 @@ def train_model(config, model_selector, experiment_name,
         features_df, datasets, max_files_per_class=max_files_per_class)
     logger.debug("[{}] training_df : {} rows".format(experiment_name,
                                                      len(training_df)))
+    # Save the dfs to disk so we can use them for validation later.
+    training_df.to_pickle(training_df_save_path)
+    valid_df.to_pickle(valid_df_save_path)
 
     # Save the config we used in the model directory, just in case.
-    config.save(os.path.join(model_dir, "config.yaml"))
+    config.save(experiment_config_path)
 
     # Duration parameters
     max_iterations = config['training/max_iterations']
@@ -216,7 +236,9 @@ def train_model(config, model_selector, experiment_name,
 
     timers = TimerHolder()
     iter_count = 0
-    train_losses = []
+    train_stats = pandas.DataFrame(columns=['timestamp',
+                                            'batch_train_dur',
+                                            'iteration', 'loss'])
     min_train_loss = np.inf
 
     timers.start("train")
@@ -227,19 +249,24 @@ def train_model(config, model_selector, experiment_name,
         for batch in streamer:
             timers.end(("stream", iter_count))
             timers.start(("batch_train", iter_count))
-            train_losses += [model.train(batch)]
+            loss = model.train(batch)
             timers.end(("batch_train", iter_count))
+            row = dict(timestamp=timers.get_end(("batch_train", iter_count)),
+                       batch_train_dur=timers.get(("batch_train", iter_count)),
+                       iteration=iter_count,
+                       loss=loss)
+            train_stats.loc[len(train_stats)] = row
 
             # Time Logging
             logger.debug("[Iter timing] iter: {} | loss: {} | "
                          "stream: {} | train: {}".format(
-                            iter_count, train_losses[-1],
+                            iter_count, loss,
                             timers.get(("stream", iter_count)),
                             timers.get(("batch_train", iter_count))
                             ))
             # Print status
             if iter_print_freq and (iter_count % iter_print_freq == 0):
-                mean_train_loss = np.mean(train_losses[-iter_print_freq:])
+                mean_train_loss = train_stats["loss"][-iter_print_freq:].mean()
                 logger.info("Iteration: {} | Mean_Train_loss: {}"
                             .format(iter_count,
                                     conditional_colored(mean_train_loss,
@@ -255,7 +282,7 @@ def train_model(config, model_selector, experiment_name,
             # save model, maybe
             if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
-                    params_dir, "params{0:0>4}.npz".format(iter_count))
+                    params_dir, param_format_str.format(iter_count))
                 model.save(save_path)
 
             if datetime.datetime.now() > \
@@ -280,13 +307,17 @@ def train_model(config, model_selector, experiment_name,
     # Print final training loss
     print("Total iterations:", iter_count)
     print("Trained for ", timers.get("train"))
-    print("Final training loss:", train_losses[-1])
+    print("Final training loss:", train_stats["loss"].iloc[-1])
 
     # Make sure to save the final model.
     save_path = os.path.join(params_dir, "final.npz".format(iter_count))
     model.save(save_path)
     logger.info("Completed training for experiment: {}".format(
         experiment_name))
+
+    # Save training loss
+    logger.info("Writing training stats to {}".format(training_loss_path))
+    train_stats.to_pickle(training_loss_path)
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):

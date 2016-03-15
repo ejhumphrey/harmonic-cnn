@@ -56,7 +56,7 @@ def train(master_config,
     config = C.Config.from_yaml(master_config)
 
     model_definition = config["model"]
-    hold_out_set = config["training/hold_out_set"]
+    hold_out_set = config["experiment/hold_out_set"]
     max_files_per_class = config.get(
         "training/max_files_per_class", None)
 
