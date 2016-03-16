@@ -36,7 +36,8 @@ setup(
         'numpy',
         'scipy',
         'theano',
-        'pandas'
+        'pandas',
+        'scandir'
     ],
     extras_require={
         'docs': ['numpydoc']

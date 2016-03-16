@@ -46,6 +46,10 @@ import sys
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
 
+if not hasattr(os, 'scandir'):
+    import scandir
+    os.scandir = scandir.scandir
+
 logger = logging.getLogger(__name__)
 
 DATA_DIR = os.path.join(
