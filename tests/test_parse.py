@@ -5,6 +5,7 @@ for starters, I'm going to do it by creating dummy hierarchies
 in the same format.
 """
 
+import json
 import os
 import pandas
 import pytest
@@ -16,6 +17,17 @@ DATA_ROOT = os.path.expanduser("~/data")
 RWC_ROOT = os.path.join(DATA_ROOT, "RWC Instruments")
 UIOWA_ROOT = os.path.join(DATA_ROOT, "uiowa")
 PHIL_ROOT = os.path.join(DATA_ROOT, "philharmonia")
+
+
+@pytest.fixture
+def dummy_datasets_df():
+    dummy_df = pandas.DataFrame([
+        ("foo/bar/stuff.aiff", "uiowa"),
+        ("what/who/when.aiff", "philharmonia"),
+        ("where/when/whoppens.aiff", "rwc")
+        ],
+        columns=["audio_file", "dataset"])
+    return dummy_df
 
 
 def __test_df_has_data(df):
@@ -37,6 +49,30 @@ def __test_pd_output(pd_output, working_dir, dataset):
     for row in pd_output.iterrows():
         assert os.path.exists(row[1]['audio_file'])
         assert row[1]['dataset'] == dataset
+
+
+def test_to_basename_df(dummy_datasets_df):
+    new_df = wcqtlib.data.parse.to_basename_df(dummy_datasets_df)
+    assert sorted(new_df.columns) == ['audio_file', 'dataset', 'dirname']
+    for index, row in new_df.iterrows():
+        assert new_df.loc[index]['audio_file'] == \
+            os.path.basename(dummy_datasets_df.loc[index]['audio_file'])
+
+
+@pytest.mark.runme
+def test_generate_canonical_files(workspace, dummy_datasets_df):
+    """Create a dummy dataframe, and make sure it got written out
+    as a json file correctly."""
+    destination = os.path.join(workspace, "canonical_files.json")
+    success = wcqtlib.data.parse.generate_canonical_files(
+        dummy_datasets_df, destination)
+
+    assert success
+    assert os.path.exists(destination)
+
+    # Try to load it as a dataframe
+    reloaded_df = wcqtlib.data.parse.load_canonical_files(destination)
+    assert len(reloaded_df) == len(dummy_datasets_df)
 
 
 def test_rwc_instrument_code_to_name():

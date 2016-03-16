@@ -51,10 +51,62 @@ logger = logging.getLogger(__name__)
 DATA_DIR = os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir,
     "data")
+CANONICAL_FILES_PATH = os.path.join(DATA_DIR, "canonical_files.json")
 RWC_INSTRUMENT_MAP_PATH = os.path.join(DATA_DIR, "rwc_instrument_map.json")
 CLASS_MAP = os.path.join(DATA_DIR, "class_map.json")
 with open(RWC_INSTRUMENT_MAP_PATH, 'r') as fh:
     RWC_INSTRUMENT_MAP = json.load(fh)
+
+
+def to_basename_df(df):
+    """Get a dataframe from df with columns for only [basename, dirname, dataset]
+    """
+    new_df = df.copy()[['audio_file', 'dataset']]
+    dirnames = pandas.DataFrame(columns=['dirname'], index=new_df.index)
+    for index, row in new_df.iterrows():
+        dirnames.loc[index]['dirname'] = os.path.basename(
+            os.path.dirname(row['audio_file']))
+        new_df.loc[index]['audio_file'] = os.path.basename(row['audio_file'])
+    return pandas.concat([new_df, dirnames], axis=1)
+
+
+def generate_canonical_files(datasets_df,
+                             destination_path=CANONICAL_FILES_PATH):
+    """Create the data/canonical_files.json from your existing
+    datasets dataframe.
+
+    Parameters
+    ----------
+    datasets_df : pandas.DataFrame
+        DataFrame with columns ["audio_file", "dataset"]
+
+    destination_path : str or None
+        Path override for the output. By default,
+        goes to 'data/canonical_files.json'
+
+    Returns
+    -------
+    success : bool
+        True if file was created.
+    """
+    canonical_df = to_basename_df(datasets_df)
+    canonical_df.to_json(destination_path, orient='records')
+
+    return os.path.exists(destination_path)
+
+
+def load_canonical_files(destination_path=CANONICAL_FILES_PATH):
+    """Read the canonical files dataframe."""
+    return pandas.read_json(destination_path, orient='records')
+
+
+def diff_datasets_files(canonical_df, datasets_df):
+    canonical_files = canonical_df.set_index('audio_file')
+    datasets_files = to_basename_df(datasets_df).set_index('audio_file')
+    joinresult = canonical_files.join(
+        datasets_files, how='outer', lsuffix='can', rsuffix='me', sort=True)
+
+    return pandas.isnull(joinresult).any(1).nonzero()[0]
 
 
 def rwc_instrument_code_to_name(rwc_instrument_code):
