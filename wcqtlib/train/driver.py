@@ -414,7 +414,7 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
                                           config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
     params_file = os.path.join(experiment_dir,
-                               config['experiment/params_dir'], 
+                               config['experiment/params_dir'],
                                selected_model_file)
     slicer = get_slicer_from_network_def(original_config['model'])
 

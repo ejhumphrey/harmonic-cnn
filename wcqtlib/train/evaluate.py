@@ -151,7 +151,6 @@ class BinarySearchModelSelector(ModelSelector):
                 start_ind, end_ind = (new_ind, end_ind) if best_model >= 0 \
                     else (start_ind, new_ind)
             else:
-                import pdb; pdb.set_trace()
                 start_ind, end_ind = (new_ind, new_ind)
 
         logger.info("Selected model {} / {}".format(
