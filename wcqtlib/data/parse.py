@@ -342,7 +342,7 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
     zip_files = glob.glob(os.path.join(root_dir, "*/*.zip"))
     utils.unzip_files(zip_files)
 
-    n_articulation_skipped = 0
+    articulation_skipped = []
 
     indexes = []
     records = []
@@ -350,7 +350,7 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
         instrument, note, duration, dynamic, articulation = \
             parse_phil_path(audio_file_path)
 
-        if articulation == "normal":
+        if "normal" in articulation or "vibrato" in articulation:
             indexes.append(generate_id(dataset, audio_file_path))
             records.append(
                 dict(audio_file=audio_file_path,
@@ -359,11 +359,15 @@ def philharmonia_to_dataframe(base_dir, dataset="philharmonia"):
                      note=note,
                      dynamic=dynamic))
         else:
-            n_articulation_skipped += 1
+            articulation_skipped += [audio_file_path]
 
     logger.info("Using {} files from Philharmonia.".format(len(records)))
-    logger.warn("Skipped {} files in Philharmonia with articulation != "
-                "'normal'".format(n_articulation_skipped))
+    logger.warn(utils.colored("Skipped {} files in Philharmonia with "
+                              "articulation not in 'normal'"
+                              .format(len(articulation_skipped)), "red"))
+
+    with open("log_philharmonia_skipped.txt", 'w') as fh:
+        fh.write("\n".join(articulation_skipped))
 
     return pandas.DataFrame(records, index=indexes)
 
@@ -450,7 +454,7 @@ class InstrumentClassMap(object):
 
     def __getitem__(self, searchkey):
         """Get the actual class name. (Actually the reverse map)."""
-        return self.reverse_map[searchkey]
+        return self.reverse_map.get(searchkey, None)
 
     def get_index(self, searchkey):
         """Get the class index for training.

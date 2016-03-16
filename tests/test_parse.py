@@ -6,6 +6,7 @@ in the same format.
 """
 
 import json
+import numpy as np
 import os
 import pandas
 import pytest
@@ -50,6 +51,15 @@ def __test_pd_output(pd_output, working_dir, dataset):
         assert os.path.exists(row[1]['audio_file'])
         assert row[1]['dataset'] == dataset
 
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+
+    # Mke sure we have all the selected instruments
+    pd_instruments = pd_output["instrument"].unique()
+    map_inst = [classmap[x] for x in pd_instruments if classmap[x]]
+    instrument_found = np.array([(x in classmap.classnames) for x in map_inst])
+    assert all(instrument_found), "Dataset {} is missing: {}".format(
+        dataset, instrument_found[instrument_found == 0])
+
 
 def test_to_basename_df(dummy_datasets_df):
     new_df = wcqtlib.data.parse.to_basename_df(dummy_datasets_df)
@@ -59,7 +69,6 @@ def test_to_basename_df(dummy_datasets_df):
             os.path.basename(dummy_datasets_df.loc[index]['audio_file'])
 
 
-@pytest.mark.runme
 def test_generate_canonical_files(workspace, dummy_datasets_df):
     """Create a dummy dataframe, and make sure it got written out
     as a json file correctly."""
@@ -120,7 +129,14 @@ def test_parse_phil_path():
                   ("cello_A3_1_fortissimo_arco-normal.mp3",
                    ("cello", "A3", "1", "fortissimo", "arco-normal")),
                   ("trumpet_A3_15_pianissimo_normal.mp3",
-                   ("trumpet", "A3", "15", "pianissimo", "normal"))]
+                   ("trumpet", "A3", "15", "pianissimo", "normal")),
+                  ("double-bass_A1_1_mezzo-forte_arco-normal",
+                   ("double-bass", "A1", "1", "mezzo-forte", "arco-normal")),
+                  ("/Users/cjacoby/data/philharmonia/www.philharmonia.co.uk/"
+                   "assets/audio/samples/double bass/double bass"
+                   "/double-bass_E1_phrase_mezzo-forte_arco-au-talon.mp3",
+                   ("double-bass", "E1", "phrase", "mezzo-forte",
+                    "arco-au-talon"))]
 
     for value, expected in test_pairs:
         result = wcqtlib.data.parse.parse_phil_path(value)
