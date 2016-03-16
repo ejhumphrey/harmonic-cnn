@@ -18,6 +18,20 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__),
 logger = logging.getLogger(__name__)
 
 
+def save_canonical_files(master_config):
+    """Create the canonical_files.json file."""
+    config = C.Config.from_yaml(master_config)
+    datasets_path = os.path.join(
+        os.path.expanduser(config['paths/extract_dir']),
+        config['dataframes/datasets'])
+    datasets_df = pandas.read_json(datasets_path)
+    logger.info("Generating canonical datasets file from {} records".format(
+        len(datasets_df)))
+    success = parse.generate_canonical_files(datasets_df)
+    logger.info("Success: {}".format(success))
+    return success
+
+
 def collect(master_config):
     """Prepare dataframes of notes for experiments."""
     config = C.Config.from_yaml(master_config)
@@ -106,6 +120,33 @@ def notebook(master_config):
     raise NotImplementedError("notebook not yet implemented")
 
 
+def datatest(master_config):
+    """Check your generated data."""
+    config = C.Config.from_yaml(master_config)
+    datasets_path = os.path.join(
+        os.path.expanduser(config['paths/extract_dir']),
+        config['dataframes/datasets'])
+    datasets_df = pandas.read_json(datasets_path)
+    logger.info("Your datasets_df has {} records".format(len(datasets_df)))
+
+    canonical_df = parse.load_canonical_files()
+    logger.info("Cannonical dataset has {} records".format(len(canonical_df)))
+
+    diff_df = parse.diff_datasets_files(canonical_df, datasets_df)
+    if len(diff_df):
+        print(utils.colored(
+            "The following files are missing from your machine", "red"))
+
+        print("Filename\tdirname\tdataset")
+        for index, row in diff_df.iterrows():
+            print("{:<40}\t{:<20}\t{:<15}".format(
+                index, row['dirnamecan'], row['datasetcan']))
+        return 1
+    else:
+        print(utils.colored("You're all set; your dataset matches.", "green"))
+        return 0
+
+
 def test(master_config):
     """Launch all unit tests."""
     print(utils.colored("Running unit tests."))
@@ -117,6 +158,9 @@ if __name__ == "__main__":
     parser.add_argument("--master_config", default=CONFIG_PATH)
 
     subparsers = parser.add_subparsers()
+    save_canonical_parser = subparsers.add_parser('save_canonical_files')
+    save_canonical_parser.set_defaults(func=save_canonical_files)
+
     collect_parser = subparsers.add_parser('collect')
     collect_parser.set_defaults(func=collect)
     extract_features_parser = subparsers.add_parser('extract_features')
@@ -137,6 +181,10 @@ if __name__ == "__main__":
     analyze_parser.set_defaults(func=analyze)
     notebook_parser = subparsers.add_parser('notebook')
     notebook_parser.set_defaults(func=notebook)
+
+    # Tests
+    datatest_parser = subparsers.add_parser('datatest')
+    datatest_parser.set_defaults(func=datatest)
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)
 
