@@ -139,8 +139,8 @@ def datatest(master_config):
 
         print("Filename\tdirname\tdataset")
         for index, row in diff_df.iterrows():
-            print("{}\t{}\t{}".format(index, row['dirnamecan'],
-                                      row['datasetcan']))
+            print("{:<40}\t{:<20}\t{:<15}".format(
+                index, row['dirnamecan'], row['datasetcan']))
         return 1
     else:
         print(utils.colored("You're all set; your dataset matches.", "green"))
