@@ -233,7 +233,7 @@ def cqt_from_df(config,
     # Load the dataframe
     notes_df = pandas.read_pickle(notes_df_path)
     # Clear out any bad values here.
-    features_df = notes_df[notes_df["audio_file"] is not False]
+    features_df = notes_df[notes_df["audio_file"] != False]
 
     def features_path_for_audio(audio_path):
         return os.path.join(cqt_dir,
@@ -246,7 +246,7 @@ def cqt_from_df(config,
     features_df["cqt"] = pandas.Series(cqt_paths, index=features_df.index)
 
     result = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
-                      num_cpus, verbose, skip_existing)
+                      harmonic_params, num_cpus, verbose, skip_existing)
 
     # If succeeded, write the new dataframe as a pkl.
     if result:
