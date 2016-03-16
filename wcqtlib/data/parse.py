@@ -106,7 +106,9 @@ def diff_datasets_files(canonical_df, datasets_df):
     joinresult = canonical_files.join(
         datasets_files, how='outer', lsuffix='can', rsuffix='me', sort=True)
 
-    return pandas.isnull(joinresult).any(1).nonzero()[0]
+    nulls = pandas.isnull(joinresult).any(1).nonzero()[0]
+
+    return joinresult[nulls]
 
 
 def rwc_instrument_code_to_name(rwc_instrument_code):
