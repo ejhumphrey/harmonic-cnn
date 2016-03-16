@@ -81,6 +81,33 @@ def train(master_config,
                        max_files_per_class=max_files_per_class)
 
 
+def model_selection(master_config,
+                    experiment_name,
+                    plot_loss=False):
+    """Perform model selection on the validation set.
+
+    Parameters
+    ----------
+    master_config : str
+        Full path
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+
+    plot_loss : bool
+        If true, uses matplotlib to non-blocking plot the loss
+        at each validation.
+    """
+    print(utils.colored("Model Selection"))
+    config = C.Config.from_yaml(master_config)
+
+    hold_out_set = config["experiment/hold_out_set"]
+    driver.find_best_model(config,
+                           experiment_name=experiment_name,
+                           hold_out_set=hold_out_set,
+                           plot_loss=plot_loss)
+
+
 def evaluate(master_config,
              experiment_name,
              select_epoch=None):
@@ -170,6 +197,12 @@ if __name__ == "__main__":
                               help="Name of the experiment. "
                                    "Files go in a directory of this name.")
     train_parser.set_defaults(func=train)
+    modelselect_parser = subparsers.add_parser('model_selection')
+    modelselect_parser.add_argument('experiment_name',
+                                    help="Name of the experiment. "
+                                    "Files go in a directory of this name.")
+    modelselect_parser.add_argument('-p', '--plot_loss', action="store_true")
+    modelselect_parser.set_defaults(func=model_selection)
     evaluate_parser = subparsers.add_parser('evaluate')
     evaluate_parser.add_argument('experiment_name',
                                  help="Name of the experiment. "
