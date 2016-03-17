@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas
+import re
 import shutil
 from sklearn.cross_validation import train_test_split
 from sklearn.metrics import classification_report
@@ -82,6 +83,24 @@ class TimerHolder(object):
         keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
         values = [self.get(k) for k in keys if k in self.timers]
         return np.mean(values)
+
+
+def iter_from_params_filepath(params_filepath):
+    """Get the model iteration from the params filepath.
+
+    There are two cases; the iteration number case, and 'final.npz'
+    For example '/foo/myexperiment/params/params0500.npz' => '0500'
+
+    Parameters
+    ----------
+    params_filepath : str
+
+    Returns
+    -------
+    iter_name : str
+    """
+    basename = os.path.basename(params_filepath)
+    return re.search('\d+|final', basename).group(0)
 
 
 def construct_training_valid_df(features_df, datasets,
@@ -324,7 +343,7 @@ def train_model(config, model_selector, experiment_name,
     train_stats.to_pickle(training_loss_path)
 
 
-def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
+def find_best_model(config, experiment_name, validation_df, plot_loss=False):
     """Perform model selection on the validation set with a binary search
     for minimum validation loss.
 
@@ -338,12 +357,17 @@ def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
-    hold_out_set : str
+    validation_df : pandas.DataFrame
         Name of the held out dataset (used to specify the valid file)
 
     plot_loss : bool
         If true, uses matplotlib to non-blocking plot the loss
         at each validation.
+
+    Returns
+    -------
+    results_df : pandas.DataFrame
+        DataFrame containing the resulting losses.
     """
     logger.info("Finding best model for {}".format(
         utils.colored(experiment_name, "magenta")))
@@ -363,11 +387,6 @@ def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
     original_config = C.Config.from_yaml(experiment_config_path)
     slicer = get_slicer_from_network_def(original_config['model'])
     t_len = original_config['training/t_len']
-    # load the valid_df of files to validate with.
-    valid_df_path = os.path.join(
-        model_dir, config['experiment/data_split_format'].format(
-            "valid", hold_out_set))
-    valid_df = pandas.read_pickle(valid_df_path)
 
     # Load the training loss
     training_loss_path = os.path.join(model_dir,
@@ -381,7 +400,7 @@ def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
         # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
 
         result_df, best_model = evaluate.BinarySearchModelSelector(
-            model_files, valid_df, slicer, t_len, show_progress=True)()
+            model_files, validation_df, slicer, t_len, show_progress=True)()
 
         result_df.to_pickle(validation_error_file)
         best_path = os.path.join(params_dir,
@@ -397,8 +416,44 @@ def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
         plt.draw()
         plt.show()
 
+    return result_df
+
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):
+    print("Evaluating experient {} with params from {}".format(
+        utils.colored(experiment_name, "magenta"),
+        utils.colored(selected_model_file, "cyan")))
+
+    print("Loading DataFrame...")
+    features_path = os.path.join(
+        os.path.expanduser(config["paths/extract_dir"]),
+        config["dataframes/features"])
+    features_df = pandas.read_pickle(features_path)
+
+    experiment_dir = os.path.join(
+        os.path.expanduser(config['paths/model_dir']),
+        experiment_name)
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
+    original_config = C.Config.from_yaml(experiment_config_path)
+    params_file = os.path.join(experiment_dir,
+                               config['experiment/params_dir'],
+                               selected_model_file)
+    slicer = get_slicer_from_network_def(original_config['model'])
+
+    print("Deserializing Network & Params...")
+    model = models.NetworkManager.deserialize_npz(params_file)
+
+    t_len = original_config['training/t_len']
+    print("Running evaluation on all files...")
+    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len,
+                                          show_progress=True)
+
+    eval_df_path = os.path.join(experiment_dir, original_config['predictions_format'].format())
+    eval_df.to_pickle()
+
+
+def analyze(config, experiment_name, selected_model_file):
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
         utils.colored(selected_model_file, "cyan")))

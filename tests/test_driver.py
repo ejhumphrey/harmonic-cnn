@@ -43,6 +43,21 @@ features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
 features_df = pandas.read_pickle(features_path)
 
 
+def test_iter_from_params_filepath():
+    tests = [
+        ("foo/bar/params/params0500.npz", "0500"),
+        ("foo/bar/params/params10505.npz", "10505"),
+        ("foo/bar/params/params0000.npz", "0000"),
+        ("foo/bar/params/final.npz", "final"),
+    ]
+
+    def __test(value, expected):
+        assert value == expected
+
+    for test_input, expected in tests:
+        yield __test, driver.iter_from_params_filepath(test_input), expected
+
+
 def test_construct_training_valid_df():
     def __test_result_df(traindf, validdf, datasets, n_per_inst):
         if n_per_inst:
@@ -87,7 +102,7 @@ def test_train_simple_model(workspace):
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver.train_model(thisconfig, 'wcqt_iX_c1f1_oY',
+    driver.train_model(thisconfig, 'cqt_iX_f1_oY',
                        experiment_name, hold_out,
                        max_files_per_class=1)
 
@@ -122,12 +137,25 @@ def test_find_best_model(workspace):
     experiment_name = "testexperiment"
     hold_out = thisconfig['experiment/hold_out_set']
 
+    valid_df_path = os.path.join(
+        workspace, experiment_name,
+        thisconfig['experiment/data_split_format'].format(
+            "valid", hold_out))
+
     driver.train_model(thisconfig, 'cqt_iX_f1_oY',
                        experiment_name, hold_out,
                        max_files_per_class=1)
+    # This should have been created by the training process.
+    assert os.path.exists(valid_df_path)
 
-    driver.find_best_model(thisconfig, experiment_name, hold_out,
-                           plot_loss=False)
+    # Create a vastly reduced validation dataframe so it'll take less long.
+    validation_size = 20
+    valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size)
+    assert len(valid_df) == validation_size
+
+    results_df = driver.find_best_model(thisconfig, experiment_name, valid_df,
+                                        plot_loss=False)
+
     best_params_file = os.path.join(
         os.path.expanduser(thisconfig['paths/model_dir']),
         experiment_name, thisconfig['experiment/params_dir'],

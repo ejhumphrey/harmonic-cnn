@@ -102,9 +102,19 @@ def model_selection(master_config,
     config = C.Config.from_yaml(master_config)
 
     hold_out_set = config["experiment/hold_out_set"]
+
+    # load the valid_df of files to validate with.
+    model_dir = os.path.join(
+        os.path.expanduser(config["paths/model_dir"]),
+        experiment_name)
+    valid_df_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
+    valid_df = pandas.read_pickle(valid_df_path)
+
     driver.find_best_model(config,
                            experiment_name=experiment_name,
-                           hold_out_set=hold_out_set,
+                           validation_df=valid_df,
                            plot_loss=plot_loss)
 
 

@@ -160,6 +160,31 @@ class BinarySearchModelSelector(ModelSelector):
         return pandas.DataFrame.from_dict(results, orient='index'), \
             results[start_ind]
 
+    def compare_models(self, model_a, model_b):
+        """Overriden version from the parent class using the accuracy instead
+        (since that seems to be a much better predictor of actually how
+         our models are doing.)
+
+        Parameters
+        ----------
+        model_a : dict or None
+        model_b : dict
+            Dict containing the summary statistic to analyze.
+            Uses the "mean_loss" key by default to do the analysis;
+            subclasses can change this by overriding this function.
+
+        Returns
+        -------
+        best_model : dict
+            + if right is best, - if left is best
+        """
+        if model_a is None:
+            return 1
+        elif model_b is None:
+            return -1
+        else:
+            return 1 if model_b['mean_acc'] > model_a['mean_acc'] else -1
+
 
 def evaluate_one(dfrecord, model, slicer_fx, t_len):
     """Return an evaluation object/dict after evaluating
