@@ -23,8 +23,10 @@ model: "cqt_iX_c2f2_oY"
 experiment:
   params_dir: "params"
   params_format: "params{0:0>4}.npz"
+  best_params: "best.npz"
   config_path: "config.yaml"
   training_loss: "training_loss.pkl"
+  validation_loss: "validation_loss.pkl"
   data_split_format: "{}_df_{}.pkl"
   hold_out_set: "philharmonia"
 

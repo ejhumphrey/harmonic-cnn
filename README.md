@@ -51,6 +51,12 @@ Then, update your training parameters.
 python manage.py train exp001
 ```
 
+### Model Selection
+Do model selection on the validation set.
+```bash
+python manage.py model_selection exp001
+```
+
 ### Evaluate your model
 ```bash
 # Use the same experiment name as in train

@@ -1,10 +1,13 @@
+import datetime
+import glob
 import logging
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas
+import shutil
 from sklearn.cross_validation import train_test_split
 from sklearn.metrics import classification_report
-import datetime
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
@@ -283,6 +286,7 @@ def train_model(config, model_selector, experiment_name,
             if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
                     params_dir, param_format_str.format(iter_count))
+                logger.debug("Writing params to {}".format(save_path))
                 model.save(save_path)
 
             if datetime.datetime.now() > \
@@ -320,6 +324,80 @@ def train_model(config, model_selector, experiment_name,
     train_stats.to_pickle(training_loss_path)
 
 
+def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
+    """Perform model selection on the validation set with a binary search
+    for minimum validation loss.
+
+    (Bayesean optimization might be another approach?)
+
+    Parameters
+    ----------
+    master_config : str
+        Full path
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+
+    hold_out_set : str
+        Name of the held out dataset (used to specify the valid file)
+
+    plot_loss : bool
+        If true, uses matplotlib to non-blocking plot the loss
+        at each validation.
+    """
+    logger.info("Finding best model for {}".format(
+        utils.colored(experiment_name, "magenta")))
+    # load the experiment config
+    experiment_dir = os.path.join(
+        os.path.expanduser(config['paths/model_dir']),
+        experiment_name)
+    model_dir = os.path.join(
+        os.path.expanduser(config["paths/model_dir"]),
+        experiment_name)
+    params_dir = os.path.join(experiment_dir,
+                              config['experiment/params_dir'])
+
+    # load all necessary config parameters
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
+    original_config = C.Config.from_yaml(experiment_config_path)
+    slicer = get_slicer_from_network_def(original_config['model'])
+    t_len = original_config['training/t_len']
+    # load the valid_df of files to validate with.
+    valid_df_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
+    valid_df = pandas.read_pickle(valid_df_path)
+
+    # Load the training loss
+    training_loss_path = os.path.join(model_dir,
+                                      config['experiment/training_loss'])
+    training_loss = pandas.read_pickle(training_loss_path)
+    validation_error_file = os.path.join(
+        model_dir, original_config['experiment/validation_loss'])
+
+    if not os.path.exists(validation_error_file):
+        model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
+        # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
+
+        result_df, best_model = evaluate.BinarySearchModelSelector(
+            model_files, valid_df, slicer, t_len, show_progress=True)()
+
+        result_df.to_pickle(validation_error_file)
+        best_path = os.path.join(params_dir,
+                                 original_config['experiment/best_params'])
+        shutil.copyfile(best_model['model_file'], best_path)
+    else:
+        result_df.read_pickle(validation_error_file)
+
+    if plot_loss:
+        fig = plt.figure()
+        ax = plt.plot(training_loss["iteration"], training_loss["loss"])
+        ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
+        plt.draw()
+        plt.show()
+
+
 def evaluate_and_analyze(config, experiment_name, selected_model_file):
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
@@ -334,9 +412,12 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
     experiment_dir = os.path.join(
         os.path.expanduser(config['paths/model_dir']),
         experiment_name)
-    experiment_config_path = os.path.join(experiment_dir, "config.yaml")
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
-    params_file = os.path.join(experiment_dir, "params", selected_model_file)
+    params_file = os.path.join(experiment_dir,
+                               config['experiment/params_dir'],
+                               selected_model_file)
     slicer = get_slicer_from_network_def(original_config['model'])
 
     print("Deserializing Network & Params...")

@@ -92,24 +92,44 @@ def test_train_simple_model(workspace):
                        max_files_per_class=1)
 
     # Expected files this should generate
-    logger.debug("1")
     new_config = os.path.join(workspace, experiment_name, "config.yaml")
     final_params = os.path.join(workspace, experiment_name, "params",
                                 "final.npz")
     train_loss_fp = os.path.join(workspace,
                                  experiment_name, "training_loss.pkl")
-    logger.debug("2")
     assert os.path.exists(new_config) and os.path.exists(final_params)
     assert os.path.exists(train_loss_fp)
 
     # Also make sure the training & validation splits got written out
-    logger.debug("3")
     train_fp = os.path.join(workspace, experiment_name,
                             "train_df_{}.pkl".format(hold_out))
-    logger.debug("4")
     assert os.path.exists(train_fp)
-    logger.debug("5")
     valid_fp = os.path.join(workspace, experiment_name,
                             "train_df_{}.pkl".format(hold_out))
-    logger.debug("6")
     assert os.path.exists(valid_fp)
+
+
+@pytest.mark.runme
+@pytest.mark.slowtest
+def test_find_best_model(workspace):
+    thisconfig = copy.deepcopy(config)
+    thisconfig.data['training']['iteration_write_frequency'] = 5
+    thisconfig.data['training']['iteration_print_frequency'] = 10
+    thisconfig.data['training']['max_iterations'] = 200
+    thisconfig.data['training']['batch_size'] = 12
+    thisconfig.data['paths']['model_dir'] = workspace
+    thisconfig.data['experiment']['hold_out_set'] = "rwc"
+    experiment_name = "testexperiment"
+    hold_out = thisconfig['experiment/hold_out_set']
+
+    driver.train_model(thisconfig, 'cqt_iX_f1_oY',
+                       experiment_name, hold_out,
+                       max_files_per_class=1)
+
+    driver.find_best_model(thisconfig, experiment_name, hold_out,
+                           plot_loss=False)
+    best_params_file = os.path.join(
+        os.path.expanduser(thisconfig['paths/model_dir']),
+        experiment_name, thisconfig['experiment/params_dir'],
+        thisconfig['experiment/best_params'])
+    assert os.path.exists(best_params_file)
