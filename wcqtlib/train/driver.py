@@ -373,27 +373,29 @@ def find_best_model(config, experiment_name, hold_out_set, plot_loss=False):
     training_loss_path = os.path.join(model_dir,
                                       config['experiment/training_loss'])
     training_loss = pandas.read_pickle(training_loss_path)
+    validation_error_file = os.path.join(
+        model_dir, original_config['experiment/validation_loss'])
 
-    model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
-    # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
+    if not os.path.exists(validation_error_file):
+        model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
+        # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
 
-    result_df, best_model = evaluate.BinarySearchModelSelector(
-        model_files, valid_df, slicer, t_len, show_progress=True)()
+        result_df, best_model = evaluate.BinarySearchModelSelector(
+            model_files, valid_df, slicer, t_len, show_progress=True)()
+
+        result_df.to_pickle(validation_error_file)
+        best_path = os.path.join(params_dir,
+                                 original_config['experiment/best_params'])
+        shutil.copyfile(best_model['model_file'], best_path)
+    else:
+        result_df.read_pickle(validation_error_file)
 
     if plot_loss:
         fig = plt.figure()
-        ax = plt.plot(training_loss["iteration"], training_loss["mean_loss"])
+        ax = plt.plot(training_loss["iteration"], training_loss["loss"])
         ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
         plt.draw()
-
-    if plot_loss:
         plt.show()
-    validation_error_file = os.path.join(
-        model_dir, original_config['experiment/validation_loss'])
-    result_df.to_pickle(validation_error_file)
-    best_path = os.path.join(params_dir,
-                             original_config['experiment/best_params'])
-    shutil.copyfile(best_model['model_file'], best_path)
 
 
 def evaluate_and_analyze(config, experiment_name, selected_model_file):

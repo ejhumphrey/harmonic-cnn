@@ -122,7 +122,7 @@ def test_find_best_model(workspace):
     experiment_name = "testexperiment"
     hold_out = thisconfig['experiment/hold_out_set']
 
-    driver.train_model(thisconfig, 'cqt_iX_c1f1_oY',
+    driver.train_model(thisconfig, 'cqt_iX_f1_oY',
                        experiment_name, hold_out,
                        max_files_per_class=1)
 

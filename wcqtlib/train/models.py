@@ -263,6 +263,22 @@ class NetworkManager(object):
                             np.asarray(batch['target'], dtype=np.int32))
 
 
+def cqt_iX_f1_oY(n_in, n_out):
+    network_def = {
+        "input_shape": (None, 1, n_in, CQT_DIMS),
+        "layers": [{
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def
+
+
 def cqt_iX_c1f1_oY(n_in, n_out):
     network_def = {
         "input_shape": (None, 1, n_in, CQT_DIMS),

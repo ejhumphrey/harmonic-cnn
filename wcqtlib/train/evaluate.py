@@ -133,6 +133,8 @@ class BinarySearchModelSelector(ModelSelector):
         results = {}
         start_ind = 0
         end_ind = len(self.param_list) - 1
+        # start_ind = len(self.param_list)/2
+        # end_ind = start_ind
         while start_ind != end_ind:
             logger.info("Model Search - L:{} R:{}".format(
                 utils.filebase(self.param_list[start_ind]),
