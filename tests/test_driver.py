@@ -43,21 +43,6 @@ features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
 features_df = pandas.read_pickle(features_path)
 
 
-def test_iter_from_params_filepath():
-    tests = [
-        ("foo/bar/params/params0500.npz", "0500"),
-        ("foo/bar/params/params10505.npz", "10505"),
-        ("foo/bar/params/params0000.npz", "0000"),
-        ("foo/bar/params/final.npz", "final"),
-    ]
-
-    def __test(value, expected):
-        assert value == expected
-
-    for test_input, expected in tests:
-        yield __test, driver.iter_from_params_filepath(test_input), expected
-
-
 def test_construct_training_valid_df():
     def __test_result_df(traindf, validdf, datasets, n_per_inst):
         if n_per_inst:

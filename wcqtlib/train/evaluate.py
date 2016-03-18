@@ -290,25 +290,3 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len, show_progress=False):
                      "them all.")
 
     return pandas.DataFrame(results)
-
-
-def analyze_results(eval_df, experiment_name=None):
-    """
-    Parameters
-    ----------
-    eval_df : pandas.DataFrame
-        Dataframe containing the predictions and ground truth for each file.
-
-    Returns
-    -------
-    analysis : pandas.Series
-        Series containing
-         * accuracy
-    """
-    mean_loss = eval_df["mean_loss"].mean()
-    tps = eval_df["max_likelyhood"] == eval_df["target"]
-    tp_count = tps.sum()
-    accuracy = tps.mean()
-    return pandas.Series(
-        [tp_count, mean_loss, accuracy],
-        index=["tp_count", "mean_loss", "accuracy"])

@@ -5,13 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas
-import re
 import shutil
 from sklearn.cross_validation import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
+import wcqtlib.train.analyze
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
 import wcqtlib.train.evaluate as evaluate
@@ -83,24 +82,6 @@ class TimerHolder(object):
         keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
         values = [self.get(k) for k in keys if k in self.timers]
         return np.mean(values)
-
-
-def iter_from_params_filepath(params_filepath):
-    """Get the model iteration from the params filepath.
-
-    There are two cases; the iteration number case, and 'final.npz'
-    For example '/foo/myexperiment/params/params0500.npz' => '0500'
-
-    Parameters
-    ----------
-    params_filepath : str
-
-    Returns
-    -------
-    iter_name : str
-    """
-    basename = os.path.basename(params_filepath)
-    return re.search('\d+|final', basename).group(0)
 
 
 def construct_training_valid_df(features_df, datasets,
@@ -451,7 +432,7 @@ def predict(config, experiment_name, selected_model_file):
     print("Running evaluation on all files...")
     predictions_df = evaluate.evaluate_dataframe(features_df, model, slicer,
                                                  t_len, show_progress=True)
-    model_name = iter_from_params_filepath(selected_model_file)
+    model_name = utils.iter_from_params_filepath(selected_model_file)
     predictions_df_path = os.path.join(
         experiment_dir,
         original_config.get('experiment/predictions_format',
@@ -466,12 +447,6 @@ def analyze(config, experiment_name, selected_model_file, hold_out_set):
         utils.colored(experiment_name, "magenta"),
         utils.colored(selected_model_file, "cyan")))
 
-    print("Loading DataFrame...")
-    features_path = os.path.join(
-        os.path.expanduser(config["paths/extract_dir"]),
-        config["dataframes/features"])
-    features_df = pandas.read_pickle(features_path)
-
     experiment_dir = os.path.join(
         os.path.expanduser(config['paths/model_dir']),
         experiment_name)
@@ -479,41 +454,13 @@ def analyze(config, experiment_name, selected_model_file, hold_out_set):
                                           config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
 
-    model_name = iter_from_params_filepath(selected_model_file)
-    predictions_df_path = os.path.join(
-        experiment_dir,
-        original_config.get('experiment/predictions_format',
-                            config.get('experiment/predictions_format', None))
-        .format(model_name))
-    predictions_df = pandas.read_pickle(predictions_df_path)
-
-    # Do a sort of join to add the dataset from the features to the
-    #  predictions.
-    predictions_df = pandas.concat([
-        predictions_df,
-        features_df[features_df.index.isin(predictions_df.index)]['dataset']],
-        axis=1)
-    predictions_df = predictions_df[predictions_df["dataset"] == hold_out_set]
+    analyzer = wcqtlib.train.analyze.PredictionAnalyzer.from_config(
+        original_config, experiment_name, selected_model_file, hold_out_set)
 
     print("Calculating results...")
-    results = evaluate.analyze_results(predictions_df, experiment_name)
     print("{:*^30}".format(
         utils.colored("Results for dataset: {}".format(hold_out_set),
                       "green")))
-    print("Accuracy:", results['accuracy'])
-    print("Mean Loss:", results['mean_loss'])
-
-    print("File Class Predictions",
-          np.bincount(predictions_df["max_likelyhood"]))
-    print("File Class Targets",
-          np.bincount(predictions_df["target"]))
-
-    y_true = predictions_df["target"].tolist()
-    y_pred = predictions_df["max_likelyhood"].tolist()
-    print(classification_report(y_true, y_pred))
 
     print("Random baseline should be: {:0.3f}".format(
           1.0 / original_config['training/n_targets']))
-
-    print("Confusion Matrix:")
-    print(confusion_matrix(y_true, y_pred))
