@@ -407,7 +407,7 @@ def find_best_model(config, experiment_name, validation_df, plot_loss=False):
                                  original_config['experiment/best_params'])
         shutil.copyfile(best_model['model_file'], best_path)
     else:
-        result_df.read_pickle(validation_error_file)
+        result_df = pandas.read_pickle(validation_error_file)
 
     if plot_loss:
         fig = plt.figure()
