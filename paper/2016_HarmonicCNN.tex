@@ -16,7 +16,7 @@
 
 % Title.
 % ------
-\title{Exploiting Harmonics in Convolutional Neural Networks}
+\title{Exploiting Harmonics with Convolutional Neural Networks}
 
 % Note: Please do NOT use \thanks or a \footnote in any of the author markup
 
@@ -70,16 +70,17 @@
 \begin{abstract}
 
 % Convnets have rocked MIR
-Convolutional neural networks (CNNs), originally pioneered in computer vision, have shown great performance in content-based MIR across a variety of tasks.
+Convolutional neural networks, originally pioneered in computer vision, have shown great performance in content-based MIR across a variety of tasks.
 % Operate on time-freq reps, which are not images
-These models typically operate on time-frequency representations of audio, however, which are statistically distinct from natural images. 
+In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels. 
+However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images. 
 % Sound is harmonic, and model assumptions may not hold.
-Convolutional networks exploit statistical regularities in spatial locality, \emph{i.e.}, neighboring pixels. 
-While neighboring time-frequency bins also exhibit some regularities, modeling only the local interactions ignores relationships between harmonically related frequencies.
+Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies.
 % Make input rep harmonic, does it matter?
-Therefore, in an effort to better adapt CNNs to audio, we craft two input representations that aim to exploit this known behavior directly, and determine what effect this has on the learned model.
+To better adapt convolutional networks to audio, we craft two alternative input representations that aim to exploit this known behavior directly.
+%and determine what effect these have on the efficacy of the learned model.
 % How do we do it?
-We study these approaches in a large, solo instrument classification task, taking the union of three datasets, and examine how model architecture influences performance.
+We study these approaches in a large, solo instrument classification task, and examine how model architecture influences performance.
 % What do we find?
 %Experimental results show that the use of harmonic convolutions leads to better generalization, faster computation time, and more compact models per unit of performance.
 % Closeout
