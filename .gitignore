@@ -67,3 +67,9 @@ target/
 #LaTex junk
 *.aux
 *.synctex.gz
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+
+paper/submission_logs
