@@ -31,7 +31,7 @@ class PredictionAnalyzer(object):
     the predictions.
     """
 
-    def __init__(self, predictions_df, features_df, test_set):
+    def __init__(self, predictions_df, features_df=None, test_set=None):
         """
         Parameters
         ----------
@@ -40,7 +40,7 @@ class PredictionAnalyzer(object):
             evaluate.evaluate_df. Indeces from the predictions_df
             should match indeces in the features_df.
 
-        features_df : pandas.DataFrame
+        features_df : pandas.DataFrame or None
             DataFrame pointing to the original audio, features, and
             all associated metadata.
 
