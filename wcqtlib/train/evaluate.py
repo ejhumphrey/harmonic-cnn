@@ -276,12 +276,18 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len, show_progress=False):
         i = 0
         progress = progressbar.ProgressBar(max_value=len(test_df))
 
-    for index, row in test_df.iterrows():
-        results += [evaluate_one(row, model, slicer_fx, t_len)]
+    try:
+        for index, row in test_df.iterrows():
+            results += [evaluate_one(row, model, slicer_fx, t_len)]
 
-        if show_progress:
-            progress.update(i)
-            i += 1
+            if show_progress:
+                progress.update(i)
+                i += 1
+    except KeyboardInterrupt:
+        logger.error("Evaluation process interrupted; {} of {} evaluated."
+                     .format(len(results), len(test_df)))
+        logger.error("Recommend you start this process over to evaluate "
+                     "them all.")
 
     return pandas.DataFrame(results)
 
@@ -299,9 +305,10 @@ def analyze_results(eval_df, experiment_name=None):
         Series containing
          * accuracy
     """
+    mean_loss = eval_df["mean_loss"].mean()
     tps = eval_df["max_likelyhood"] == eval_df["target"]
     tp_count = tps.sum()
     accuracy = tps.mean()
     return pandas.Series(
-        [tp_count, accuracy],
-        index=["tp_count", "accuracy"])
+        [tp_count, mean_loss, accuracy],
+        index=["tp_count", "mean_loss", "accuracy"])

@@ -8,7 +8,7 @@ import pandas
 import re
 import shutil
 from sklearn.cross_validation import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
@@ -419,7 +419,10 @@ def find_best_model(config, experiment_name, validation_df, plot_loss=False):
     return result_df
 
 
-def evaluate_and_analyze(config, experiment_name, selected_model_file):
+def predict(config, experiment_name, selected_model_file):
+    """Generates a prediction for *all* files, and writes them to disk
+    as a dataframe.
+    """
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
         utils.colored(selected_model_file, "cyan")))
@@ -446,14 +449,19 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
 
     t_len = original_config['training/t_len']
     print("Running evaluation on all files...")
-    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len,
-                                          show_progress=True)
+    predictions_df = evaluate.evaluate_dataframe(features_df, model, slicer,
+                                                 t_len, show_progress=True)
+    model_name = iter_from_params_filepath(selected_model_file)
+    predictions_df_path = os.path.join(
+        experiment_dir,
+        original_config.get('experiment/predictions_format',
+                            config.get('experiment/predictions_format', None))
+        .format(model_name))
+    predictions_df.to_pickle(predictions_df_path)
+    return predictions_df
 
-    eval_df_path = os.path.join(experiment_dir, original_config['predictions_format'].format())
-    eval_df.to_pickle()
 
-
-def analyze(config, experiment_name, selected_model_file):
+def analyze(config, experiment_name, selected_model_file, hold_out_set):
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
         utils.colored(selected_model_file, "cyan")))
@@ -470,27 +478,42 @@ def analyze(config, experiment_name, selected_model_file):
     experiment_config_path = os.path.join(experiment_dir,
                                           config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
-    params_file = os.path.join(experiment_dir,
-                               config['experiment/params_dir'],
-                               selected_model_file)
-    slicer = get_slicer_from_network_def(original_config['model'])
 
-    print("Deserializing Network & Params...")
-    model = models.NetworkManager.deserialize_npz(params_file)
+    model_name = iter_from_params_filepath(selected_model_file)
+    predictions_df_path = os.path.join(
+        experiment_dir,
+        original_config.get('experiment/predictions_format',
+                            config.get('experiment/predictions_format', None))
+        .format(model_name))
+    predictions_df = pandas.read_pickle(predictions_df_path)
 
-    t_len = original_config['training/t_len']
-    print("Running evaluation on all files...")
-    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len,
-                                          show_progress=True)
+    # Do a sort of join to add the dataset from the features to the
+    #  predictions.
+    predictions_df = pandas.concat([
+        predictions_df,
+        features_df[features_df.index.isin(predictions_df.index)]['dataset']],
+        axis=1)
+    predictions_df = predictions_df[predictions_df["dataset"] == hold_out_set]
+
     print("Calculating results...")
-    results = evaluate.analyze_results(eval_df, experiment_name)
-    print("{:*^30}".format(utils.colored("Results", "green")))
-    print(results)
+    results = evaluate.analyze_results(predictions_df, experiment_name)
+    print("{:*^30}".format(
+        utils.colored("Results for dataset: {}".format(hold_out_set),
+                      "green")))
+    print("Accuracy:", results['accuracy'])
+    print("Mean Loss:", results['mean_loss'])
 
-    print("File Class Predictions", np.bincount(eval_df["max_likelyhood"]))
-    print("File Class Targets", np.bincount(eval_df["target"]))
-    print(classification_report(eval_df["max_likelyhood"].tolist(),
-                                eval_df["target"].tolist()))
+    print("File Class Predictions",
+          np.bincount(predictions_df["max_likelyhood"]))
+    print("File Class Targets",
+          np.bincount(predictions_df["target"]))
+
+    y_true = predictions_df["target"].tolist()
+    y_pred = predictions_df["max_likelyhood"].tolist()
+    print(classification_report(y_true, y_pred))
 
     print("Random baseline should be: {:0.3f}".format(
           1.0 / original_config['training/n_targets']))
+
+    print("Confusion Matrix:")
+    print(confusion_matrix(y_true, y_pred))
