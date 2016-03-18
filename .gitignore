@@ -63,3 +63,7 @@ target/
 
 #OS X Cruft
 .DS_Store
+
+#LaTex junk
+*.aux
+*.synctex.gz
