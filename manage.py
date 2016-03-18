@@ -102,16 +102,26 @@ def model_selection(master_config,
     config = C.Config.from_yaml(master_config)
 
     hold_out_set = config["experiment/hold_out_set"]
+
+    # load the valid_df of files to validate with.
+    model_dir = os.path.join(
+        os.path.expanduser(config["paths/model_dir"]),
+        experiment_name)
+    valid_df_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
+    valid_df = pandas.read_pickle(valid_df_path)
+
     driver.find_best_model(config,
                            experiment_name=experiment_name,
-                           hold_out_set=hold_out_set,
+                           validation_df=valid_df,
                            plot_loss=plot_loss)
 
 
-def evaluate(master_config,
-             experiment_name,
-             select_epoch=None):
-    """Evaluate datasets and report results.
+def predict(master_config,
+            experiment_name,
+            select_epoch=None):
+    """Predict results on all datasets and report results.
 
     Parameters
     ----------
@@ -131,14 +141,40 @@ def evaluate(master_config,
     selected_model_file = "params{}.npz".format(select_epoch) \
         if select_epoch else "final.npz"
 
-    driver.evaluate_and_analyze(
+    results = driver.predict(
         config, experiment_name, selected_model_file)
+    logger.info("Generated results for {} files.".format(len(results)))
 
 
-def analyze(master_config):
-    """Analyze results from an experiment."""
+def analyze(master_config,
+            experiment_name,
+            select_epoch=None):
+    """Predict results on all datasets and report results.
+
+    Parameters
+    ----------
+    master_config : str
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+
+    dataset : str
+        Dataset to select results from for analysis.
+
+    select_epoch : str or None
+        Which model params to select. Use the epoch number for this, for
+        instance "1830" would use the model file "params1830.npz".
+        If None, uses "final.npz"
+    """
     print(utils.colored("Analyzing"))
-    raise NotImplementedError("analyze not yet implemented")
+    config = C.Config.from_yaml(master_config)
+
+    selected_model_file = "params{}.npz".format(select_epoch) \
+        if select_epoch else "final.npz"
+
+    hold_out_set = config["experiment/hold_out_set"]
+
+    driver.analyze(config, experiment_name, selected_model_file, hold_out_set)
 
 
 def notebook(master_config):
@@ -203,14 +239,19 @@ if __name__ == "__main__":
                                     "Files go in a directory of this name.")
     modelselect_parser.add_argument('-p', '--plot_loss', action="store_true")
     modelselect_parser.set_defaults(func=model_selection)
-    evaluate_parser = subparsers.add_parser('evaluate')
-    evaluate_parser.add_argument('experiment_name',
+    predict_parser = subparsers.add_parser('predict')
+    predict_parser.add_argument('experiment_name',
                                  help="Name of the experiment. "
                                       "Files go in a directory of this name.")
-    evaluate_parser.add_argument('-s', '--select_epoch',
+    predict_parser.add_argument('-s', '--select_epoch',
                                  default=None, type=int)
-    evaluate_parser.set_defaults(func=evaluate)
+    predict_parser.set_defaults(func=predict)
     analyze_parser = subparsers.add_parser('analyze')
+    analyze_parser.add_argument('experiment_name',
+                                 help="Name of the experiment. "
+                                      "Files go in a directory of this name.")
+    analyze_parser.add_argument('-s', '--select_epoch',
+                                 default=None, type=int)
     analyze_parser.set_defaults(func=analyze)
     notebook_parser = subparsers.add_parser('notebook')
     notebook_parser.set_defaults(func=notebook)

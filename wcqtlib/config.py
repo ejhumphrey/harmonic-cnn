@@ -31,7 +31,7 @@ class Config(object):
         # Split the key on '/'
         key_segments = key.split('/')
         if len(key_segments) == 1:
-            return search_dict[key_segments[0]]
+            return search_dict.get(key_segments[0], default)
         else:
             new_dict = search_dict[key_segments[0]]
             new_key = "/".join(key_segments[1:])

@@ -160,6 +160,31 @@ class BinarySearchModelSelector(ModelSelector):
         return pandas.DataFrame.from_dict(results, orient='index'), \
             results[start_ind]
 
+    def compare_models(self, model_a, model_b):
+        """Overriden version from the parent class using the accuracy instead
+        (since that seems to be a much better predictor of actually how
+         our models are doing.)
+
+        Parameters
+        ----------
+        model_a : dict or None
+        model_b : dict
+            Dict containing the summary statistic to analyze.
+            Uses the "mean_loss" key by default to do the analysis;
+            subclasses can change this by overriding this function.
+
+        Returns
+        -------
+        best_model : dict
+            + if right is best, - if left is best
+        """
+        if model_a is None:
+            return 1
+        elif model_b is None:
+            return -1
+        else:
+            return 1 if model_b['mean_acc'] > model_a['mean_acc'] else -1
+
 
 def evaluate_one(dfrecord, model, slicer_fx, t_len):
     """Return an evaluation object/dict after evaluating
@@ -251,12 +276,18 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len, show_progress=False):
         i = 0
         progress = progressbar.ProgressBar(max_value=len(test_df))
 
-    for index, row in test_df.iterrows():
-        results += [evaluate_one(row, model, slicer_fx, t_len)]
+    try:
+        for index, row in test_df.iterrows():
+            results += [evaluate_one(row, model, slicer_fx, t_len)]
 
-        if show_progress:
-            progress.update(i)
-            i += 1
+            if show_progress:
+                progress.update(i)
+                i += 1
+    except KeyboardInterrupt:
+        logger.error("Evaluation process interrupted; {} of {} evaluated."
+                     .format(len(results), len(test_df)))
+        logger.error("Recommend you start this process over to evaluate "
+                     "them all.")
 
     return pandas.DataFrame(results)
 
@@ -274,9 +305,10 @@ def analyze_results(eval_df, experiment_name=None):
         Series containing
          * accuracy
     """
+    mean_loss = eval_df["mean_loss"].mean()
     tps = eval_df["max_likelyhood"] == eval_df["target"]
     tp_count = tps.sum()
     accuracy = tps.mean()
     return pandas.Series(
-        [tp_count, accuracy],
-        index=["tp_count", "accuracy"])
+        [tp_count, mean_loss, accuracy],
+        index=["tp_count", "mean_loss", "accuracy"])

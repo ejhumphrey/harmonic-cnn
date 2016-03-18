@@ -28,6 +28,7 @@ experiment:
   training_loss: "training_loss.pkl"
   validation_loss: "validation_loss.pkl"
   data_split_format: "{}_df_{}.pkl"
+  predictions_format: "model_{}_predictions.pkl"
   hold_out_set: "philharmonia"
 
 training:

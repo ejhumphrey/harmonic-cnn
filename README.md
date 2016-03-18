@@ -55,12 +55,20 @@ python manage.py train exp001
 Do model selection on the validation set.
 ```bash
 python manage.py model_selection exp001
+
+Note which model model_selection chooses.
 ```
 
-### Evaluate your model
+### Generate predictions for your model
 ```bash
 # Use the same experiment name as in train
-python manage.py evaluate exp001
+python manage.py predict exp001 -s [your model epoch #]
+```
+
+### Analyze the predictions for your model
+```bash
+# Use the same experiment name as in train
+python manage.py analyze exp001 -s [your model epoch #]
 ```
 
 # Tracking Experiment Decisions
