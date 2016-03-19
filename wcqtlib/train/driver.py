@@ -409,7 +409,7 @@ def find_best_model(config, experiment_name, validation_df, plot_loss=False):
     else:
         logger.info("Model Search already done; printing previous results")
         result_df = pandas.read_pickle(validation_error_file)
-        logger.info(result_df)
+        logger.info("\n" + result_df)
 
     if plot_loss:
         fig = plt.figure()
