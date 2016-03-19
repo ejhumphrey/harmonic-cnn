@@ -161,3 +161,9 @@ def test_find_best_model(workspace):
         experiment_name, thisconfig['experiment/params_dir'],
         thisconfig['experiment/best_params'])
     assert os.path.exists(best_params_file)
+
+    # load it again to test the reloading thing.
+    #  Just making sure this runs through
+    results_df2 = driver.find_best_model(thisconfig, experiment_name, valid_df,
+                                         plot_loss=False)
+    assert all(results_df == results_df2)

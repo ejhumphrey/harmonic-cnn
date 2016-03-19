@@ -410,7 +410,7 @@ def find_best_model(config, experiment_name, validation_df, plot_loss=False):
         logger.info("Model Search already done; printing previous results")
         result_df = pandas.read_pickle(validation_error_file)
         #make sure model_iteration is an int so sorting makes sense.
-        result_df = result_df["model_iteration"].apply(int)
+        result_df["model_iteration"].apply(int)
         logger.info("\n{}".format(result_df.sort_values("model_iteration")))
 
     if plot_loss:
