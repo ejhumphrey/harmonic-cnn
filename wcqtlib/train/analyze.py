@@ -48,8 +48,15 @@ class PredictionAnalyzer(object):
             Operates only on files from the dataset specified.
             Or, if None, operates on all files.
         """
-        self.predictions_df = concat_dataset_column(
-            predictions_df, features_df, test_set)
+        if features_df is not None:
+            self.predictions_df = concat_dataset_column(
+                predictions_df, features_df, test_set)
+        else:
+            if test_set is not None and \
+                    "dataset" not in predictions_df.columns:
+                raise KeyError("You must either provide the features_df "
+                               "or the dataset column in the predictions_df.")
+            self.predictions_df = predictions_df
         self.test_set = test_set
 
     @classmethod
