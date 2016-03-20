@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import pandas
 import pytest
 
@@ -11,8 +12,8 @@ def testdata():
     n_samples = 100
     change_pred_probability = .3
     y_true = np.random.randint(0, n_classes, size=n_samples)
-    y_pred_new_indx = (np.random.random(size=n_samples) < \
-        change_pred_probability).nonzero()[0]
+    y_pred_new_indx = (np.random.random(size=n_samples) <
+                       change_pred_probability).nonzero()[0]
     y_pred = np.array(y_true)
     y_pred[y_pred_new_indx] = np.random.randint(0, n_classes,
                                                 size=len(y_pred_new_indx))
@@ -36,18 +37,23 @@ def test_prediction_analyzer(testdata_df):
     assert analyzer is not None
 
 
-def test_save_analyzer():
-    pass
+def test_save_load_analyzer(workspace, testdata_df):
+    test_set = "rwc"
+    analyzer = analyze.PredictionAnalyzer(testdata_df, test_set=test_set)
+    save_path = os.path.join(workspace, "analyzer.pkl")
+    analyzer.save(save_path)
+    assert os.path.exists(save_path)
 
-
-def test_load_analyzer():
-    pass
+    # Prove you can load it back in, too.
+    analyzer2 = analyze.PredictionAnalyzer.load(save_path, test_set)
+    assert analyzer.y_true == analyzer2.y_true
+    assert analyzer.y_pred == analyzer2.y_pred
 
 
 def test_metrics(testdata_df):
-    analyzer = analyze.PredictionAnalyzer(testdata_df, test_set="rwc")
-    assert all(analyzer.y_true == testdata_df["target"])
-    assert all(analyzer.y_pred == testdata_df["max_likelyhood"])
+    analyzer = analyze.PredictionAnalyzer(testdata_df)
+    assert analyzer.y_true == testdata_df["target"].tolist()
+    assert analyzer.y_pred == testdata_df["max_likelyhood"].tolist()
     assert isinstance(analyzer.mean_loss, float)
     assert np.sum(analyzer.support) == len(testdata_df)
     assert len(analyzer.tps) == len(testdata_df)

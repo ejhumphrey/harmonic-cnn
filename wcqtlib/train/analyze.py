@@ -8,8 +8,10 @@ import wcqtlib.common.utils as utils
 
 logger = logging.getLogger(__name__)
 
+DATASETS = ["rwc", "uiowa", "philharmonia"]
 
-def concat_dataset_column(predictions_df, features_df, test_set):
+
+def concat_dataset_column(predictions_df, features_df):
     """Joins the features and predictions on the index, and
     concatenates the "dataset" field from features_df to the
     predictions_df.
@@ -19,11 +21,10 @@ def concat_dataset_column(predictions_df, features_df, test_set):
     joined_predictions : pandas.DataFrame
         predictions_df including the dataset.
     """
-    predictions_df = pandas.concat([
+    return pandas.concat([
         predictions_df,
         features_df[features_df.index.isin(predictions_df.index)]['dataset']],
         axis=1)
-    return predictions_df[predictions_df["dataset"] == test_set]
 
 
 class PredictionAnalyzer(object):
@@ -57,7 +58,18 @@ class PredictionAnalyzer(object):
                 raise KeyError("You must either provide the features_df "
                                "or the dataset column in the predictions_df.")
             self.predictions_df = predictions_df
-        self.test_set = test_set
+
+        self.set_test_set(test_set)
+
+    @property
+    def view(self):
+        """Provides a view on the predictions_df restricted to the test
+        set chosen."""
+        if self.test_set is not None:
+            return self.predictions_df[
+                self.predictions_df["dataset"] == self.test_set]
+        else:
+            return self.predictions_df
 
     @classmethod
     def from_config(cls, config, experiment_name, model_name, test_set):
@@ -78,23 +90,44 @@ class PredictionAnalyzer(object):
 
         return cls(predictions_df, features_df, test_set)
 
-    def save(self, write_path):
-        pass
+    def set_test_set(self, test_set):
+        if test_set is not None and test_set not in DATASETS:
+            raise ValueError("{} is not a valid dataset.".format(test_set))
 
-    def load(self, read_path):
-        pass
+        self.test_set = test_set
+
+    def save(self, write_path):
+        """
+        Parameters
+        ----------
+        write_path : str
+            Serialize this class so we can reuse it later. Path should
+            be a 'pkl' file.
+        """
+        self.predictions_df.to_pickle(write_path)
+
+    @classmethod
+    def load(cls, read_path, test_set=None):
+        """
+        Parameters
+        ----------
+        read_path : str
+            Path to deserialize the analysis from.
+        """
+        pred_df = pandas.read_pickle(read_path)
+        return cls(pred_df, test_set=test_set)
 
     @property
     def y_true(self):
-        return self.predictions_df["target"].tolist()
+        return self.view["target"].tolist()
 
     @property
     def y_pred(self):
-        return self.predictions_df["max_likelyhood"].tolist()
+        return self.view["max_likelyhood"].tolist()
 
     @property
     def mean_loss(self):
-        return self.predictions_df["mean_loss"].mean()
+        return self.view["mean_loss"].mean()
 
     @property
     def accuracy(self):
@@ -102,12 +135,18 @@ class PredictionAnalyzer(object):
 
     @property
     def tps(self):
-        return self.predictions_df["max_likelyhood"] == \
-            self.predictions_df["target"]
+        return self.view["max_likelyhood"] == self.view["target"]
 
     @property
     def support(self):
-        return np.bincount(self.predictions_df["target"])
+        return np.bincount(self.view["target"])
+
+    @property
+    def classes(self):
+        if not hasattr(self, "_classes"):
+            self._classes = sorted(np.unique(self.predictions_df["target"]))
+
+        return self._classes
 
     @property
     def confusion_matrix(self):
@@ -123,11 +162,11 @@ class PredictionAnalyzer(object):
         where the scores are the columns, and the classes are the index.
         """
         precision = sklearn.metrics.precision_score(
-            self.y_true, self.y_pred, average=None)
+            self.y_true, self.y_pred, labels=self.classes, average=None)
         recall = sklearn.metrics.recall_score(
-            self.y_true, self.y_pred, average=None)
+            self.y_true, self.y_pred, labels=self.classes, average=None)
         f1score = sklearn.metrics.f1_score(
-            self.y_true, self.y_pred, average=None)
+            self.y_true, self.y_pred, labels=self.classes, average=None)
 
         return pandas.DataFrame({
             "precision": precision,
