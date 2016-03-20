@@ -65,11 +65,7 @@ class PredictionAnalyzer(object):
     def view(self):
         """Provides a view on the predictions_df restricted to the test
         set chosen."""
-        if self.test_set is not None:
-            return self.predictions_df[
-                self.predictions_df["dataset"] == self.test_set]
-        else:
-            return self.predictions_df
+        return self._view
 
     @classmethod
     def from_config(cls, config, experiment_name, model_name, test_set):
@@ -95,6 +91,12 @@ class PredictionAnalyzer(object):
             raise ValueError("{} is not a valid dataset.".format(test_set))
 
         self.test_set = test_set
+        if self.test_set is not None:
+            # set up a cache to make this faster
+            self._view = self.predictions_df[
+                self.predictions_df["dataset"] == self.test_set]
+        else:
+            self._view = self.predictions_df
 
     def save(self, write_path):
         """
