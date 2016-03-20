@@ -129,17 +129,22 @@ class PredictionAnalyzer(object):
         f1score = sklearn.metrics.f1_score(
             self.y_true, self.y_pred, average=None)
 
-        return pandas.DataFrame(
-            [precision, recall, f1score, self.support],
-            columns=["precision", "recall", "f1score", "support"])
+        return pandas.DataFrame({
+            "precision": precision,
+            "recall": recall,
+            "f1score": f1score,
+            "support": self.support})
 
     def summary_scores(self):
         """Return summary scores over the entire dataset."""
+        accuracy = sklearn.metrics.accuracy_score(
+            self.y_true, self.y_pred)
         precision = sklearn.metrics.precision_score(
             self.y_true, self.y_pred, average="weighted")
         recall = sklearn.metrics.recall_score(
             self.y_true, self.y_pred, average="weighted")
         f1score = sklearn.metrics.f1_score(
             self.y_true, self.y_pred, average="weighted")
-        return pandas.Series([precision, recall, f1score],
-                             index=["precision", "recall", "f1score"])
+        return pandas.Series([accuracy, precision, recall, f1score],
+                             index=["accuracy", "precision",
+                                    "recall", "f1score"])
