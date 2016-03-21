@@ -37,3 +37,18 @@ def test_unzip():
     unzipped_folders = utils.unzip_files(zip_files)
     for dir_path in unzipped_folders:
         assert os.path.exists(dir_path) and os.path.isdir(dir_path)
+
+
+def test_iter_from_params_filepath():
+    tests = [
+        ("foo/bar/params/params0500.npz", "0500"),
+        ("foo/bar/params/params10505.npz", "10505"),
+        ("foo/bar/params/params0000.npz", "0000"),
+        ("foo/bar/params/final.npz", "final"),
+    ]
+
+    def __test(value, expected):
+        assert value == expected
+
+    for test_input, expected in tests:
+        yield __test, utils.iter_from_params_filepath(test_input), expected

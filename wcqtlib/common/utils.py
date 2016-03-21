@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import re
 import zipfile
 
 import colorama
@@ -152,3 +153,21 @@ def colored(text, color="yellow"):
     return "{0}{1}{2}".format(
             COLOR_MAP[color], text,
             colorama.Style.RESET_ALL)
+
+
+def iter_from_params_filepath(params_filepath):
+    """Get the model iteration from the params filepath.
+
+    There are two cases; the iteration number case, and 'final.npz'
+    For example '/foo/myexperiment/params/params0500.npz' => '0500'
+
+    Parameters
+    ----------
+    params_filepath : str
+
+    Returns
+    -------
+    iter_name : str
+    """
+    basename = os.path.basename(params_filepath)
+    return re.search('\d+|final', basename).group(0)

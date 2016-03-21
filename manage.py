@@ -169,12 +169,10 @@ def analyze(master_config,
     print(utils.colored("Analyzing"))
     config = C.Config.from_yaml(master_config)
 
-    selected_model_file = "params{}.npz".format(select_epoch) \
-        if select_epoch else "final.npz"
-
     hold_out_set = config["experiment/hold_out_set"]
 
-    driver.analyze(config, experiment_name, selected_model_file, hold_out_set)
+    driver.analyze(config, experiment_name, select_epoch, hold_out_set)
+    return 0
 
 
 def notebook(master_config):
@@ -251,7 +249,7 @@ if __name__ == "__main__":
                                  help="Name of the experiment. "
                                       "Files go in a directory of this name.")
     analyze_parser.add_argument('-s', '--select_epoch',
-                                 default=None, type=int)
+                                 default=None)
     analyze_parser.set_defaults(func=analyze)
     notebook_parser = subparsers.add_parser('notebook')
     notebook_parser.set_defaults(func=notebook)
