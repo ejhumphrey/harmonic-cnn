@@ -144,7 +144,12 @@ class PredictionAnalyzer(object):
 
     @property
     def support(self):
-        return np.bincount(self._view["target"])
+        # You have to be careful with bincount, because it won't
+        # count classes that don't have any data.
+        support_array = np.zeros(len(self.classes))
+        counts = np.bincount(self._view["target"])
+        support_array[:len(counts)] = counts
+        return support_array
 
     @property
     def classes(self):
@@ -166,20 +171,28 @@ class PredictionAnalyzer(object):
         Return a pandas DataFrame for scores for each class,
         where the scores are the columns, and the classes are the index.
         """
-        precision = sklearn.metrics.precision_score(
-            self.y_true, self.y_pred, labels=self.classes, average=None)
-        recall = sklearn.metrics.recall_score(
-            self.y_true, self.y_pred, labels=self.classes, average=None)
-        f1score = sklearn.metrics.f1_score(
-            self.y_true, self.y_pred, labels=self.classes, average=None)
+        if not self._view.empty:
+            precision = sklearn.metrics.precision_score(
+                self.y_true, self.y_pred, labels=self.classes, average=None)
+            recall = sklearn.metrics.recall_score(
+                self.y_true, self.y_pred, labels=self.classes, average=None)
+            f1score = sklearn.metrics.f1_score(
+                self.y_true, self.y_pred, labels=self.classes, average=None)
 
-        return pandas.DataFrame({
-            "precision": precision,
-            "recall": recall,
-            "f1score": f1score,
-            "support": self.support})
+            return pandas.DataFrame({
+                "precision": precision,
+                "recall": recall,
+                "f1score": f1score,
+                "support": self.support})
+        else:
+            return pandas.DataFrame(columns=[
+                "precision", "recall", "f1score", "support"])
 
     def dataset_class_wise(self):
+        print("total", self.class_wise_scores())
+        print("rwc", self.view("rwc").class_wise_scores())
+        print("uiowa", self.view("uiowa").class_wise_scores())
+        print("phil", self.view("philharmonia").class_wise_scores())
         per_dataset_scores = pandas.concat([
             self.class_wise_scores(),
             self.view("rwc").class_wise_scores(),
