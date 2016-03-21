@@ -6,6 +6,7 @@
   Each returns the training function, and the prediction function.
 """
 import copy
+import glob
 import lasagne
 import logging
 import numpy as np
@@ -42,6 +43,27 @@ class InvalidNetworkDefinition(Exception):
 
 class ParamLoadingError(Exception):
     pass
+
+
+def list_models(config):
+    """Given a master config, return a list of available models."""
+    model_dir = os.path.expanduser(config['paths/model_dir'])
+    logger.debug("Loading models from dir: {}".format(model_dir))
+    models = [x for x in os.listdir(model_dir)
+              if os.path.isdir(os.path.join(model_dir, x))]
+    logger.debug("Available Models: {}".format(models))
+    model_contents = {}
+    for model in models:
+        loss_dfs = glob.glob(os.path.join(model_dir, model, "*_loss.pkl"))
+        predictions = glob.glob(os.path.join(
+                                model_dir, model, "*_predictions.pkl"))
+        analysis = glob.glob(os.path.join(
+                                model_dir, model, "*_analysis.pkl"))
+        model_contents[model] = dict(
+            loss_dfs=loss_dfs if loss_dfs else None,
+            predictions=predictions if predictions else None,
+            analysis=analysis if analysis else None)
+    return model_contents
 
 
 def names_to_objects(config_dict):

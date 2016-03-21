@@ -1,3 +1,4 @@
+import copy
 import logging
 import numpy as np
 import os
@@ -51,7 +52,7 @@ class PredictionAnalyzer(object):
         """
         if features_df is not None:
             self.predictions_df = concat_dataset_column(
-                predictions_df, features_df, test_set)
+                predictions_df, features_df)
         else:
             if test_set is not None and \
                     "dataset" not in predictions_df.columns:
@@ -61,11 +62,11 @@ class PredictionAnalyzer(object):
 
         self.set_test_set(test_set)
 
-    @property
-    def view(self):
-        """Provides a view on the predictions_df restricted to the test
-        set chosen."""
-        return self._view
+    def view(self, dataset):
+        """Returns a copy of the analyzer pointing to the desired dataset."""
+        thecopy = copy.copy(self)
+        thecopy.set_test_set(dataset)
+        return thecopy
 
     @classmethod
     def from_config(cls, config, experiment_name, model_name, test_set):
@@ -75,13 +76,15 @@ class PredictionAnalyzer(object):
         experiment_dir = os.path.join(
             os.path.expanduser(config['paths/model_dir']),
             experiment_name)
-        model_name = utils.iter_from_params_filepath(model_name)
         predictions_df_path = os.path.join(
             experiment_dir,
-            config.get('experiment/predictions_format', None)
+            config.get('experiment/predictions_format')
             .format(model_name))
 
         features_df = pandas.read_pickle(features_path)
+        if not os.path.exists(predictions_df_path):
+            raise OSError("Predictions do no not yet exist for: {}"
+                          .format(predictions_df_path))
         predictions_df = pandas.read_pickle(predictions_df_path)
 
         return cls(predictions_df, features_df, test_set)
@@ -121,15 +124,15 @@ class PredictionAnalyzer(object):
 
     @property
     def y_true(self):
-        return self.view["target"].tolist()
+        return self._view["target"].tolist()
 
     @property
     def y_pred(self):
-        return self.view["max_likelyhood"].tolist()
+        return self._view["max_likelyhood"].tolist()
 
     @property
     def mean_loss(self):
-        return self.view["mean_loss"].mean()
+        return self._view["mean_loss"].mean()
 
     @property
     def accuracy(self):
@@ -137,11 +140,11 @@ class PredictionAnalyzer(object):
 
     @property
     def tps(self):
-        return self.view["max_likelyhood"] == self.view["target"]
+        return self._view["max_likelyhood"] == self._view["target"]
 
     @property
     def support(self):
-        return np.bincount(self.view["target"])
+        return np.bincount(self._view["target"])
 
     @property
     def classes(self):
@@ -176,6 +179,15 @@ class PredictionAnalyzer(object):
             "f1score": f1score,
             "support": self.support})
 
+    def dataset_class_wise(self):
+        per_dataset_scores = pandas.concat([
+            self.class_wise_scores(),
+            self.view("rwc").class_wise_scores(),
+            self.view("uiowa").class_wise_scores(),
+            self.view("philharmonia").class_wise_scores()
+        ], keys=["overall", "rwc", "uiowa", "philharmonia"])
+        return per_dataset_scores
+
     def summary_scores(self):
         """Return summary scores over the entire dataset."""
         accuracy = sklearn.metrics.accuracy_score(
@@ -189,3 +201,12 @@ class PredictionAnalyzer(object):
         return pandas.Series([accuracy, precision, recall, f1score],
                              index=["accuracy", "precision",
                                     "recall", "f1score"])
+
+    def dataset_summary(self):
+        per_dataset_scores = {
+            "overall": self.summary_scores(),
+            "rwc": self.view("rwc").summary_scores(),
+            "uiowa": self.view("uiowa").summary_scores(),
+            "philharmonia": self.view("philharmonia").summary_scores()
+        }
+        return pandas.DataFrame.from_dict(per_dataset_scores, orient="index")

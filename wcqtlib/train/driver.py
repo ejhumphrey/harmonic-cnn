@@ -442,10 +442,10 @@ def predict(config, experiment_name, selected_model_file):
     return predictions_df
 
 
-def analyze(config, experiment_name, selected_model_file, hold_out_set):
+def analyze(config, experiment_name, model_name, hold_out_set):
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
-        utils.colored(selected_model_file, "cyan")))
+        utils.colored(model_name, "cyan")))
 
     experiment_dir = os.path.join(
         os.path.expanduser(config['paths/model_dir']),
@@ -455,12 +455,12 @@ def analyze(config, experiment_name, selected_model_file, hold_out_set):
     original_config = C.Config.from_yaml(experiment_config_path)
 
     analyzer = wcqtlib.train.analyze.PredictionAnalyzer.from_config(
-        original_config, experiment_name, selected_model_file, hold_out_set)
-
-    print("Calculating results...")
-    print("{:*^30}".format(
-        utils.colored("Results for dataset: {}".format(hold_out_set),
-                      "green")))
-
-    print("Random baseline should be: {:0.3f}".format(
-          1.0 / original_config['training/n_targets']))
+        original_config, experiment_name, model_name, hold_out_set)
+    analysis_path = os.path.join(
+        experiment_dir,
+        original_config.get('experiment/analysis_format',
+                            config.get('experiment/analysis_format', None))
+        .format(model_name))
+    print("Saving analysis to:", analysis_path)
+    analyzer.save(analysis_path)
+    return analyzer

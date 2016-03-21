@@ -73,3 +73,19 @@ def test_summary_scores(testdata_df):
     assert set(scores.index) == set(["precision", "recall",
                                     "f1score", "accuracy"])
     assert all(np.isfinite(scores))
+
+
+def test_dataset_class_wise(testdata_df):
+    analyzer = analyze.PredictionAnalyzer(testdata_df)
+    scores = analyzer.dataset_class_wise()
+    assert set(scores.index.levels[0]) == \
+        set(["overall", "rwc", "uiowa", "philharmonia"])
+    assert scores.shape[1] == 4
+
+
+def test_dataset_summary(testdata_df):
+    analyzer = analyze.PredictionAnalyzer(testdata_df)
+    scores = analyzer.dataset_summary()
+    assert set(scores.index) == \
+        set(["overall", "rwc", "uiowa", "philharmonia"])
+    assert scores.shape[1] == 4
