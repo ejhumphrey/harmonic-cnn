@@ -128,7 +128,7 @@ class PredictionAnalyzer(object):
 
     @property
     def y_pred(self):
-        return self._view["max_likelyhood"].tolist()
+        return self._view["max_likelihood"].tolist()
 
     @property
     def mean_loss(self):
@@ -140,16 +140,13 @@ class PredictionAnalyzer(object):
 
     @property
     def tps(self):
-        return self._view["max_likelyhood"] == self._view["target"]
+        return self._view["max_likelihood"] == self._view["target"]
 
     @property
     def support(self):
         # You have to be careful with bincount, because it won't
         # count classes that don't have any data.
-        support_array = np.zeros(len(self.classes))
-        counts = np.bincount(self._view["target"])
-        support_array[:len(counts)] = counts
-        return support_array
+        return np.bincount(self._view["target"], minlength=len(self.classes))
 
     @property
     def classes(self):
@@ -189,10 +186,6 @@ class PredictionAnalyzer(object):
                 "precision", "recall", "f1score", "support"])
 
     def dataset_class_wise(self):
-        print("total", self.class_wise_scores())
-        print("rwc", self.view("rwc").class_wise_scores())
-        print("uiowa", self.view("uiowa").class_wise_scores())
-        print("phil", self.view("philharmonia").class_wise_scores())
         per_dataset_scores = pandas.concat([
             self.class_wise_scores(),
             self.view("rwc").class_wise_scores(),
@@ -206,11 +199,11 @@ class PredictionAnalyzer(object):
         accuracy = sklearn.metrics.accuracy_score(
             self.y_true, self.y_pred)
         precision = sklearn.metrics.precision_score(
-            self.y_true, self.y_pred, average="weighted")
+            self.y_true, self.y_pred, labels=self.classes, average="weighted")
         recall = sklearn.metrics.recall_score(
-            self.y_true, self.y_pred, average="weighted")
+            self.y_true, self.y_pred, labels=self.classes, average="weighted")
         f1score = sklearn.metrics.f1_score(
-            self.y_true, self.y_pred, average="weighted")
+            self.y_true, self.y_pred, labels=self.classes, average="weighted")
         return pandas.Series([accuracy, precision, recall, f1score],
                              index=["accuracy", "precision",
                                     "recall", "f1score"])
@@ -223,3 +216,6 @@ class PredictionAnalyzer(object):
             "philharmonia": self.view("philharmonia").summary_scores()
         }
         return pandas.DataFrame.from_dict(per_dataset_scores, orient="index")
+
+    def pprint(self):
+        print(self.dataset_summary())

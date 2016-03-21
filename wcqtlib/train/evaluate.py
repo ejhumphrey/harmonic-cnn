@@ -109,9 +109,12 @@ class ModelSelector(object):
         # Convert it to the mean over the whole dataframe.
         evaluation_results = results[['mean_loss', 'mean_acc']].mean(axis=0)
         # Include the metadata in the series.
+        model_iteration = utils.filebase(params_file)[6:]
+        model_iteration = int(model_iteration) if model_iteration.isdigit() \
+            else model_iteration
         return evaluation_results.append(pandas.Series({
             "model_file": params_file,
-            "model_iteration": utils.filebase(params_file)[6:]
+            "model_iteration": model_iteration
         }))
 
 
@@ -230,9 +233,9 @@ def evaluate_one(dfrecord, model, slicer_fx, t_len):
 
     class_predictions = results.argmax(axis=1)
 
-    # calculate the maximum likelyhood class - the class with the highest
+    # calculate the maximum likelihood class - the class with the highest
     #  predicted probability across all frames.
-    max_likelyhood_class = results.max(axis=0).argmax()
+    max_likelihood_class = results.max(axis=0).argmax()
 
     # Also calculate the highest voted frame.
     vote_class = np.asarray(np.bincount(class_predictions).argmax(),
@@ -240,8 +243,8 @@ def evaluate_one(dfrecord, model, slicer_fx, t_len):
 
     # Return both of these as a dataframe.
     return pandas.Series(
-        data=[mean_loss, mean_acc, max_likelyhood_class, vote_class, target],
-        index=["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"],
+        data=[mean_loss, mean_acc, max_likelihood_class, vote_class, target],
+        index=["mean_loss", "mean_acc", "max_likelihood", "vote", "target"],
         name=dfrecord.name)
 
 
@@ -267,7 +270,7 @@ def evaluate_dataframe(test_df, model, slicer_fx, t_len, show_progress=False):
         DataFrame containing the results from for each file,
         where the index of the original file is maintained, but
         the dataframe now contains the columns:
-            * max_likelyhood
+            * max_likelihood
             * vote
             * target
     """
