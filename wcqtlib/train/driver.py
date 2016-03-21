@@ -10,7 +10,7 @@ from sklearn.cross_validation import train_test_split
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
-import wcqtlib.train.analyze
+import wcqtlib.analyze
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
 import wcqtlib.train.evaluate as evaluate
@@ -454,7 +454,7 @@ def analyze(config, experiment_name, model_name, hold_out_set):
                                           config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
 
-    analyzer = wcqtlib.train.analyze.PredictionAnalyzer.from_config(
+    analyzer = wcqtlib.analyze.PredictionAnalyzer.from_config(
         original_config, experiment_name, model_name, hold_out_set)
     analysis_path = os.path.join(
         experiment_dir,

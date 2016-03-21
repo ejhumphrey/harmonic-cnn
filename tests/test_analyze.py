@@ -3,7 +3,7 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.train.analyze as analyze
+import wcqtlib.analyze as analyze
 
 
 @pytest.fixture
@@ -26,10 +26,10 @@ def testdata():
 @pytest.fixture
 def testdata_df(testdata):
     target = pandas.Series(testdata[0], name="target")
-    max_likelyhood = pandas.Series(testdata[1], name="max_likelyhood")
+    max_likelihood = pandas.Series(testdata[1], name="max_likelihood")
     mean_loss = pandas.Series(testdata[2], name="mean_loss")
     dataset = pandas.Series(testdata[3], name="dataset")
-    return pandas.concat([target, max_likelyhood, mean_loss, dataset], axis=1)
+    return pandas.concat([target, max_likelihood, mean_loss, dataset], axis=1)
 
 
 def test_prediction_analyzer(testdata_df):
@@ -53,7 +53,7 @@ def test_save_load_analyzer(workspace, testdata_df):
 def test_metrics(testdata_df):
     analyzer = analyze.PredictionAnalyzer(testdata_df)
     assert analyzer.y_true == testdata_df["target"].tolist()
-    assert analyzer.y_pred == testdata_df["max_likelyhood"].tolist()
+    assert analyzer.y_pred == testdata_df["max_likelihood"].tolist()
     assert isinstance(analyzer.mean_loss, float)
     assert np.sum(analyzer.support) == len(testdata_df)
     assert len(analyzer.tps) == len(testdata_df)
