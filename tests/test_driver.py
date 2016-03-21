@@ -140,6 +140,9 @@ def test_find_best_model(workspace):
 
     results_df = driver.find_best_model(thisconfig, experiment_name, valid_df,
                                         plot_loss=False)
+    # check that the results_df is ordered by iteration.
+    assert all(results_df["model_iteration"] ==
+               sorted(results_df["model_iteration"]))
 
     best_params_file = os.path.join(
         os.path.expanduser(thisconfig['paths/model_dir']),

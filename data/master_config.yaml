@@ -22,7 +22,7 @@ model: "cqt_iX_c2f2_oY"
 
 experiment:
   params_dir: "params"
-  params_format: "params{0:0>4}.npz"
+  params_format: "params{{0:0>{}}}.npz"
   best_params: "best.npz"
   config_path: "config.yaml"
   training_loss: "training_loss.pkl"

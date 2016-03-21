@@ -175,7 +175,6 @@ def train_model(config, model_selector, experiment_name,
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
     params_dir = os.path.join(model_dir, config["experiment/params_dir"])
-    param_format_str = config['experiment/params_format']
     experiment_config_path = os.path.join(model_dir,
                                           config['experiment/config_path'])
     training_loss_path = os.path.join(model_dir,
@@ -209,7 +208,11 @@ def train_model(config, model_selector, experiment_name,
 
     # Duration parameters
     max_iterations = config['training/max_iterations']
+    params_zero_pad = int(np.ceil(np.log10(max_iterations)))
     max_time = config['training/max_time']  # in seconds
+    param_format_str = config['experiment/params_format']
+    # insert the zero padding into the format string.
+    param_format_str = param_format_str.format(params_zero_pad)
 
     # Collect various necessary parameters
     t_len = config['training/t_len']

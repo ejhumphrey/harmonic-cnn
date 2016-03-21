@@ -5,8 +5,6 @@ import os
 import pandas
 import sklearn.metrics
 
-import wcqtlib.common.utils as utils
-
 logger = logging.getLogger(__name__)
 
 DATASETS = ["rwc", "uiowa", "philharmonia"]
