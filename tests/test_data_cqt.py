@@ -14,7 +14,16 @@ def test_harmonic_cqt(workspace):
     spec = CQT.harmonic_cqt(x, fs, n_harmonics=6, n_bins=144,
                             bins_per_octave=24)
     assert spec.ndim == 4
-    assert spec.sum() > 0
+    assert np.abs(spec).sum() > 0
+
+
+def test_harmonic_cqt_uneven_length(workspace):
+    input_file = os.path.join(DIRNAME, "uneven_hcqt.flac")
+    x, fs = claudio.read(input_file, samplerate=22050, channels=1)
+    spec = CQT.harmonic_cqt(x, fs, n_harmonics=6, n_bins=144,
+                            bins_per_octave=24)
+    assert spec.ndim == 4
+    assert np.abs(spec).sum() > 0
 
 
 def test_cqt_one(workspace):
