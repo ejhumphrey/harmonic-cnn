@@ -120,10 +120,10 @@ def standardize_one(input_audio_path,
     except AssertionError as e:
         logger.error("Sox may have failed. Input: {}\n Error: {}. Skipping..."
                      .format(input_audio_path, e))
-        return False
+        return None
 
     if len(audio) == 0:
-        return False
+        return None
 
     if first_onset_start is not None:
         # Find the onsets using librosa
@@ -169,7 +169,7 @@ def standardize_one(input_audio_path,
 
         return output_audio_path
     else:
-        return False
+        return input_audio_path
 
 
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
