@@ -11,7 +11,7 @@ DIRNAME = os.path.dirname(__file__)
 def test_harmonic_cqt(workspace):
     input_file = os.path.join(DIRNAME, "sax_cres.mp3")
     x, fs = claudio.read(input_file, samplerate=22050, channels=1)
-    spec = CQT.harmonic_cqt(x, fs, n_harmonics=5, n_bins=132,
+    spec = CQT.harmonic_cqt(x, fs, n_harmonics=6, n_bins=144,
                             bins_per_octave=24)
     assert spec.ndim == 4
     assert spec.sum() > 0
