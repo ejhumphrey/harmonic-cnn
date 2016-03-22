@@ -555,11 +555,18 @@ def print_stats(config):
     features_path = os.path.join(
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/features'])
-    datasets_df = pandas.read_json(datasets_path)
-    notes_df = pandas.read_pickle(notes_path)
-    features_df = pandas.read_pickle(features_path)
+    datasets_df = pandas.read_json(datasets_path) \
+        if os.path.exists(datasets_path) else \
+        pandas.DataFrame(columns=["dataset", "instrument"])
+    notes_df = pandas.read_pickle(notes_path) \
+        if os.path.exists(datasets_path) else \
+        pandas.DataFrame(columns=["dataset", "instrument"])
+    features_df = pandas.read_pickle(features_path) \
+        if os.path.exists(datasets_path) \
+        pandas.DataFrame(columns=["dataset", "instrument"])
 
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "datasets_df", "notes_df", "features_df")))
+    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format(
+        "item", "datasets_df", "notes_df", "features_df")))
     print("{:<20} {:<30} {:<30} {:<30}".format(
         "count", len(datasets_df), len(notes_df), len(features_df)))
 
@@ -573,7 +580,6 @@ def print_stats(config):
             len(features_df[features_df["dataset"] == dataset])))
     for dataset in datasets:
         print_datasetcount(dataset)
-
 
     def print_dataset_instcount(df, instrument):
         inst_filter = df[df["instrument"] == instrument]
