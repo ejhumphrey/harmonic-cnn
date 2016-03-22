@@ -183,7 +183,7 @@ def notebook(master_config):
     raise NotImplementedError("notebook not yet implemented")
 
 
-def datatest(master_config):
+def datatest(master_config, show_full=False):
     """Check your generated data."""
     config = C.Config.from_yaml(master_config)
     datasets_path = os.path.join(
@@ -196,7 +196,7 @@ def datatest(master_config):
     logger.info("Cannonical dataset has {} records".format(len(canonical_df)))
 
     diff_df = parse.diff_datasets_files(canonical_df, datasets_df)
-    if len(diff_df):
+    if len(diff_df) and show_full:
         print(utils.colored(
             "The following files are missing from your machine", "red"))
 
@@ -260,6 +260,8 @@ if __name__ == "__main__":
 
     # Tests
     datatest_parser = subparsers.add_parser('datatest')
+    datatest_parser.add_argument('-p', '--show_full', action="store_true",
+                                 help="Print the full diff to screen.")
     datatest_parser.set_defaults(func=datatest)
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)

@@ -120,6 +120,25 @@ def diff_datasets_files(canonical_df, datasets_df):
     """
     canonical_files = canonical_df.set_index('audio_file')
     datasets_files = to_basename_df(datasets_df).set_index('audio_file')
+
+    # Print some stats with the logger.
+    logger.info("Dataset Stats")
+    logger.info(utils.colored("--Canonical--", "green"))
+    logger.info("RWC: {}".format(
+        len(canonical_files[canonical_files["dataset"] == "rwc"])))
+    logger.info("uiowa: {}".format(
+        len(canonical_files[canonical_files["dataset"] == "uiowa"])))
+    logger.info("philharmonia: {}".format(
+        len(canonical_files[canonical_files["dataset"] == "philharmonia"])))
+
+    logger.info(utils.colored("--Yours--", "green"))
+    logger.info("RWC: {}".format(
+        len(datasets_files[datasets_files["dataset"] == "rwc"])))
+    logger.info("uiowa: {}".format(
+        len(datasets_files[datasets_files["dataset"] == "uiowa"])))
+    logger.info("philharmonia: {}".format(
+        len(datasets_files[datasets_files["dataset"] == "philharmonia"])))
+
     joinresult = canonical_files.join(
         datasets_files, how='outer', lsuffix='can', rsuffix='me', sort=True)
 
