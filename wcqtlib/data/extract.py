@@ -10,6 +10,7 @@ import os
 import pandas
 import progressbar
 import sys
+import wave
 
 import wcqtlib.config as C
 import wcqtlib.data.parse
@@ -121,6 +122,11 @@ def standardize_one(input_audio_path,
     except AssertionError as e:
         logger.error("Sox may have failed. Input: {}\n Error: {}. Skipping..."
                      .format(input_audio_path, e))
+        return None
+    except wave.Error as e:
+        logger.error(utils.colored(
+            "Wave Error; Sox may have failed. Input: {}\n Error: {}."
+            " Skipping...".format(input_audio_path, e)), "red")
         return None
 
     if len(audio) == 0:

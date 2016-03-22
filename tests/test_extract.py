@@ -1,4 +1,5 @@
 import claudio
+import logging
 import os
 import pandas
 import pytest
@@ -7,6 +8,9 @@ import numpy as np
 
 import wcqtlib.data.parse
 import wcqtlib.data.extract
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 pandas.set_option('display.width', 200)
 
@@ -165,9 +169,10 @@ def test_rwc_notes(rwc_df, workspace):
                              os.path.exists(UIOWA_ROOT)]),
                     reason="Data not found.")
 @pytest.mark.slowtest
+@pytest.mark.runme
 def test_uiowa_notes(uiowa_df, workspace):
     # Pick four files distributed across the df
-    input_df = uiowa_df[0:200:50]
+    input_df = uiowa_df[0:400:50]
 
     # Now, do the conversion into the notes_df
     notes_df = wcqtlib.data.extract.datasets_to_notes(
@@ -175,13 +180,17 @@ def test_uiowa_notes(uiowa_df, workspace):
     assert not notes_df.empty
 
     for (index, row) in input_df.iterrows():
-        matching_notes = notes_df.loc[index]
-        assert not matching_notes.empty
+        try:
+            matching_notes = notes_df.loc[index]
+            assert not matching_notes.empty
 
-        # TODO: not successfully splitting UIOWA files :(
-        #  Might need to change the threshold for silence.
-        if len(row['note']) >= 1:
-            assert len(matching_notes) >= 1
+            # TODO: not successfully splitting UIOWA files :(
+            #  Might need to change the threshold for silence.
+            if len(row['note']) >= 1:
+                assert len(matching_notes) >= 1
+        except KeyError as e:
+            logger.error("Index not in notes_df for: {}".format(
+                row["audio_file"]))
 
     # todo... better tests?
 
@@ -191,7 +200,7 @@ def test_uiowa_notes(uiowa_df, workspace):
                     reason="Data not found.")
 @pytest.mark.slowtest
 def test_phil_notes(philharmonia_df, workspace):
-    input_df = philharmonia_df[0:200:50]
+    input_df = philharmonia_df[0:400:50]
 
     # Now, do the conversion into the notes_df
     notes_df = wcqtlib.data.extract.datasets_to_notes(
