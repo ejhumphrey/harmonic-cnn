@@ -1,13 +1,16 @@
+import datetime
+import glob
 import logging
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas
+import shutil
 from sklearn.cross_validation import train_test_split
-from sklearn.metrics import classification_report
-import datetime
 
 import wcqtlib.config as C
 import wcqtlib.common.utils as utils
+import wcqtlib.analyze
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
 import wcqtlib.train.evaluate as evaluate
@@ -68,6 +71,12 @@ class TimerHolder(object):
                 return self.timers[key][0]
         else:
             return None
+
+    def get_start(self, key):
+        return self.timers.get(key, None)[0]
+
+    def get_end(self, key):
+        return self.timers.get(key, None)[1]
 
     def mean(self, key_root, start_ind, end_ind):
         keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
@@ -165,7 +174,17 @@ def train_model(config, model_selector, experiment_name,
     model_dir = os.path.join(
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
-    params_dir = os.path.join(model_dir, "params")
+    params_dir = os.path.join(model_dir, config["experiment/params_dir"])
+    experiment_config_path = os.path.join(model_dir,
+                                          config['experiment/config_path'])
+    training_loss_path = os.path.join(model_dir,
+                                      config['experiment/training_loss'])
+    training_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "train", hold_out_set))
+    valid_df_save_path = os.path.join(
+        model_dir, config['experiment/data_split_format'].format(
+            "valid", hold_out_set))
     utils.create_directory(model_dir)
     utils.create_directory(params_dir)
 
@@ -180,13 +199,20 @@ def train_model(config, model_selector, experiment_name,
         features_df, datasets, max_files_per_class=max_files_per_class)
     logger.debug("[{}] training_df : {} rows".format(experiment_name,
                                                      len(training_df)))
+    # Save the dfs to disk so we can use them for validation later.
+    training_df.to_pickle(training_df_save_path)
+    valid_df.to_pickle(valid_df_save_path)
 
     # Save the config we used in the model directory, just in case.
-    config.save(os.path.join(model_dir, "config.yaml"))
+    config.save(experiment_config_path)
 
     # Duration parameters
     max_iterations = config['training/max_iterations']
+    params_zero_pad = int(np.ceil(np.log10(max_iterations)))
     max_time = config['training/max_time']  # in seconds
+    param_format_str = config['experiment/params_format']
+    # insert the zero padding into the format string.
+    param_format_str = param_format_str.format(params_zero_pad)
 
     # Collect various necessary parameters
     t_len = config['training/t_len']
@@ -216,7 +242,9 @@ def train_model(config, model_selector, experiment_name,
 
     timers = TimerHolder()
     iter_count = 0
-    train_losses = []
+    train_stats = pandas.DataFrame(columns=['timestamp',
+                                            'batch_train_dur',
+                                            'iteration', 'loss'])
     min_train_loss = np.inf
 
     timers.start("train")
@@ -227,19 +255,24 @@ def train_model(config, model_selector, experiment_name,
         for batch in streamer:
             timers.end(("stream", iter_count))
             timers.start(("batch_train", iter_count))
-            train_losses += [model.train(batch)]
+            loss = model.train(batch)
             timers.end(("batch_train", iter_count))
+            row = dict(timestamp=timers.get_end(("batch_train", iter_count)),
+                       batch_train_dur=timers.get(("batch_train", iter_count)),
+                       iteration=iter_count,
+                       loss=loss)
+            train_stats.loc[len(train_stats)] = row
 
             # Time Logging
             logger.debug("[Iter timing] iter: {} | loss: {} | "
                          "stream: {} | train: {}".format(
-                            iter_count, train_losses[-1],
+                            iter_count, loss,
                             timers.get(("stream", iter_count)),
                             timers.get(("batch_train", iter_count))
                             ))
             # Print status
             if iter_print_freq and (iter_count % iter_print_freq == 0):
-                mean_train_loss = np.mean(train_losses[-iter_print_freq:])
+                mean_train_loss = train_stats["loss"][-iter_print_freq:].mean()
                 logger.info("Iteration: {} | Mean_Train_loss: {}"
                             .format(iter_count,
                                     conditional_colored(mean_train_loss,
@@ -255,7 +288,8 @@ def train_model(config, model_selector, experiment_name,
             # save model, maybe
             if iter_write_freq and (iter_count % iter_write_freq == 0):
                 save_path = os.path.join(
-                    params_dir, "params{0:0>4}.npz".format(iter_count))
+                    params_dir, param_format_str.format(iter_count))
+                logger.debug("Writing params to {}".format(save_path))
                 model.save(save_path)
 
             if datetime.datetime.now() > \
@@ -280,7 +314,7 @@ def train_model(config, model_selector, experiment_name,
     # Print final training loss
     print("Total iterations:", iter_count)
     print("Trained for ", timers.get("train"))
-    print("Final training loss:", train_losses[-1])
+    print("Final training loss:", train_stats["loss"].iloc[-1])
 
     # Make sure to save the final model.
     save_path = os.path.join(params_dir, "final.npz".format(iter_count))
@@ -288,8 +322,95 @@ def train_model(config, model_selector, experiment_name,
     logger.info("Completed training for experiment: {}".format(
         experiment_name))
 
+    # Save training loss
+    logger.info("Writing training stats to {}".format(training_loss_path))
+    train_stats.to_pickle(training_loss_path)
 
-def evaluate_and_analyze(config, experiment_name, selected_model_file):
+
+def find_best_model(config, experiment_name, validation_df, plot_loss=False):
+    """Perform model selection on the validation set with a binary search
+    for minimum validation loss.
+
+    (Bayesean optimization might be another approach?)
+
+    Parameters
+    ----------
+    master_config : str
+        Full path
+
+    experiment_name : str
+        Name of the experiment. Files are saved in a folder of this name.
+
+    validation_df : pandas.DataFrame
+        Name of the held out dataset (used to specify the valid file)
+
+    plot_loss : bool
+        If true, uses matplotlib to non-blocking plot the loss
+        at each validation.
+
+    Returns
+    -------
+    results_df : pandas.DataFrame
+        DataFrame containing the resulting losses.
+    """
+    logger.info("Finding best model for {}".format(
+        utils.colored(experiment_name, "magenta")))
+    # load the experiment config
+    experiment_dir = os.path.join(
+        os.path.expanduser(config['paths/model_dir']),
+        experiment_name)
+    model_dir = os.path.join(
+        os.path.expanduser(config["paths/model_dir"]),
+        experiment_name)
+    params_dir = os.path.join(experiment_dir,
+                              config['experiment/params_dir'])
+
+    # load all necessary config parameters
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
+    original_config = C.Config.from_yaml(experiment_config_path)
+    slicer = get_slicer_from_network_def(original_config['model'])
+    t_len = original_config['training/t_len']
+
+    # Load the training loss
+    training_loss_path = os.path.join(model_dir,
+                                      config['experiment/training_loss'])
+    training_loss = pandas.read_pickle(training_loss_path)
+    validation_error_file = os.path.join(
+        model_dir, original_config['experiment/validation_loss'])
+
+    if not os.path.exists(validation_error_file):
+        model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
+        # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
+
+        result_df, best_model = evaluate.BinarySearchModelSelector(
+            model_files, validation_df, slicer, t_len, show_progress=True)()
+
+        result_df.to_pickle(validation_error_file)
+        best_path = os.path.join(params_dir,
+                                 original_config['experiment/best_params'])
+        shutil.copyfile(best_model['model_file'], best_path)
+    else:
+        logger.info("Model Search already done; printing previous results")
+        result_df = pandas.read_pickle(validation_error_file)
+        #make sure model_iteration is an int so sorting makes sense.
+        result_df["model_iteration"].apply(int)
+        logger.info("\n{}".format(result_df.sort_values("model_iteration")))
+
+    if plot_loss:
+        fig = plt.figure()
+        ax = plt.plot(training_loss["iteration"], training_loss["loss"])
+        ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
+        plt.draw()
+        plt.show()
+
+    return result_df
+
+
+def predict(config, experiment_name, selected_model_file):
+    """Generates a prediction for *all* files, and writes them to disk
+    as a dataframe.
+    """
     print("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
         utils.colored(selected_model_file, "cyan")))
@@ -303,9 +424,12 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
     experiment_dir = os.path.join(
         os.path.expanduser(config['paths/model_dir']),
         experiment_name)
-    experiment_config_path = os.path.join(experiment_dir, "config.yaml")
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
     original_config = C.Config.from_yaml(experiment_config_path)
-    params_file = os.path.join(experiment_dir, "params", selected_model_file)
+    params_file = os.path.join(experiment_dir,
+                               config['experiment/params_dir'],
+                               selected_model_file)
     slicer = get_slicer_from_network_def(original_config['model'])
 
     print("Deserializing Network & Params...")
@@ -313,17 +437,37 @@ def evaluate_and_analyze(config, experiment_name, selected_model_file):
 
     t_len = original_config['training/t_len']
     print("Running evaluation on all files...")
-    eval_df = evaluate.evaluate_dataframe(features_df, model, slicer, t_len,
-                                          show_progress=True)
-    print("Calculating results...")
-    results = evaluate.analyze_results(eval_df, experiment_name)
-    print("{:*^30}".format(utils.colored("Results", "green")))
-    print(results)
+    predictions_df = evaluate.evaluate_dataframe(features_df, model, slicer,
+                                                 t_len, show_progress=True)
+    model_name = utils.iter_from_params_filepath(selected_model_file)
+    predictions_df_path = os.path.join(
+        experiment_dir,
+        original_config.get('experiment/predictions_format',
+                            config.get('experiment/predictions_format', None))
+        .format(model_name))
+    predictions_df.to_pickle(predictions_df_path)
+    return predictions_df
 
-    print("File Class Predictions", np.bincount(eval_df["max_likelyhood"]))
-    print("File Class Targets", np.bincount(eval_df["target"]))
-    print(classification_report(eval_df["max_likelyhood"].tolist(),
-                                eval_df["target"].tolist()))
 
-    print("Random baseline should be: {:0.3f}".format(
-          1.0 / original_config['training/n_targets']))
+def analyze(config, experiment_name, model_name, hold_out_set):
+    print("Evaluating experient {} with params from {}".format(
+        utils.colored(experiment_name, "magenta"),
+        utils.colored(model_name, "cyan")))
+
+    experiment_dir = os.path.join(
+        os.path.expanduser(config['paths/model_dir']),
+        experiment_name)
+    experiment_config_path = os.path.join(experiment_dir,
+                                          config['experiment/config_path'])
+    original_config = C.Config.from_yaml(experiment_config_path)
+
+    analyzer = wcqtlib.analyze.PredictionAnalyzer.from_config(
+        original_config, experiment_name, model_name, hold_out_set)
+    analysis_path = os.path.join(
+        experiment_dir,
+        original_config.get('experiment/analysis_format',
+                            config.get('experiment/analysis_format', None))
+        .format(model_name))
+    print("Saving analysis to:", analysis_path)
+    analyzer.save(analysis_path)
+    return analyzer

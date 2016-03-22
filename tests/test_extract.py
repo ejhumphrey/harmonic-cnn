@@ -130,6 +130,19 @@ def test_standardize_one_final_duration(testfile):
     assert (len(audio) / sr) <= (duration * fudge_factor)
 
 
+def test_standardize_one_final_duration_toosmall(testfile):
+    audio, sr = claudio.read(testfile)
+
+    duration = (len(audio) / sr) * 1.5
+    result = wcqtlib.data.extract.standardize_one(
+        testfile, first_onset_start=None,
+        final_duration=duration)
+    assert result is not None and result is not False
+    # If the audio duration is less than druation, it should
+    # return the original file
+    assert result == testfile
+
+
 @pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),
                              os.path.exists(RWC_ROOT)]),
                     reason="Data not found.")

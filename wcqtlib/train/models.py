@@ -6,6 +6,7 @@
   Each returns the training function, and the prediction function.
 """
 import copy
+import glob
 import lasagne
 import logging
 import numpy as np
@@ -42,6 +43,27 @@ class InvalidNetworkDefinition(Exception):
 
 class ParamLoadingError(Exception):
     pass
+
+
+def list_experiments(config):
+    """Given a master config, return a list of available models."""
+    model_dir = os.path.expanduser(config['paths/model_dir'])
+    logger.debug("Loading models from dir: {}".format(model_dir))
+    experiments = [x for x in os.listdir(model_dir)
+                   if os.path.isdir(os.path.join(model_dir, x))]
+    logger.debug("Available Experiments: {}".format(experiments))
+    experiment_contents = {}
+    for experiment in experiments:
+        loss_dfs = glob.glob(os.path.join(model_dir, experiment, "*_loss.pkl"))
+        predictions = glob.glob(os.path.join(
+                                model_dir, experiments, "*_predictions.pkl"))
+        analysis = glob.glob(os.path.join(
+                                model_dir, experiments, "*_analysis.pkl"))
+        experiment_contents[experiments] = dict(
+            loss_dfs=loss_dfs if loss_dfs else None,
+            predictions=predictions if predictions else None,
+            analysis=analysis if analysis else None)
+    return experiment_contents
 
 
 def names_to_objects(config_dict):
@@ -261,6 +283,22 @@ class NetworkManager(object):
         return self.eval_fx(np.asarray(batch['x_in'],
                             dtype=theano.config.floatX),
                             np.asarray(batch['target'], dtype=np.int32))
+
+
+def cqt_iX_f1_oY(n_in, n_out):
+    network_def = {
+        "input_shape": (None, 1, n_in, CQT_DIMS),
+        "layers": [{
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def
 
 
 def cqt_iX_c1f1_oY(n_in, n_out):

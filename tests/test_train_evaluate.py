@@ -1,4 +1,3 @@
-import copy
 import logging
 import numpy as np
 import os
@@ -11,6 +10,7 @@ import wcqtlib.config as C
 import wcqtlib.train.evaluate as evaluate
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
+import wcqtlib.analyze
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -57,14 +57,14 @@ def test_evaluate_one(slicer_and_model):
             break
 
     result = evaluate.evaluate_one(test_record, model, slicer, t_len)
-    for key in ["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"]:
+    for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in result
-    assert result['max_likelyhood'] == result['target']
+    assert result['max_likelihood'] == result['target']
     assert result['vote'] == result['target']
     print("Test Result:\n", result)
 
     other = evaluate.evaluate_one(other_record, model, slicer, t_len)
-    for key in ["mean_loss", "mean_acc", "max_likelyhood", "vote", "target"]:
+    for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in other
     print("Other Result:\n", other)
 
@@ -72,7 +72,7 @@ def test_evaluate_one(slicer_and_model):
 def test_evalute_dataframe(slicer_and_model):
     # For the purposes of this we don't care too much about what we train with.
     # TODO: random seeds for consistency / reproducability.
-    test_df = features_df.sample(n=(12*8))
+    test_df = features_df.sample(n=(12*12))
 
     # Pick a model
     t_len = 8
@@ -103,11 +103,6 @@ def test_evalute_dataframe(slicer_and_model):
     assert isinstance(eval_df, pandas.DataFrame)
     assert len(eval_df) == len(test_df)
 
-    print("File Class Predictions", np.bincount(eval_df["max_likelyhood"]))
-    print("File Class Targets", np.bincount(eval_df["target"]))
-    print(classification_report(eval_df["max_likelyhood"].tolist(),
-                                eval_df["target"].tolist()))
-
-    analysis = evaluate.analyze_results(eval_df, "unit test")
-    assert not analysis.empty
-    print(analysis)
+    analyzer = wcqtlib.analyze.PredictionAnalyzer(eval_df, test_df)
+    print(analyzer.classification_report)
+    print(analyzer.pprint())

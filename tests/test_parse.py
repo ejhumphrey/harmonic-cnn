@@ -5,6 +5,8 @@ for starters, I'm going to do it by creating dummy hierarchies
 in the same format.
 """
 
+import json
+import numpy as np
 import os
 import pandas
 import pytest
@@ -16,6 +18,17 @@ DATA_ROOT = os.path.expanduser("~/data")
 RWC_ROOT = os.path.join(DATA_ROOT, "RWC Instruments")
 UIOWA_ROOT = os.path.join(DATA_ROOT, "uiowa")
 PHIL_ROOT = os.path.join(DATA_ROOT, "philharmonia")
+
+
+@pytest.fixture
+def dummy_datasets_df():
+    dummy_df = pandas.DataFrame([
+        ("foo/bar/stuff.aiff", "uiowa"),
+        ("what/who/when.aiff", "philharmonia"),
+        ("where/when/whoppens.aiff", "rwc")
+        ],
+        columns=["audio_file", "dataset"])
+    return dummy_df
 
 
 def __test_df_has_data(df):
@@ -37,6 +50,38 @@ def __test_pd_output(pd_output, working_dir, dataset):
     for row in pd_output.iterrows():
         assert os.path.exists(row[1]['audio_file'])
         assert row[1]['dataset'] == dataset
+
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+
+    # Mke sure we have all the selected instruments
+    pd_instruments = pd_output["instrument"].unique()
+    map_inst = [classmap[x] for x in pd_instruments if classmap[x]]
+    instrument_found = np.array([(x in classmap.classnames) for x in map_inst])
+    assert all(instrument_found), "Dataset {} is missing: {}".format(
+        dataset, instrument_found[instrument_found == 0])
+
+
+def test_to_basename_df(dummy_datasets_df):
+    new_df = wcqtlib.data.parse.to_basename_df(dummy_datasets_df)
+    assert sorted(new_df.columns) == ['audio_file', 'dataset', 'dirname']
+    for index, row in new_df.iterrows():
+        assert new_df.loc[index]['audio_file'] == \
+            os.path.basename(dummy_datasets_df.loc[index]['audio_file'])
+
+
+def test_generate_canonical_files(workspace, dummy_datasets_df):
+    """Create a dummy dataframe, and make sure it got written out
+    as a json file correctly."""
+    destination = os.path.join(workspace, "canonical_files.json")
+    success = wcqtlib.data.parse.generate_canonical_files(
+        dummy_datasets_df, destination)
+
+    assert success
+    assert os.path.exists(destination)
+
+    # Try to load it as a dataframe
+    reloaded_df = wcqtlib.data.parse.load_canonical_files(destination)
+    assert len(reloaded_df) == len(dummy_datasets_df)
 
 
 def test_rwc_instrument_code_to_name():
@@ -84,7 +129,14 @@ def test_parse_phil_path():
                   ("cello_A3_1_fortissimo_arco-normal.mp3",
                    ("cello", "A3", "1", "fortissimo", "arco-normal")),
                   ("trumpet_A3_15_pianissimo_normal.mp3",
-                   ("trumpet", "A3", "15", "pianissimo", "normal"))]
+                   ("trumpet", "A3", "15", "pianissimo", "normal")),
+                  ("double-bass_A1_1_mezzo-forte_arco-normal",
+                   ("double-bass", "A1", "1", "mezzo-forte", "arco-normal")),
+                  ("/Users/cjacoby/data/philharmonia/www.philharmonia.co.uk/"
+                   "assets/audio/samples/double bass/double bass"
+                   "/double-bass_E1_phrase_mezzo-forte_arco-au-talon.mp3",
+                   ("double-bass", "E1", "phrase", "mezzo-forte",
+                    "arco-au-talon"))]
 
     for value, expected in test_pairs:
         result = wcqtlib.data.parse.parse_phil_path(value)
