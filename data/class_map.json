@@ -1,7 +1,7 @@
 {
- "guitar": ["acoustic-guitar", "guitar-acoustic-steel", "guitar-acoustic-nylon", "guitar"],
- "bassoon": ["bassoon"],
- "cello": ["cello"],
+ "guitar": ["acoustic-guitar", "guitar-acoustic-steel", "guitar-acoustic-nylon", "guitar", "Guitar"],
+ "bassoon": ["bassoon", "Bassoon"],
+ "cello": ["cello", "Cello"],
  "clarinet": ["clarinet", "BbClar", "EbClar"],
  "double-bass": ["bass-double", "Bass", "double-bass"],
  "flute": ["flute", "Flute"],

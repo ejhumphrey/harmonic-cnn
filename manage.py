@@ -210,6 +210,11 @@ def datatest(master_config, show_full=False):
         return 0
 
 
+def datastats(master_config):
+    config = C.Config.from_yaml(master_config)
+    canonical_df = parse.print_stats(config)
+
+
 def test(master_config):
     """Launch all unit tests."""
     print(utils.colored("Running unit tests."))
@@ -263,6 +268,8 @@ if __name__ == "__main__":
     datatest_parser.add_argument('-p', '--show_full', action="store_true",
                                  help="Print the full diff to screen.")
     datatest_parser.set_defaults(func=datatest)
+    datastats_parser = subparsers.add_parser('datastats')
+    datastats_parser.set_defaults(func=datastats)
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)
 
