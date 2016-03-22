@@ -35,11 +35,47 @@ CQT_PARAMS = dict(
     hop_length=1024, fmin=27.5, n_bins=204, bins_per_octave=24, tuning=0.0,
     filter_scale=1, aggregate=None, norm=1, sparsity=0.0, real=False)
 
+HARMONIC_PARAMS = dict(n_bins=144, n_harmonics=6)
+
 AUDIO_PARAMS = dict(samplerate=22050.0, channels=1, bytedepth=2)
 
 
+def harmonic_cqt(x_in, sr, hop_length=1024, fmin=27.5, n_bins=72,
+                 n_harmonics=5, bins_per_octave=24, tuning=0.0, filter_scale=1,
+                 aggregate=None, norm=1, sparsity=0.0, real=False):
+    """Harmonically layered CQT.
+
+    Thin wrapper around librosa.cqt; all parameters are the same, except for
+    those listed below.
+
+    Parameters
+    ----------
+    x_in : np.ndarray, ndim=2
+        Input signal, with shape (time, channels)
+
+    n_harmonics : int, default=5
+        Number of harmonic layers for each fundamental frequency.
+
+    Returns
+    -------
+    harmonic_spectra : np.ndarray, ndim=4
+        Resulting spectra, with shape (channels, harmonics, time, frequency).
+    """
+
+    kwargs = dict(n_bins=n_bins, bins_per_octave=bins_per_octave,
+                  hop_length=hop_length, sr=sr, tuning=tuning,
+                  filter_scale=filter_scale, aggregate=aggregate, norm=norm,
+                  sparsity=sparsity, real=real)
+
+    cqt_spectra = []
+    for i in range(1, n_harmonics+1):
+        cqt_spectra += [np.array([librosa.cqt(x_c, fmin=i*fmin, **kwargs).T
+                                  for x_c in x_in.T])[:, np.newaxis, ...]]
+    return np.concatenate(cqt_spectra, axis=1)
+
+
 def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
-            skip_existing=True):
+            harmonic_params=None, skip_existing=True):
     """Compute the CQT for a input/output file Pair.
 
     Parameters
@@ -55,6 +91,10 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
 
     audio_params : dict, default=None
         Parameters for reading the audio file. See `claudio.read`.
+
+    harmonic_params : dict, default=None
+        Parameters for the `harmonic_cqt` function, which will update those in
+        cqt_params.
 
     skip_existing : bool, default=True
         Skip outputs that exist.
@@ -83,6 +123,9 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
     if not audio_params:
         audio_params = AUDIO_PARAMS.copy()
 
+    if not harmonic_params:
+        harmonic_params = HARMONIC_PARAMS.copy()
+
     logger.debug("[{0}] Audio conversion {1}".format(
         time.asctime(), input_file))
     x, fs = claudio.read(input_file, **audio_params)
@@ -90,19 +133,25 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
         time.asctime(), input_file))
     cqt_spectra = np.array([np.abs(librosa.cqt(x_c, sr=fs, **cqt_params).T)
                             for x_c in x.T])
+
+    cqt_params.update(**harmonic_params)
+    harm_spectra = harmonic_cqt(x, fs, **cqt_params)
+
     frame_idx = np.arange(cqt_spectra.shape[1])
     time_points = librosa.frames_to_time(
         frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
     logger.debug("[{0}] Saving: {1}".format(time.asctime(), output_file))
     np.savez(
         output_file, time_points=time_points,
-        cqt=np.abs(cqt_spectra).astype(np.float32))
+        cqt=np.abs(cqt_spectra).astype(np.float32),
+        harmonic_cqt=np.abs(harm_spectra).astype(np.float32))
     logger.debug("[{0}] Finished: {1}".format(time.asctime(), output_file))
     return os.path.exists(output_file)
 
 
 def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
-             num_cpus=-1, verbose=50, skip_existing=True):
+             harmonic_params=None, num_cpus=-1, verbose=50,
+             skip_existing=True):
     """Compute CQT representation over a number of audio files.
 
     Parameters
@@ -119,6 +168,9 @@ def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
     audio_params : dict, default=None
         Parameters to use for loading the audio file.
 
+    harmonic_params : dict, default=None
+        Parameters to use on top of `cqt_params` for the harmonic cqt.
+
     num_cpus : int, default=-1
         Number of parallel threads to use for computation.
 
@@ -130,13 +182,14 @@ def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
     pool = Parallel(n_jobs=num_cpus, verbose=50)
     dcqt = delayed(cqt_one)
     pairs = zip(audio_files, output_files)
-    return all(pool(dcqt(fin, fout, cqt_params, audio_params, skip_existing)
+    return all(pool(dcqt(fin, fout, cqt_params, audio_params,
+                         harmonic_params, skip_existing)
                     for fin, fout in pairs))
 
 
 def cqt_from_df(config,
-                cqt_params=None, audio_params=None, num_cpus=-1,
-                verbose=50, skip_existing=True):
+                cqt_params=None, audio_params=None, harmonic_params=None,
+                num_cpus=-1, verbose=50, skip_existing=True):
     """Compute CQT representation over audio files referenced by
     a dataframe, and return a new dataframe also containing a column
     referencing the cqt files.
@@ -157,6 +210,9 @@ def cqt_from_df(config,
 
     audio_params : dict, default=None
         Parameters to use for loading the audio file.
+
+    harmonic_params : dict, default=None
+        Parameters to use on top of `cqt_params` for the harmonic cqt.
 
     num_cpus : int, default=-1
         Number of parallel threads to use for computation.
@@ -200,7 +256,7 @@ def cqt_from_df(config,
     features_df["cqt"] = pandas.Series(cqt_paths, index=features_df.index)
 
     result = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
-                      num_cpus, verbose, skip_existing)
+                      harmonic_params, num_cpus, verbose, skip_existing)
 
     # If succeeded, write the new dataframe as a pkl.
     if result:

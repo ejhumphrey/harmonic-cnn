@@ -1,15 +1,30 @@
+import claudio
 import os
 import pytest
+import numpy as np
 
 import wcqtlib.data.cqt as CQT
 
 DIRNAME = os.path.dirname(__file__)
 
 
+def test_harmonic_cqt(workspace):
+    input_file = os.path.join(DIRNAME, "sax_cres.mp3")
+    x, fs = claudio.read(input_file, samplerate=22050, channels=1)
+    spec = CQT.harmonic_cqt(x, fs, n_harmonics=6, n_bins=144,
+                            bins_per_octave=24)
+    assert spec.ndim == 4
+    assert spec.sum() > 0
+
+
 def test_cqt_one(workspace):
     input_file = os.path.join(DIRNAME, "sax_cres.mp3")
     output_file = os.path.join(workspace, "foo.npz")
     assert CQT.cqt_one(input_file, output_file)
+
+    features = np.load(output_file)
+    for key in 'cqt', 'harmonic_cqt', 'time_points':
+        assert key in features
 
 
 def test_download_many(workspace):

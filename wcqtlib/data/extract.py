@@ -9,6 +9,7 @@ import numpy as np
 import os
 import pandas
 import progressbar
+import sys
 
 import wcqtlib.config as C
 import wcqtlib.data.parse
