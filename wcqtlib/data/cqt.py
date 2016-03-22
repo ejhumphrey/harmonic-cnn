@@ -20,6 +20,7 @@ from joblib import delayed
 from joblib import Parallel
 import json
 import librosa
+import logging
 import numpy as np
 import os
 import pandas
@@ -27,6 +28,8 @@ import sys
 import time
 
 import wcqtlib.common.utils as utils
+
+logger = logging.getLogger(__name__)
 
 CQT_PARAMS = dict(
     hop_length=1024, fmin=27.5, n_bins=204, bins_per_octave=24, tuning=0.0,
@@ -64,35 +67,37 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
     input_exists, output_exists = [os.path.exists(f)
                                    for f in (input_file, output_file)]
     if not input_exists:
-        print("[{0}] Input file doesn't exist, skipping: {1}"
-              "".format(time.asctime(), input_file))
+        logger.warning("[{0}] Input file doesn't exist, skipping: {1}"
+                       "".format(time.asctime(), input_file))
         return input_exists
 
     if skip_existing and output_exists:
-        print("[{0}] Output file exists, skipping: {1}"
-              "".format(time.asctime(), output_file))
+        logger.info("[{0}] Output file exists, skipping: {1}"
+                    "".format(time.asctime(), output_file))
         return output_exists
 
-    print("[{0}] Starting {1}".format(time.asctime(), input_file))
+    logger.debug("[{0}] Starting {1}".format(time.asctime(), input_file))
     if not cqt_params:
         cqt_params = CQT_PARAMS.copy()
 
     if not audio_params:
         audio_params = AUDIO_PARAMS.copy()
 
-    print("[{0}] Audio conversion {1}".format(time.asctime(), input_file))
+    logger.debug("[{0}] Audio conversion {1}".format(
+        time.asctime(), input_file))
     x, fs = claudio.read(input_file, **audio_params)
-    print("[{0}] Computing features {1}".format(time.asctime(), input_file))
+    logger.debug("[{0}] Computing features {1}".format(
+        time.asctime(), input_file))
     cqt_spectra = np.array([np.abs(librosa.cqt(x_c, sr=fs, **cqt_params).T)
                             for x_c in x.T])
     frame_idx = np.arange(cqt_spectra.shape[1])
     time_points = librosa.frames_to_time(
         frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
-    print("[{0}] Saving: {1}".format(time.asctime(), output_file))
+    logger.debug("[{0}] Saving: {1}".format(time.asctime(), output_file))
     np.savez(
         output_file, time_points=time_points,
         cqt=np.abs(cqt_spectra).astype(np.float32))
-    print("[{0}] Finished: {1}".format(time.asctime(), output_file))
+    logger.debug("[{0}] Finished: {1}".format(time.asctime(), output_file))
     return os.path.exists(output_file)
 
 
@@ -176,8 +181,13 @@ def cqt_from_df(config,
                                   config["dataframes/features"])
     # Load the dataframe
     notes_df = pandas.read_pickle(notes_df_path)
+
+    if any(notes_df["audio_file"] == False):
+        logger.error("There are 'False' audio files! {}".format(
+            utils.colored("Red Flag", "red")))
+        import pdb; pdb.set_trace()
     # Clear out any bad values here.
-    features_df = notes_df[notes_df["audio_file"] != False]
+    features_df = notes_df.copy(deep=True)
 
     def features_path_for_audio(audio_path):
         return os.path.join(cqt_dir,
