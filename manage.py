@@ -32,15 +32,17 @@ def save_canonical_files(master_config):
     return success
 
 
-def collect(master_config):
+def collect(master_config, skip_notes=False):
     """Prepare dataframes of notes for experiments."""
     config = C.Config.from_yaml(master_config)
 
     print(utils.colored("Parsing directories to collect datasets"))
     parse_result = parse.parse_files_to_dataframe(config)
 
-    print(utils.colored("Spliting audio files to notes."))
-    extract_result = E.extract_notes(config)
+    extract_result = True
+    if not skip_notes:
+        print(utils.colored("Spliting audio files to notes."))
+        extract_result = E.extract_notes(config)
 
     return all([parse_result,
                 extract_result])
@@ -223,6 +225,8 @@ if __name__ == "__main__":
     save_canonical_parser.set_defaults(func=save_canonical_files)
 
     collect_parser = subparsers.add_parser('collect')
+    collect_parser.add_argument('--skip_notes', action='store_true',
+                                help="Don't extract notes from files.")
     collect_parser.set_defaults(func=collect)
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
