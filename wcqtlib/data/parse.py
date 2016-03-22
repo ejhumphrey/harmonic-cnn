@@ -562,7 +562,7 @@ def print_stats(config):
         if os.path.exists(datasets_path) else \
         pandas.DataFrame(columns=["dataset", "instrument"])
     features_df = pandas.read_pickle(features_path) \
-        if os.path.exists(datasets_path) \
+        if os.path.exists(datasets_path) else \
         pandas.DataFrame(columns=["dataset", "instrument"])
 
     print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format(
