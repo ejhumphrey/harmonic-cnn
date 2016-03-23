@@ -576,12 +576,11 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                         sil_pct_thresh=0.5) \
         if split_params is None else split_params
 
-    pool = Parallel(n_jobs=num_cpus)
+    pool = Parallel(n_jobs=num_cpus, verbose=50)
     fx = delayed(row_to_notes)
     kwargs = dict(split_params=split_params, extract_path=extract_path,
                   skip_processing=skip_processing, max_duration=max_duration)
 
-    datasets_df = datasets_df[:100]
     results = pool(fx(index, row.audio_file, row.dataset,
                       row.instrument, row.dynamic, **kwargs)
                    for (index, row) in datasets_df.iterrows())
