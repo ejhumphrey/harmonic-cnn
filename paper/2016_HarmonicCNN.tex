@@ -34,7 +34,7 @@
 %  {Second author} {Company \\ Address}
 
 %% To make customize author list in Creative Common license, uncomment and customize the next line
-%  \def\authorname{First Author, Second Author} 
+%  \def\authorname{First Author, Second Author}
 
 
 % Three addresses
@@ -45,7 +45,7 @@
   {Third Author} {Affiliation3 \\ {\tt author3@ismir.edu}}
 
 %% To make customize author list in Creative Common license, uncomment and customize the next line
-%  \def\authorname{First Author, Second Author, Third Author} 
+%  \def\authorname{First Author, Second Author, Third Author}
 
 % Four or more addresses
 % OR alternative format for large number of co-authors
@@ -72,8 +72,8 @@
 % Convnets have rocked MIR
 Convolutional neural networks, originally pioneered in computer vision, have shown great performance in content-based MIR across a variety of tasks.
 % Operate on time-freq reps, which are not images
-In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels. 
-However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images. 
+In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels.
+However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images.
 % Sound is harmonic, and model assumptions may not hold.
 Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies.
 % Make input rep harmonic, does it matter?
@@ -86,31 +86,48 @@ We study these approaches in a large, solo instrument classification task, and e
 % Closeout
 Finally, we provide an open source framework to reproduce both our results and the data used herein.
 
-
 \end{abstract}
-%
+
+
 \section{Introduction}\label{sec:introduction}
 
-This template includes all the information about formatting manuscripts for the ISMIR \conferenceyear\ Conference.
-Please follow these guidelines to give the final proceedings a uniform look.
-Most of the required formatting is achieved automatically by using the supplied
-style file (\LaTeX) or template (Word).
-If you have any questions, please contact the Program Committee
-(\texttt{ismir\conferenceyear-papers@ismir.net}).
-This template can be downloaded from the ISMIR \conferenceyear\ web site (\texttt{http://ismir\conferenceyear.ismir.net}).
-%
-\section{Paper Length \& File Size}
-Instead of the strict limit of six pages (last used in ISMIR 2014), we adopt 
-a ``(6+1)-page policy'' from ISMIR 2015 for ISMIR 2016. This means, the paper may have a 
-maximum of 6 pages for technical content including figures and possible references 
-with one additional optional 7th page containing only references.
-Note that this is a strict requirement. 
-\textcolor{red}{The seventh page (if used at all) must
-not contain any other material except for references.} 
+Many classic tasks in MIR aim to develop systems that are good at modeling the human perception of music signals.
+Content at scale, the argument is old hat.
+In the last few years, researchers have turned to feature learning and deep networks, which excel at modeling the kinds of complex, nonlinear behavior found in acoustic signals.
+Convolutional neural networks are a common choice for have been used a bunch for tasks recently, finding their way into a number of toolkits and languages.
+Timbre, chords, tagging, onset detection, structural segmentation, on and on.
+Deep learning, so hot right now.
 
-Paper should be submitted as PDFs and the \textcolor{red}{file size is limited to 2MB}. Please compress images and figures as necessary before submitting.
+It is valuable to note that convolutional networks draw inspiration from biological vision systems.
+Hubel and Weisel \cite{}, LeCun in the 90s \cite{}, and they dominate the field of computer vision.
+CNNs are characterized by two features:
+Local receptive fields to exploit the statistical properties of natural images.
+The weights over these local receptive fields are shared across spatial dimensions, providing translation invariant features.
 
-\section{Page Size}\label{sec:page_size}
+We can visualize why this is a good idea.
+Here, we take the CIFAR dataset, which consists of small (32x32) images.
+We use the training set of 25k images, compute a 2D auto-correlation between each image and a slightly cropped version of itself, and average over the dataset;
+this is defined formally by the following.
+As expected, Figure \ref{fig:image_corr} illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
+
+Intuitively, time-frequency representations are not images, but previous work overlooks this observation, applying the standard CNN formulation to audio tasks.
+This raises an interesting question: how do these correlations differ from images, and can we similarly leverage this prior knowledge?
+We therefore repeat the same exercise, instead drawing observations from constant-Q representations of audio.
+Using the librosa toolkit, we compute CQT spectra over a number of recordings in the USPop dataset\cite{} and draw 25k windowed observations at random.
+As before, the valid, 2D auto-correlation is performed between each windowed observation and a cropped version of itself.
+Given in Figure \ref{fig:cqt_corr}, we find a few notable differences.
+First, consistent with intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
+
+
+
+
+
+\section{Approach}\label{sec:page_size}
+
+
+
+
+
 
 The proceedings will be printed on
  \underline{portrait A4-size paper} \underline{(21.0cm x 29.7cm)}.
