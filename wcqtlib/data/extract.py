@@ -2,6 +2,7 @@
 
 import argparse
 import claudio
+import claudio.fileio
 import claudio.sox
 import librosa
 import logging
@@ -30,6 +31,9 @@ def get_onsets(audio, sr, **kwargs):
 
 def split_examples(input_audio_path,
                    output_dir,
+                   sil_pct_thresh=0.5,
+                   min_voicing_duration=0.05,
+                   min_silence_duration=1,
                    skip_processing=False):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
@@ -43,9 +47,19 @@ def split_examples(input_audio_path,
         Full path to the folder where you want to place the
         result files. Will be created if it does not exist.
 
+    sil_pct_thresh : float, default=0.5
+        Silence threshold as percentage of maximum sample value.
+
+    min_voicing_duration : float, default=0.01
+        Minimum amout of time required to be considered non-silent.
+
+    min_silence_duration : float, default=1
+        Minimum amout of time require to be considered silent.
+
     Returns
     -------
-    output_files : List of audio files created in this process.
+    output_files : list of str
+        Audio files created in this process.
     """
     original_name = os.path.basename(input_audio_path)
     filebase = utils.filebase(original_name)
@@ -57,21 +71,74 @@ def split_examples(input_audio_path,
     ready_files = []
 
     # Split the audio files using claudio.sox
-    #  [or skip that and look at existing files.]
+    #  [or skip it and check for split files.]
     if skip_processing or claudio.sox.split_along_silence(
-                input_audio_path, new_output_path):
+                input_audio_path, new_output_path,
+                sil_pct_thresh=sil_pct_thresh,
+                min_voicing_dur=min_voicing_duration,
+                min_silence_dur=min_silence_duration):
 
         # Sox generates files of the form:
-        # original_name001.xxx
-        # original_name001.xxx
-        process_files = [x for x in os.listdir(output_dir) if filebase in x]
+        # original_name001.abc
+        # original_name001.xyz
+        process_files = [x for x in os.listdir(output_dir)
+                         if filebase in x and original_name != x]
 
-        # For each file generated
+        # For each file generated, map it back to the output directory
         for file_name in process_files:
             audio_path = os.path.join(output_dir, file_name)
-            ready_files.append(audio_path)
+            try:
+                aobj = claudio.fileio.AudioFile(audio_path)
+                if aobj.duration >= min_voicing_duration:
+                    ready_files.append(audio_path)
+            # TODO: This would be an AssertionError now (claudio problem), it
+            # should be a SoxError in the future. HOWEVER, all of this should
+            # be the responsibility of `split_along_silence` anyways.
+            except BaseException as derp:
+                logger.warning(
+                    "Could not open an output of `split_along_silence`: {}\n"
+                    "Died with the following error: {}"
+                    "".format(audio_path, derp))
 
     return ready_files
+
+
+def split_examples_with_count(input_audio_path,
+                              output_dir,
+                              expected_count,
+                              skip_processing=False):
+    """Takes an audio file, and splits it up into multiple
+    audio files, using silence as the delimiter.
+
+    Parameters
+    ----------
+    input_audio_path : str
+        Full path to the audio file to use.
+
+    output_dir : str
+        Full path to the folder where you want to place the
+        result files. Will be created if it does not exist.
+
+    expected_count : int, default=None
+        Expected number of clips to be split from the original file.
+
+    Returns
+    -------
+    output_files : list of str, len=`expected_count` or 0
+        Audio files created in this process. The list will be empty if it
+        the expected number of clips could not be extracted.
+    """
+    if skip_processing:
+        return []
+
+    for min_silence in [2, 1, 0.5, 0.25, 0.125, 0.0625]:
+        output_files = split_examples(
+            input_audio_path, output_dir, sil_pct_thresh=0.5,
+            min_voicing_duration=0.05, min_silence_duration=min_silence)
+        if len(output_files) == expected_count:
+            break
+
+    return output_files if len(output_files) == expected_count else list()
 
 
 def standardize_one(input_audio_path,
