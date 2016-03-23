@@ -312,9 +312,9 @@ def train_model(config, model_selector, experiment_name,
     timers.end("train")
 
     # Print final training loss
-    logger.info("Total iterations:", iter_count)
-    logger.info("Trained for ", timers.get("train"))
-    logger.info("Final training loss:", train_stats["loss"].iloc[-1])
+    logger.info("Total iterations:".format(iter_count))
+    logger.info("Trained for ".format(timers.get("train")))
+    logger.info("Final training loss: {}".format(train_stats["loss"].iloc[-1]))
 
     # Make sure to save the final model.
     save_path = os.path.join(params_dir, "final.npz".format(iter_count))
@@ -416,8 +416,9 @@ def select_best_iteration(model_selection_df):
     best_model : int
         The iteration number which produced the best model.
     """
-    return os.path.basename(model_selection_df.loc[
-        model_selection_df["mean_acc"].argmax()]["model_file"])
+    best = model_selection_df.loc[model_selection_df["mean_acc"].argmax()]
+
+    return best["model_iteration"], os.path.basename(best["model_file"])
 
 
 def predict(config, experiment_name, selected_model_file,

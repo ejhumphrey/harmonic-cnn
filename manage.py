@@ -1,8 +1,9 @@
 import argparse
 import logging
 import logging.config
-import pandas
+import numpy as np
 import os
+import pandas
 import sys
 
 import wcqtlib.config as C
@@ -70,6 +71,24 @@ def extract_features(master_config):
     return success
 
 
+def fit_and_predict(master_config, experiment_name):
+    """Runs:
+    - train
+    - model_selection_df
+    - predict
+    - analyze
+    """
+    # Step 1: train
+    train(master_config, experiment_name)
+    # Step 2: model selection
+    results_df = model_selection(master_config, experiment_name)
+    best_iter, best_param_file = driver.select_best_iteration(results_df)
+    # Step 3: predictions
+    predict(master_config, experiment_name, select_epoch=best_iter)
+    # Step 4: analysis
+    analyze(master_config, experiment_name, select_epoch=best_iter)
+
+
 def train(master_config,
           experiment_name):
     """Run training loop.
@@ -128,7 +147,7 @@ def model_selection(master_config,
             "valid", hold_out_set))
     valid_df = pandas.read_pickle(valid_df_path)
 
-    driver.find_best_model(config,
+    return driver.find_best_model(config,
                            experiment_name=experiment_name,
                            validation_df=valid_df,
                            plot_loss=plot_loss)
@@ -154,9 +173,13 @@ def predict(master_config,
     print(utils.colored("Evaluating"))
     config = C.Config.from_yaml(master_config)
 
-    selected_model_file = "params{}.npz".format(selected_iteration) \
-        if str(selected_iteration).isdigit() else "{}.npz".format(
-            selected_iteration)
+    max_iterations = config['training/max_iterations']
+    params_zero_pad = int(np.ceil(np.log10(max_iterations)))
+    param_format_str = config['experiment/params_format']
+    param_format_str = param_format_str.format(params_zero_pad)
+    selected_model_file = param_format_str.format(select_epoch) \
+        if str(select_epoch).isdigit() else "{}.npz".format(
+            select_epoch)
 
     results = driver.predict(
         config, experiment_name, selected_model_file)
@@ -269,6 +292,14 @@ if __name__ == "__main__":
 
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
+
+    fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
+    fit_and_predict_parser.add_argument('experiment_name',
+                                        help="Name of the experiment. "
+                                        "Files go in a directory of "
+                                        "this name.")
+    fit_and_predict_parser.set_defaults(func=fit_and_predict)
+
     train_parser = subparsers.add_parser('train')
     train_parser.add_argument('experiment_name',
                               help="Name of the experiment. "
