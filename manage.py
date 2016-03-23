@@ -154,8 +154,9 @@ def predict(master_config,
     print(utils.colored("Evaluating"))
     config = C.Config.from_yaml(master_config)
 
-    selected_model_file = "params{}.npz".format(select_epoch) \
-        if select_epoch else "final.npz"
+    selected_model_file = "params{}.npz".format(selected_iteration) \
+        if str(selected_iteration).isdigit() else "{}.npz".format(
+            selected_iteration)
 
     results = driver.predict(
         config, experiment_name, selected_model_file)
