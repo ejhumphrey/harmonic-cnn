@@ -324,139 +324,45 @@ def standardize_one(input_audio_path,
     return input_audio_path if output_fname is None else output_fname
 
 
-def datasets_to_notes_slow(datasets_df, extract_path, max_duration=2.0,
-                           skip_processing=False, bogus_files=None,
-                           split_params=None):
-    """Take the dataset dataframe created in parse.py
-    and extract and standardize separate notes from
-    audio files which have multiple notes in them.
-
-    Must have separate behaviors for each dataset, as
-    they each have different setups w.r.t the number of notes
-    in the file.
-
-    RWC : Each file containes scales of many notes.
-        The notes themselves don't seem to be defined in the
-        file name.
-
-    UIOWA : Each file contains a few motes from a scale.
-        The note range is defined in the filename, but
-        does not appear to be consistent.
-        Also the space between them is not consistent either.
-        Keep an ear out for if the blank space algo works here.
-
-    Philharmonia : These files contain single notes,
-        and so are just passed through.
+def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
+                 extract_path, split_params, skip_processing, max_duration):
+    """Extract notes for a dataframe's row.
 
     Parameters
     ----------
-    dataset_df : pandas.DataFrame
-        Dataframe which defines the locations
-        of all input audio files in the dataset and
-        their associated instrument classes.
+    index : str
+        Index of the dataframe row.
+
+    original_audio_path : str
+        Path to the full audio file.
+
+    dataset : str
+        Name of this row's dataset.
+
+    instrument : str
+        Label of this sound file.
+
+    dynamic : str
+        Dynamic level for the recording.
 
     extract_path : str
-        Path which new note-separated files can be written to.
+        Path to extract the data to.
 
-    max_duration : float
-        Max file length in seconds.
+    split_params : dict
+        Key-value params to pass off to `split_along_silence`.
 
-    skip_processing : bool or None
-        If true, skips the split-on-silence portion of the procedure, and
-        just generates the dataframe from existing files.
+    skip_processing : bool
+        If True, rebuild from disk.
 
-    bogus_files : str, or None
-        If given, filepaths that misbehaved will be written to disk as JSON.
-
-    split_params : dict, or None
-        If provided, parameters to be handed off to `split_along_silence`.
+    max_duration : scalar
+        Maximum duration of a given note file.
 
     Returns
     -------
-    notes_df : pandas.DataFrame
-        Dataframe which points to the extracted
-        note files, still pointing to the same
-        instrument classes as their parent file.
-
-        Indexed By:
-            id : [dataset identifier] + [8 char md5 of filename]
-        Columns:
-            parent_id : id from "dataset" file.
-            audio_file : "split" audio file path.
-            dataset : dataset it is from
-            instrument : instrument label.
-            dynamic : dynamic tag
+    results : list of tuples
+        New entries for the extracted notes. Each item in the tuple contains
+        (primary_index, secondary_index, record).
     """
-    # Two arrays for multi/hierarchical indexing.
-    indexes = [[], []]
-    records = []
-    big_dummies = []
-    split_params = dict(min_voicing_duration=0.1,
-                        min_silence_duration=0.5,
-                        sil_pct_thresh=0.5) \
-        if split_params is None else split_params
-
-    i = 0
-    with progressbar.ProgressBar(max_value=len(datasets_df)) as progress:
-        for (index, row) in datasets_df.iterrows():
-            original_audio_path = row['audio_file']
-            dataset = row['dataset']
-            output_dir = os.path.join(extract_path, dataset)
-
-            # Get the note files.
-            note_count = wcqtlib.data.parse.get_num_notes_from_uiowa_filename(
-                original_audio_path)
-            if dataset in ['uiowa'] and note_count:
-                result_notes = split_examples_with_count(
-                    original_audio_path, output_dir,
-                    expected_count=note_count,
-                    skip_processing=skip_processing, **split_params)
-                if not result_notes:
-                    # Unable to extract the expected number of examples!
-                    logger.warning(utils.colored(
-                        "UIOWA file failed to produce the expected number of "
-                        "examples ({}): {}."
-                        .format(note_count, original_audio_path), "yellow"))
-                    big_dummies.append(original_audio_path)
-            elif dataset in ['rwc', 'uiowa']:
-                result_notes = split_examples(
-                    original_audio_path, output_dir,
-                    skip_processing=skip_processing, **split_params)
-            else:  # for philharmonia, just pass it through.
-                result_notes = [original_audio_path]
-
-            for note_file_path in result_notes:
-                audio_file_path = note_file_path
-                # For each note, do standardizing (aka check length)
-                if not skip_processing:
-                    audio_file_path = standardize_one(
-                        note_file_path, output_dir,
-                        final_duration=max_duration)
-                # If standardizing failed, don't keep this one.
-                if audio_file_path is None:
-                    continue
-
-                # Hierarchical indexing with (parent, new)
-                indexes[0].append(index)
-                indexes[1].append(wcqtlib.data.parse.generate_id(
-                    dataset, note_file_path))
-                records.append(
-                    dict(audio_file=audio_file_path,
-                         dataset=dataset,
-                         instrument=row['instrument'],
-                         dynamic=row['dynamic']))
-            progress.update(i)
-            i += 1
-
-    if bogus_files:
-        with open(bogus_files, 'w') as fp:
-            json.dump(big_dummies, fp, indent=2)
-
-    return pandas.DataFrame(records, index=indexes)
-
-
-def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
-                 extract_path, split_params, skip_processing, max_duration):
 
     output_dir = os.path.join(extract_path, dataset)
 
