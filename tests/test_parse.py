@@ -127,7 +127,7 @@ def test_parse_num_notes_from_path():
     test_pairs = [("Horn.ff.Bb1B1.aiff", 2),
                   ("Cello.arco.ff.sulA.C4B4.aiff", 12),
                   ("Viola.arco.sulA.ff.A4B4.aiff", 3),
-                  ("Rubber.aif", 1),
+                  ("Rubber.aif", None),
                   ("Guitar.ff.sul_E.C5Bb5.stereo.aif", 11),
                   ("Piano.ff.B3.aiff", 1),
                   ("Trumpet.vib.ff.E3B3.aiff", 8)]
