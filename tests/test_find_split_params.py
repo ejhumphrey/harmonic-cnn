@@ -18,7 +18,7 @@ pandas.set_option('display.width', 200)
 THIS_PATH = os.path.dirname(__file__)
 
 
-DATA_ROOT = os.path.expanduser("~/data")
+DATA_ROOT = "/media/ejhumphrey/workspace/instruments"  # os.path.expanduser("~/data")
 RWC_ROOT = os.path.join(DATA_ROOT, "RWC Instruments")
 UIOWA_ROOT = os.path.join(DATA_ROOT, "uiowa")
 PHIL_ROOT = os.path.join(DATA_ROOT, "philharmonia")
@@ -93,7 +93,10 @@ def test_check_split_params_uiowa(uiowa_file, workspace):
 
 
 def test_sweep_parameters(uiowa_df):
-    uiowa_df = uiowa_df.loc[:20]
+    uiowa_df = uiowa_df.iloc[:20]
     best_params = FSP.sweep_parameters(uiowa_df, max_attempts=5, num_cpus=-1,
                                        seed=1234)
     assert best_params
+    for idx, params in best_params.items():
+        assert idx in uiowa_df.index
+        assert FSP.check_split_params(uiowa_df.loc[idx].audio_file, **params)

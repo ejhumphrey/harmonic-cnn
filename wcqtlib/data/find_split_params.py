@@ -104,7 +104,7 @@ def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1, seed=None):
         fx = delayed(check_split_params)
 
         idxs = dataset.keys()
-        success = pool(fx(dataset[i], split_params) for i in idxs)
+        success = pool(fx(dataset[i], **split_params) for i in idxs)
 
         # Set params for all that were successful
         best_split_params.update(
@@ -115,7 +115,7 @@ def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1, seed=None):
                    for i, stat in zip(idxs, success) if not stat}
 
         logger.info("After {} iteration(s), {} files remain."
-                    "".format(len(dataset)))
+                    "".format(n, len(dataset)))
         # If it's empty, kick on out.
         if not dataset:
             break
