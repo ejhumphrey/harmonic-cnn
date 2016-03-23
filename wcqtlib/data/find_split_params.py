@@ -127,7 +127,7 @@ def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1, seed=None):
     return best_split_params
 
 
-def extract_notes(config, skip_processing=False):
+def sweep_dataframe(config, dataset):
     """Given a dataframe pointing to dataset files,
     convert the dataset's original files into "note" files,
     containing a single note, and of a maximum duration.
@@ -156,9 +156,7 @@ def extract_notes(config, skip_processing=False):
     datasets_df_path = os.path.join(output_path,
                                     config["dataframes/datasets"])
     split_df_path = os.path.join(output_path,
-                                 config["dataframes/split_params"])
-
-    print("Running Extraction Process")
+                                 config["extract/split_params_file"])
 
     print("Loading Datasets DataFrame")
     datasets_df = pandas.read_json(datasets_df_path)
@@ -176,15 +174,17 @@ def extract_notes(config, skip_processing=False):
     print("Loading Notes DataFrame from {} filtered dataset files".format(
         len(filtered_df)))
 
-    split_df = sweep_parameters(filtered_df)
+    if dataset:
+        filtered_df = E.filter_df(filtered_df, datasets=[dataset])
 
-    # notes_df.to_json(notes_df_path)
-    # notes_df.reset_index().to_json(notes_df_path)
-    split_df.to_pickle(split_df_path)
+    split_params = sweep_parameters(filtered_df)
+
+    with open(split_df_path, 'w') as fp:
+        json.dump(split_params, fp, indent=2)
 
     try:
         # Try to load it and make sure it worked.
-        pandas.read_pickle(split_df_path)
+        json.load(open(split_df_path))
         print("Created artifact: {}".format(
                 utils.colored(split_df_path, "cyan")))
         return True
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         description='Use datasets dataframe to generate the notes '
                     'dataframe.')
     parser.add_argument("-c", "--config_path", default=CONFIG_PATH)
-    parser.add_argument("--dataset", type=str,
+    parser.add_argument("--dataset", type=str, default='',
                         help=".")
     args = parser.parse_args()
 
@@ -212,5 +212,5 @@ if __name__ == "__main__":
                         level=logging.DEBUG)
 
     config = C.Config.from_yaml(args.config_path)
-    success = extract_notes(config, args.dataset)
+    success = sweep_dataframe(config, args.dataset)
     sys.exit(0 if success else 1)

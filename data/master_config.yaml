@@ -18,6 +18,7 @@ extract:
     min_silence_duration: 0.5
     sil_pct_thresh: 0.5
   skip_existing: True
+  split_param_file: "best_split_params.json"
 
 features:
   cqt:

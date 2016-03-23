@@ -1,10 +1,8 @@
-import claudio
 import logging
 import os
 import pandas
 import pytest
 import shutil
-import numpy as np
 
 import wcqtlib.data.parse
 import wcqtlib.data.extract
@@ -18,7 +16,7 @@ pandas.set_option('display.width', 200)
 THIS_PATH = os.path.dirname(__file__)
 
 
-DATA_ROOT = "/media/ejhumphrey/workspace/instruments"  # os.path.expanduser("~/data")
+DATA_ROOT = os.path.expanduser("~/data")
 RWC_ROOT = os.path.join(DATA_ROOT, "RWC Instruments")
 UIOWA_ROOT = os.path.join(DATA_ROOT, "uiowa")
 PHIL_ROOT = os.path.join(DATA_ROOT, "philharmonia")
