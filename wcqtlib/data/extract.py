@@ -4,6 +4,7 @@ import argparse
 import claudio
 import claudio.fileio
 import claudio.sox
+from joblib import Parallel, delayed
 import json
 import librosa
 import logging
@@ -323,9 +324,96 @@ def standardize_one(input_audio_path,
     return input_audio_path if output_fname is None else output_fname
 
 
+def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
+                 extract_path, split_params, skip_processing, max_duration):
+    """Extract notes for a dataframe's row.
+
+    Parameters
+    ----------
+    index : str
+        Index of the dataframe row.
+
+    original_audio_path : str
+        Path to the full audio file.
+
+    dataset : str
+        Name of this row's dataset.
+
+    instrument : str
+        Label of this sound file.
+
+    dynamic : str
+        Dynamic level for the recording.
+
+    extract_path : str
+        Path to extract the data to.
+
+    split_params : dict
+        Key-value params to pass off to `split_along_silence`.
+
+    skip_processing : bool
+        If True, rebuild from disk.
+
+    max_duration : scalar
+        Maximum duration of a given note file.
+
+    Returns
+    -------
+    results : list of tuples
+        New entries for the extracted notes. Each item in the tuple contains
+        (primary_index, secondary_index, record).
+    """
+
+    output_dir = os.path.join(extract_path, dataset)
+
+    # Get the note files.
+    note_count = wcqtlib.data.parse.get_num_notes_from_uiowa_filename(
+        original_audio_path)
+    if dataset in ['uiowa'] and note_count:
+        result_notes = split_examples_with_count(
+            original_audio_path, output_dir,
+            expected_count=note_count,
+            skip_processing=skip_processing, **split_params)
+        if not result_notes:
+            # Unable to extract the expected number of examples!
+            logger.warning(utils.colored(
+                "UIOWA file failed to produce the expected number of "
+                "examples ({}): {}."
+                .format(note_count, original_audio_path), "yellow"))
+
+    elif dataset in ['rwc', 'uiowa']:
+        result_notes = split_examples(
+            original_audio_path, output_dir,
+            skip_processing=skip_processing, **split_params)
+    else:  # for philharmonia, just pass it through.
+        result_notes = [original_audio_path]
+
+    results = []
+    for note_file_path in result_notes:
+        audio_file_path = note_file_path
+        # For each note, do standardizing (aka check length)
+        if not skip_processing:
+            audio_file_path = standardize_one(
+                note_file_path, output_dir,
+                final_duration=max_duration)
+        # If standardizing failed, don't keep this one.
+        if audio_file_path is None:
+            continue
+
+        record = dict(audio_file=audio_file_path,
+                      dataset=dataset,
+                      instrument=instrument,
+                      dynamic=dynamic)
+        # Hierarchical indexing with (parent, new)
+        results += [(index,
+                     wcqtlib.data.parse.generate_id(dataset, note_file_path),
+                     record)]
+    return results
+
+
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                       skip_processing=False, bogus_files=None,
-                      split_params=None):
+                      split_params=None, num_cpus=-1):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -389,67 +477,25 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     # Two arrays for multi/hierarchical indexing.
     indexes = [[], []]
     records = []
-    big_dummies = []
     split_params = dict(min_voicing_duration=0.1,
                         min_silence_duration=0.5,
                         sil_pct_thresh=0.5) \
         if split_params is None else split_params
 
-    i = 0
-    with progressbar.ProgressBar(max_value=len(datasets_df)) as progress:
-        for (index, row) in datasets_df.iterrows():
-            original_audio_path = row['audio_file']
-            dataset = row['dataset']
-            output_dir = os.path.join(extract_path, dataset)
+    pool = Parallel(n_jobs=num_cpus, verbose=50)
+    fx = delayed(row_to_notes)
+    kwargs = dict(split_params=split_params, extract_path=extract_path,
+                  skip_processing=skip_processing, max_duration=max_duration)
 
-            # Get the note files.
-            note_count = wcqtlib.data.parse.get_num_notes_from_uiowa_filename(
-                original_audio_path)
-            if dataset in ['uiowa'] and note_count:
-                result_notes = split_examples_with_count(
-                    original_audio_path, output_dir,
-                    expected_count=note_count,
-                    skip_processing=skip_processing, **split_params)
-                if not result_notes:
-                    # Unable to extract the expected number of examples!
-                    logger.warning(utils.colored(
-                        "UIOWA file failed to produce the expected number of "
-                        "examples ({}): {}."
-                        .format(note_count, original_audio_path), "yellow"))
-                    big_dummies.append(original_audio_path)
-            elif dataset in ['rwc', 'uiowa']:
-                result_notes = split_examples(
-                    original_audio_path, output_dir,
-                    skip_processing=skip_processing, **split_params)
-            else:  # for philharmonia, just pass it through.
-                result_notes = [original_audio_path]
+    results = pool(fx(index, row.audio_file, row.dataset,
+                      row.instrument, row.dynamic, **kwargs)
+                   for (index, row) in datasets_df.iterrows())
 
-            for note_file_path in result_notes:
-                audio_file_path = note_file_path
-                # For each note, do standardizing (aka check length)
-                if not skip_processing:
-                    audio_file_path = standardize_one(
-                        note_file_path, output_dir,
-                        final_duration=max_duration)
-                # If standardizing failed, don't keep this one.
-                if audio_file_path is None:
-                    continue
-
-                # Hierarchical indexing with (parent, new)
-                indexes[0].append(index)
-                indexes[1].append(wcqtlib.data.parse.generate_id(
-                    dataset, note_file_path))
-                records.append(
-                    dict(audio_file=audio_file_path,
-                         dataset=dataset,
-                         instrument=row['instrument'],
-                         dynamic=row['dynamic']))
-            progress.update(i)
-            i += 1
-
-    if bogus_files:
-        with open(bogus_files, 'w') as fp:
-            json.dump(big_dummies, fp, indent=2)
+    for res in results:
+        for idx0, idx1, rec in res:
+            indexes[0].append(idx0)
+            indexes[1].append(idx1)
+            records.append(rec)
 
     return pandas.DataFrame(records, index=indexes)
 
