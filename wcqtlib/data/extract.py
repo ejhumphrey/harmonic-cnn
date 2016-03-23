@@ -4,6 +4,7 @@ import argparse
 import claudio
 import claudio.fileio
 import claudio.sox
+import json
 import librosa
 import logging
 import numpy as np
@@ -289,7 +290,7 @@ def standardize_one(input_audio_path,
 
 
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
-                      skip_processing=False):
+                      skip_processing=False, bogus_files=None):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -328,6 +329,9 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
         If true, skips the split-on-silence portion of the procedure, and
         just generates the dataframe from existing files.
 
+    bogus_files : str, or None
+        If given, filepaths that misbehaved will be written to disk as JSON.
+
     Returns
     -------
     notes_df : pandas.DataFrame
@@ -347,6 +351,8 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     # Two arrays for multi/hierarchical indexing.
     indexes = [[], []]
     records = []
+    big_dummies = []
+
     i = 0
     with progressbar.ProgressBar(max_value=len(datasets_df)) as progress:
         for (index, row) in datasets_df.iterrows():
@@ -362,6 +368,13 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                     original_audio_path, output_dir,
                     expected_count=note_count,
                     skip_processing=skip_processing)
+                if not result_notes:
+                    # Unable to extract the expected number of examples!
+                    logger.warning(utils.colored(
+                        "UIOWA file failed to produce the expected number of "
+                        "examples ({}): {}."
+                        .format(note_count, original_audio_path), "yellow"))
+                    big_dummies.append(original_audio_path)
             elif dataset in ['rwc', 'uiowa']:
                 result_notes = split_examples(
                     original_audio_path, output_dir,
@@ -391,6 +404,10 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                          dynamic=row['dynamic']))
             progress.update(i)
             i += 1
+
+    if bogus_files:
+        with open(bogus_files, 'w') as fp:
+            json.dump(big_dummies, fp, indent=2)
 
     return pandas.DataFrame(records, index=indexes)
 
@@ -496,7 +513,8 @@ def extract_notes(config, skip_processing=False):
 
     notes_df = datasets_to_notes(filtered_df, output_path,
                                  max_duration=config['extract/max_duration'],
-                                 skip_processing=skip_processing)
+                                 skip_processing=skip_processing,
+                                 bogus_files=config['extract/bogus_files'])
 
     summarize_notes(notes_df)
 

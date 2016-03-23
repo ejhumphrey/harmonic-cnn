@@ -12,6 +12,7 @@ dataframes:
 
 extract:
   max_duration: 2.0
+  bogus_files: "bogus_audio_files.json"
 
 features:
   cqt:
