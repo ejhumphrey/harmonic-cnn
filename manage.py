@@ -18,6 +18,13 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__),
 logger = logging.getLogger(__name__)
 
 
+def run_process_if_not_exists(process, filepath, **kwargs):
+    if not os.path.exists(filepath):
+        return process(**kwargs)
+    else:
+        return True
+
+
 def save_canonical_files(master_config):
     """Create the canonical_files.json file."""
     config = C.Config.from_yaml(master_config)
@@ -32,20 +39,27 @@ def save_canonical_files(master_config):
     return success
 
 
-def collect(master_config, skip_notes=False):
+def collect(master_config):
     """Prepare dataframes of notes for experiments."""
     config = C.Config.from_yaml(master_config)
 
     print(utils.colored("Parsing directories to collect datasets"))
     parse_result = parse.parse_files_to_dataframe(config)
+    return parse_result
 
-    extract_result = True
-    if not skip_notes:
-        print(utils.colored("Spliting audio files to notes."))
-        extract_result = E.extract_notes(config)
 
-    return all([parse_result,
-                extract_result])
+def extract_notes(master_config):
+    print(utils.colored("Spliting audio files to notes."))
+    config = C.Config.from_yaml(master_config)
+
+    datasets_path = os.path.join(
+        os.path.expanduser(config['paths/extract_dir']),
+        config['dataframes/datasets'])
+    run_process_if_not_exists(collect, datasets_path,
+                              master_config=master_config)
+    extract_result = E.extract_notes(config)
+
+    return extract_result
 
 
 def extract_features(master_config):
@@ -189,6 +203,11 @@ def datatest(master_config, show_full=False):
     datasets_path = os.path.join(
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/datasets'])
+
+    # Regenerate the datasets_df to make sure it's not stale.
+    if not collect(master_config):
+        logger.error("Failed to regenerate datasets_df.")
+
     datasets_df = pandas.read_json(datasets_path)
     logger.info("Your datasets_df has {} records".format(len(datasets_df)))
 
@@ -204,10 +223,17 @@ def datatest(master_config, show_full=False):
         for index, row in diff_df.iterrows():
             print("{:<40}\t{:<20}\t{:<15}".format(
                 index, row['dirnamecan'], row['datasetcan']))
-        return 1
     else:
         print(utils.colored("You're all set; your dataset matches.", "green"))
-        return 0
+
+    print(utils.colored("Now checking all files for validity."))
+    bad_files = E.check_valid_audio_files(datasets_df,
+                                          write_path="bad_file_reads.txt")
+    print(utils.colored("{} files could not be opened", "red"))
+    if bad_files:
+        print("Unable to open the following audio files:")
+        for filepath in bad_files:
+            print(filepath)
 
 
 def datastats(master_config):
@@ -230,9 +256,11 @@ if __name__ == "__main__":
     save_canonical_parser.set_defaults(func=save_canonical_files)
 
     collect_parser = subparsers.add_parser('collect')
-    collect_parser.add_argument('--skip_notes', action='store_true',
-                                help="Don't extract notes from files.")
     collect_parser.set_defaults(func=collect)
+
+    extract_notes_parser = subparsers.add_parser('extract_notes')
+    extract_notes_parser.set_defaults(func=extract_notes)
+
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
     train_parser = subparsers.add_parser('train')
