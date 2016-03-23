@@ -146,8 +146,7 @@ def test_find_best_model(workspace):
                sorted(results_df["model_iteration"]))
 
     # Get the best param
-    best_param_file = driver.select_best_iteration(results_df)
-    param_iter = utils.iter_from_params_filepath(best_param_file)
+    param_iter, best_param_file = driver.select_best_iteration(results_df)
     assert best_param_file is not None
 
     # load it again to test the reloading thing.
