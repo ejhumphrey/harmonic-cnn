@@ -1,4 +1,5 @@
 import claudio
+import json
 import logging
 import os
 import pandas
@@ -33,6 +34,19 @@ def testfile(workspace):
     output_file = os.path.join(workspace, mando_fn)
 
     shutil.copy(test_mando, output_file)
+    return output_file
+
+
+@pytest.fixture
+def uiowa_file(workspace):
+    """Copies the UIowa file to the workspace so we can mess with it,
+    and returns the new path.
+    """
+    fname = "BbClar.ff.C4B4.mp3"
+    input_file = os.path.join(THIS_PATH, fname)
+    output_file = os.path.join(workspace, fname)
+
+    shutil.copy(input_file, output_file)
     return output_file
 
 
@@ -86,10 +100,36 @@ def test_filter_datasets_on_selected_instruments():
     assert all([x in new_df["instrument"].unique() for x in inst_filter])
 
 
-def test_split_examples(testfile, workspace):
+def test_split_examples_single(testfile, workspace):
     output_files = wcqtlib.data.extract.split_examples(
         testfile, workspace)
     assert all(map(os.path.exists, output_files))
+    assert len(output_files) == 1
+    assert testfile not in output_files
+
+
+def test_split_examples_uiowa(uiowa_file, workspace):
+    output_files = wcqtlib.data.extract.split_examples(
+        uiowa_file, workspace, sil_pct_thresh=0.25,
+        min_voicing_duration=0.2, min_silence_duration=1.0)
+    # print(json.dumps(output_files, indent=2))
+    assert all(map(os.path.exists, output_files))
+    assert len(output_files) == 12
+    assert uiowa_file not in output_files
+
+
+def test_split_examples_with_count(uiowa_file, workspace):
+    act_count = 12
+
+    output_files = wcqtlib.data.extract.split_examples_with_count(
+        uiowa_file, workspace, act_count)
+    assert len(output_files) == act_count
+    for fname in output_files:
+        assert os.path.exists(fname)
+
+    output_files = wcqtlib.data.extract.split_examples_with_count(
+        uiowa_file, workspace, 44)
+    assert not output_files
 
 
 # def test_standardize_one_onset(testfile):
