@@ -79,7 +79,8 @@ def split_examples(input_audio_path,
                    sil_pct_thresh=0.5,
                    min_voicing_duration=0.05,
                    min_silence_duration=1,
-                   skip_processing=False):
+                   skip_processing=False,
+                   clean_state=True):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
 
@@ -95,7 +96,7 @@ def split_examples(input_audio_path,
     sil_pct_thresh : float, default=0.5
         Silence threshold as percentage of maximum sample value.
 
-    min_voicing_duration : float, default=0.01
+    min_voicing_duration : float, default=0.05
         Minimum amout of time required to be considered non-silent.
 
     min_silence_duration : float, default=1
@@ -113,8 +114,14 @@ def split_examples(input_audio_path,
     # Make sure hte output directory exists
     utils.create_directory(output_dir)
 
-    ready_files = []
+    old_files = [os.path.join(output_dir, x) for x in os.listdir(output_dir)
+                 if filebase in x and original_name != x]
 
+    if clean_state and not skip_processing:
+        for f in old_files:
+            os.remove(f)
+
+    ready_files = []
     # Split the audio files using claudio.sox
     #  [or skip it and check for split files.]
     if skip_processing or claudio.sox.split_along_silence(
@@ -136,6 +143,8 @@ def split_examples(input_audio_path,
                 aobj = claudio.fileio.AudioFile(audio_path, bytedepth=2)
                 if aobj.duration >= min_voicing_duration:
                     ready_files.append(audio_path)
+                else:
+                    os.remove(audio_path)
             # TODO: This would be an AssertionError now (claudio problem), it
             # should be a SoxError in the future. HOWEVER, all of this should
             # be the responsibility of `split_along_silence` anyways.
@@ -144,6 +153,7 @@ def split_examples(input_audio_path,
                     "Could not open an output of `split_along_silence`: {}\n"
                     "Died with the following error: {}"
                     "".format(audio_path, derp))
+                os.remove(audio_path)
 
     return ready_files
 
@@ -151,7 +161,11 @@ def split_examples(input_audio_path,
 def split_examples_with_count(input_audio_path,
                               output_dir,
                               expected_count,
-                              skip_processing=False):
+                              sil_pct_thresh=0.5,
+                              min_voicing_duration=0.05,
+                              min_silence_duration=1,
+                              skip_processing=False,
+                              clean_state=True):
     """Takes an audio file, and splits it up into multiple
     audio files, using silence as the delimiter.
 
@@ -173,13 +187,17 @@ def split_examples_with_count(input_audio_path,
         Audio files created in this process. The list will be empty if it
         the expected number of clips could not be extracted.
     """
-    for min_silence in [2, 1, 0.5, 0.25, 0.125, 0.0625]:
-        output_files = split_examples(
-            input_audio_path, output_dir, sil_pct_thresh=0.5,
-            min_voicing_duration=0.05, min_silence_duration=min_silence,
-            skip_processing=skip_processing)
-        if len(output_files) == expected_count:
-            break
+    output_files = split_examples(
+        input_audio_path, output_dir,
+        sil_pct_thresh=sil_pct_thresh,
+        min_voicing_duration=min_voicing_duration,
+        min_silence_duration=min_silence_duration,
+        skip_processing=skip_processing,
+        clean_state=clean_state)
+
+    if len(output_files) != expected_count:
+        for f in output_files:
+            os.remove(f)
 
     return output_files if len(output_files) == expected_count else list()
 
@@ -290,7 +308,8 @@ def standardize_one(input_audio_path,
 
 
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
-                      skip_processing=False, bogus_files=None):
+                      skip_processing=False, bogus_files=None,
+                      split_params=None):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -352,6 +371,10 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     indexes = [[], []]
     records = []
     big_dummies = []
+    split_params = dict(min_voicing_duration=0.1,
+                        min_silence_duration=0.5,
+                        sil_pct_thresh=0.5) \
+        if split_params is None else split_params
 
     i = 0
     with progressbar.ProgressBar(max_value=len(datasets_df)) as progress:
@@ -367,7 +390,7 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                 result_notes = split_examples_with_count(
                     original_audio_path, output_dir,
                     expected_count=note_count,
-                    skip_processing=skip_processing)
+                    skip_processing=skip_processing, **split_params)
                 if not result_notes:
                     # Unable to extract the expected number of examples!
                     logger.warning(utils.colored(
@@ -378,7 +401,7 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
             elif dataset in ['rwc', 'uiowa']:
                 result_notes = split_examples(
                     original_audio_path, output_dir,
-                    skip_processing=skip_processing)
+                    skip_processing=skip_processing, **split_params)
             else:  # for philharmonia, just pass it through.
                 result_notes = [original_audio_path]
 
@@ -514,7 +537,8 @@ def extract_notes(config, skip_processing=False):
     notes_df = datasets_to_notes(filtered_df, output_path,
                                  max_duration=config['extract/max_duration'],
                                  skip_processing=skip_processing,
-                                 bogus_files=config['extract/bogus_files'])
+                                 bogus_files=config['extract/bogus_files'],
+                                 split_params=config['extract/split_params'])
 
     summarize_notes(notes_df)
 
