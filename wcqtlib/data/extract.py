@@ -94,7 +94,7 @@ def split_examples(input_audio_path,
             # TODO: This would be an AssertionError now (claudio problem), it
             # should be a SoxError in the future. HOWEVER, all of this should
             # be the responsibility of `split_along_silence` anyways.
-            except BaseException as derp:
+            except AssertionError as derp:
                 logger.warning(
                     "Could not open an output of `split_along_silence`: {}\n"
                     "Died with the following error: {}"
