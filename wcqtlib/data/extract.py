@@ -226,7 +226,7 @@ def split_examples_with_count(input_audio_path,
 
 
 def standardize_one(input_audio_path,
-                    output_path=None,
+                    output_dir=None,
                     first_onset_start=None,
                     center_of_mass_alignment=False,
                     final_duration=None):
@@ -240,9 +240,9 @@ def standardize_one(input_audio_path,
     input_audio_path : str
         Full path to the audio file to work with.
 
-    output_path : str or None
-        Path to write updated files to. If None, overwrites the
-        input file.
+    output_dir : str or None
+        Path to write updated files to under the same basename. If None,
+        overwrites the input file.
 
     first_onset_start : float or None
         If not None, uses librosa's onset detection to find
@@ -266,10 +266,9 @@ def standardize_one(input_audio_path,
     output_audio_path : str or None
         Valid full file path if succeeded, or None if failed.
     """
-    # Load the audio file
-    audio_modified = False
+    output_fname = None
     try:
-        audio, sr = claudio.read(input_audio_path, channels=1, bytedepth=2)
+        aobj = claudio.fileio.AudioFile(input_audio_path, bytedepth=2)
     except AssertionError as e:
         logger.error("Sox may have failed. Input: {}\n Error: {}. Skipping..."
                      .format(input_audio_path, e))
@@ -280,54 +279,48 @@ def standardize_one(input_audio_path,
             " Skipping...".format(input_audio_path, e)), "red")
         return None
 
-    if len(audio) == 0:
+    if aobj.duration == 0:
         return None
 
     if first_onset_start is not None:
+        raise NotImplementedError("This done got turned off.")
         # Find the onsets using librosa
-        onset_samples = get_onsets(audio, sr)
+        # onset_samples = get_onsets(audio, sr)
 
-        first_onset_start_samples = first_onset_start * sr
-        actual_first_onset = onset_samples[0]
-        # Pad the beginning with up to onset_start ms of silence
-        onset_difference = first_onset_start_samples - actual_first_onset
+        # first_onset_start_samples = first_onset_start * sr
+        # actual_first_onset = onset_samples[0]
+        # # Pad the beginning with up to onset_start ms of silence
+        # onset_difference = first_onset_start_samples - actual_first_onset
 
-        # Correct the difference by adding or removing samples
-        # from the beginning.
-        if onset_difference > 0:
-            # In this case, we need to append this many zeros to the start
-            audio = np.concatenate([
-                np.zeros([onset_difference, audio.shape[-1]]),
-                audio])
-            audio_modified = True
-        elif onset_difference < 0:
-            audio = audio[np.abs(onset_difference):]
-            audio_modified = True
+        # # Correct the difference by adding or removing samples
+        # # from the beginning.
+        # if onset_difference > 0:
+        #     # In this case, we need to append this many zeros to the start
+        #     audio = np.concatenate([
+        #         np.zeros([onset_difference, audio.shape[-1]]),
+        #         audio])
+        #     audio_modified = True
+        # elif onset_difference < 0:
+        #     audio = audio[np.abs(onset_difference):]
+        #     audio_modified = True
 
     if center_of_mass_alignment:
         raise NotImplementedError("Center of mass not yet implemented.")
 
-    if final_duration:
-        final_length_samples = int(final_duration * sr)
-        # If this is less than the amount of data we have
-        if final_length_samples < len(audio):
-            audio = audio[:final_length_samples]
-            audio_modified = True
-        # Otherwise, just leave it at the current length.
+    if final_duration < aobj.duration:
+        if output_dir:
+            utils.create_directory(output_dir)
+            output_fname = os.path.join(
+                output_dir, os.path.basename(input_audio_path))
 
-    if audio_modified:
-        output_audio_path = input_audio_path
-        if (output_path):
-            utils.create_directory(output_path)
-            output_audio_path = os.path.join(
-                output_path, os.path.basename(input_audio_path))
+        success = claudio.sox.trim(input_audio_path, output_fname, 0,
+                                   final_duration)
+        if not success:
+            logger.error(utils.colored(
+                "claudio.sox.trim Failed: {} -- "
+                "moving on...".format(input_audio_path), "red"))
 
-        # save the file back out again.
-        claudio.write(output_audio_path, audio, samplerate=sr)
-
-        return output_audio_path
-    else:
-        return input_audio_path
+    return input_audio_path if output_fname is None else output_fname
 
 
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,

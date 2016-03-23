@@ -163,6 +163,7 @@ def test_standardize_one_final_duration(testfile):
         testfile, first_onset_start=None,
         final_duration=duration)
     assert result
+    assert os.path.exists(result)
 
     audio, sr = claudio.read(testfile)
 
@@ -180,6 +181,7 @@ def test_standardize_one_final_duration_toosmall(testfile):
         testfile, first_onset_start=None,
         final_duration=duration)
     assert result is not None and result is not False
+    assert os.path.exists(result)
     # If the audio duration is less than druation, it should
     # return the original file
     assert result == testfile
