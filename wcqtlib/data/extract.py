@@ -20,7 +20,7 @@ import wcqtlib.common.utils as utils
 logger = logging.getLogger(__name__)
 
 
-def check_valid_audio_files(datasets_df):
+def check_valid_audio_files(datasets_df, write_path=None):
     """
     Tries to load every file, and returns a list of any file
     that fails to load.
@@ -53,6 +53,10 @@ def check_valid_audio_files(datasets_df):
 
             progress.update(i)
             i += 1
+
+    if write_path:
+        with open(write_path, 'w') as fh:
+            fh.write("\n".join(fail_list))
 
     return fail_list
 
