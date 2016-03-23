@@ -640,10 +640,10 @@ def print_stats(config):
         if os.path.exists(datasets_path) else \
         pandas.DataFrame(columns=["dataset", "instrument"])
     notes_df = pandas.read_pickle(notes_path) \
-        if os.path.exists(datasets_path) else \
+        if os.path.exists(notes_path) else \
         pandas.DataFrame(columns=["dataset", "instrument"])
     features_df = pandas.read_pickle(features_path) \
-        if os.path.exists(datasets_path) else \
+        if os.path.exists(features_path) else \
         pandas.DataFrame(columns=["dataset", "instrument"])
 
     print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format(
@@ -683,16 +683,22 @@ def print_stats(config):
     print("---------------------------")
     print("Notes-Instrument count / dataset")
     print("---------------------------")
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
-    for inst in sorted(notes_df["instrument"].unique()):
-        print_dataset_instcount(notes_df, inst)
+    if not notes_df.empty:
+        print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
+        for inst in sorted(notes_df["instrument"].unique()):
+            print_dataset_instcount(notes_df, inst)
+    else:
+        print("no notes_df available")
 
     print("---------------------------")
     print("Features-Instrument count / dataset")
     print("---------------------------")
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
-    for inst in classmap.classnames:
-        print_dataset_instcount(features_df, inst)
+    if not features_df.empty:
+        print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
+        for inst in classmap.classnames:
+            print_dataset_instcount(features_df, inst)
+    else:
+        print("No features_df available")
 
 
 if __name__ == "__main__":
