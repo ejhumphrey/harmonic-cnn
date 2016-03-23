@@ -227,9 +227,14 @@ def datatest(master_config, show_full=False):
         print(utils.colored("You're all set; your dataset matches.", "green"))
 
     print(utils.colored("Now checking all files for validity."))
-    bad_files = E.check_valid_audio_files(datasets_df,
+
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+    filtered_df = datasets_df[datasets_df["instrument"].isin(
+        classmap.allnames)]
+    bad_files = E.check_valid_audio_files(filtered_df,
                                           write_path="bad_file_reads.txt")
-    print(utils.colored("{} files could not be opened", "red"))
+    print(utils.colored("{} files could not be opened".format(
+                        len(bad_files)), "red"))
     if bad_files:
         print("Unable to open the following audio files:")
         for filepath in bad_files:

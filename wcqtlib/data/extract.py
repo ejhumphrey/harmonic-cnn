@@ -38,26 +38,29 @@ def check_valid_audio_files(datasets_df, write_path=None):
 
     with progressbar.ProgressBar(max_value=len(datasets_df)) as progress:
         i = 0
-        for index, row in datasets_df.iterrows():
-            audio_file = row["audio_file"]
+        try:
+            for index, row in datasets_df.iterrows():
+                audio_file = row["audio_file"]
 
-            try:
-                aobj = claudio.fileio.AudioFile(audio_file)
-                if aobj.duration <= .05:
-                    fail_list.append(audio_file)
-            except AssertionError:
-                fail_list.append((audio_file, "assertion"))
-            except EOFError:
-                fail_list.append((audio_file, "EOFError"))
-            except wave.Error:
-                fail_list.append((audio_file, "wave.Error"))
+                try:
+                    aobj = claudio.fileio.AudioFile(audio_file)
+                    if aobj.duration <= .05:
+                        fail_list.append(audio_file)
+                except AssertionError:
+                    fail_list.append((audio_file, "assertion"))
+                except EOFError:
+                    fail_list.append((audio_file, "EOFError"))
+                except wave.Error:
+                    fail_list.append((audio_file, "wave.Error"))
 
-            progress.update(i)
-            i += 1
+                progress.update(i)
+                i += 1
+        except KeyboardInterrupt:
+            print("Cancelled at {}".format(i))
 
     if write_path:
         with open(write_path, 'w') as fh:
-            fh.write("\n".join(fail_list))
+            fh.write("\n".join([str(x) for x in fail_list]))
 
     return fail_list
 
