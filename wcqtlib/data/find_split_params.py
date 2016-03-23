@@ -68,7 +68,7 @@ def check_split_params(audio_path, min_voicing_duration, min_silence_duration,
     return note_count is None or len(result_notes) == note_count
 
 
-def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1):
+def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1, seed=None):
     """Take the dataset dataframe created in parse.py
     and
 
@@ -88,15 +88,17 @@ def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1):
     dataset = {index: row.audio_file
                for (index, row) in datasets_df.iterrows()}
 
+    rng = np.random.RandomState(seed=seed)
+
     logger.info("Starting with {} files.".format(len(dataset)))
     for n in range(max_attempts):
         # split_params = dict(min_voicing_duration=0.1,
         #                     min_silence_duration=0.5,
         #                     sil_pct_thresh=0.5)
         split_params = dict(
-            min_voicing_duration=np.random.uniform(0.05, 1),
-            min_silence_duration=np.random.uniform(0.05, 1),
-            sil_pct_thresh=np.random.uniform(0.1, 0.9))
+            min_voicing_duration=rng.uniform(0.05, 1),
+            min_silence_duration=rng.uniform(0.05, 1),
+            sil_pct_thresh=rng.uniform(0.1, 0.9))
 
         pool = Parallel(n_jobs=num_cpus, verbose=50)
         fx = delayed(check_split_params)

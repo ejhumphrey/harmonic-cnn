@@ -90,3 +90,10 @@ def test_check_split_params_uiowa(uiowa_file, workspace):
     assert FSP.check_split_params(
         uiowa_file, sil_pct_thresh=0.25, min_voicing_duration=0.2,
         min_silence_duration=1.0)
+
+
+def test_sweep_parameters(uiowa_df):
+    uiowa_df = uiowa_df.loc[:20]
+    best_params = FSP.sweep_parameters(uiowa_df, max_attempts=5, num_cpus=-1,
+                                       seed=1234)
+    assert best_params
