@@ -482,6 +482,7 @@ def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
     else:  # for philharmonia, just pass it through.
         result_notes = [original_audio_path]
 
+    results = []
     for note_file_path in result_notes:
         audio_file_path = note_file_path
         # For each note, do standardizing (aka check length)
@@ -498,9 +499,10 @@ def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
                       instrument=instrument,
                       dynamic=dynamic)
         # Hierarchical indexing with (parent, new)
-        return (index,
-                wcqtlib.data.parse.generate_id(dataset, note_file_path),
-                record)
+        results += [(index,
+                     wcqtlib.data.parse.generate_id(dataset, note_file_path),
+                     record)]
+    return results
 
 
 def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
@@ -578,14 +580,17 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     fx = delayed(row_to_notes)
     kwargs = dict(split_params=split_params, extract_path=extract_path,
                   skip_processing=skip_processing, max_duration=max_duration)
+
+    datasets_df = datasets_df[:100]
     results = pool(fx(index, row.audio_file, row.dataset,
                       row.instrument, row.dynamic, **kwargs)
                    for (index, row) in datasets_df.iterrows())
 
-    for idx0, idx1, rec in results:
-        indexes[0].append(idx0)
-        indexes[1].append(idx1)
-        records.append(rec)
+    for res in results:
+        for idx0, idx1, rec in res:
+            indexes[0].append(idx0)
+            indexes[1].append(idx1)
+            records.append(rec)
 
     return pandas.DataFrame(records, index=indexes)
 
