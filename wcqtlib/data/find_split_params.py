@@ -127,7 +127,7 @@ def sweep_parameters(datasets_df, max_attempts=5, num_cpus=-1, seed=None):
     return best_split_params
 
 
-def sweep_dataframe(config, dataset):
+def sweep_dataframe(config, dataset, max_attempts=5):
     """Given a dataframe pointing to dataset files,
     convert the dataset's original files into "note" files,
     containing a single note, and of a maximum duration.
@@ -176,8 +176,9 @@ def sweep_dataframe(config, dataset):
 
     if dataset:
         filtered_df = E.filter_df(filtered_df, datasets=[dataset])
-
-    split_params = sweep_parameters(filtered_df)
+    print("Sweeping over {} files".format(len(filtered_df)))
+    split_params = sweep_parameters(filtered_df, 
+                                    max_attempts=max_attempts)
 
     with open(split_df_path, 'w') as fp:
         json.dump(split_params, fp, indent=2)
@@ -206,11 +207,13 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config_path", default=CONFIG_PATH)
     parser.add_argument("--dataset", type=str, default='',
                         help=".")
+    parser.add_argument("--max_attempts", type=int, default=5,
+                        help=".")
     args = parser.parse_args()
 
     logging.basicConfig(format='%(levelname)s:%(message)s',
                         level=logging.DEBUG)
 
     config = C.Config.from_yaml(args.config_path)
-    success = sweep_dataframe(config, args.dataset)
+    success = sweep_dataframe(config, args.dataset, args.max_attempts)
     sys.exit(0 if success else 1)
