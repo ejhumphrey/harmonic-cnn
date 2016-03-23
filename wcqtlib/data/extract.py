@@ -102,6 +102,13 @@ def split_examples(input_audio_path,
     min_silence_duration : float, default=1
         Minimum amout of time require to be considered silent.
 
+    skip_processing : bool, default=False
+        If True, attempt to proceed with system state.
+
+    clean_state : bool, default=True
+        If True and `skip_processing` is False, clear out any potentially
+        conflicting state before running.
+
     Returns
     -------
     output_files : list of str
@@ -178,8 +185,24 @@ def split_examples_with_count(input_audio_path,
         Full path to the folder where you want to place the
         result files. Will be created if it does not exist.
 
-    expected_count : int, default=None
+    expected_count : int
         Expected number of clips to be split from the original file.
+
+    sil_pct_thresh : float, default=0.5
+        Silence threshold as percentage of maximum sample value.
+
+    min_voicing_duration : float, default=0.05
+        Minimum amout of time required to be considered non-silent.
+
+    min_silence_duration : float, default=1
+        Minimum amout of time require to be considered silent.
+
+    skip_processing : bool, default=False
+        If True, attempt to proceed with system state.
+
+    clean_state : bool, default=True
+        If True and `skip_processing` is False, clear out any potentially
+        conflicting state before running.
 
     Returns
     -------
@@ -350,6 +373,9 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
 
     bogus_files : str, or None
         If given, filepaths that misbehaved will be written to disk as JSON.
+
+    split_params : dict, or None
+        If provided, parameters to be handed off to `split_along_silence`.
 
     Returns
     -------
