@@ -4,6 +4,7 @@ import logging.config
 import numpy as np
 import os
 import pandas
+import shutil
 import sys
 
 import wcqtlib.config as C
@@ -40,9 +41,29 @@ def save_canonical_files(master_config):
     return success
 
 
-def collect(master_config):
+def clean(master_config):
+    """Clean dataframes and extracted audio/features."""
+    config = C.Config.from_yaml(master_config)
+
+    data_path = os.path.expanduser(config['paths/extract_dir'])
+    # Clean data
+    answer = input("Are you sure you want to delete {} (y|s to skip): ".format(data_path))
+    if answer in ['y', 'Y']:
+        shutil.rmtree(data_path)
+        logger.info("clean done.")
+    elif answer in ['s', 'S']:
+        return True
+    else:
+        print("Exiting")
+        sys.exit(1)
+
+
+def collect(master_config, clean_data=True):
     """Prepare dataframes of notes for experiments."""
     config = C.Config.from_yaml(master_config)
+
+    if clean_data:
+        clean(master_config)
 
     print(utils.colored("Parsing directories to collect datasets"))
     parse_result = parse.parse_files_to_dataframe(config)
@@ -57,7 +78,8 @@ def extract_notes(master_config):
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/datasets'])
     run_process_if_not_exists(collect, datasets_path,
-                              master_config=master_config)
+                              master_config=master_config,
+                              clean_data=False)
     extract_result = E.extract_notes(config)
 
     return extract_result
@@ -229,7 +251,7 @@ def datatest(master_config, show_full=False):
         config['dataframes/datasets'])
 
     # Regenerate the datasets_df to make sure it's not stale.
-    if not collect(master_config):
+    if not collect(master_config, clean_data=False):
         logger.error("Failed to regenerate datasets_df.")
 
     datasets_df = pandas.read_json(datasets_path)
