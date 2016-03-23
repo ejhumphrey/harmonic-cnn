@@ -43,7 +43,7 @@ def check_valid_audio_files(datasets_df, write_path=None):
                 audio_file = row["audio_file"]
 
                 try:
-                    aobj = claudio.fileio.AudioFile(audio_file)
+                    aobj = claudio.fileio.AudioFile(audio_file, bytedepth=2)
                     if aobj.duration <= .05:
                         fail_list.append(audio_file)
                 except AssertionError:
@@ -133,7 +133,7 @@ def split_examples(input_audio_path,
         for file_name in process_files:
             audio_path = os.path.join(output_dir, file_name)
             try:
-                aobj = claudio.fileio.AudioFile(audio_path)
+                aobj = claudio.fileio.AudioFile(audio_path, bytedepth=2)
                 if aobj.duration >= min_voicing_duration:
                     ready_files.append(audio_path)
             # TODO: This would be an AssertionError now (claudio problem), it
@@ -228,7 +228,7 @@ def standardize_one(input_audio_path,
     # Load the audio file
     audio_modified = False
     try:
-        audio, sr = claudio.read(input_audio_path, channels=1)
+        audio, sr = claudio.read(input_audio_path, channels=1, bytedepth=2)
     except AssertionError as e:
         logger.error("Sox may have failed. Input: {}\n Error: {}. Skipping..."
                      .format(input_audio_path, e))
@@ -267,7 +267,7 @@ def standardize_one(input_audio_path,
         raise NotImplementedError("Center of mass not yet implemented.")
 
     if final_duration:
-        final_length_samples = final_duration * sr
+        final_length_samples = int(final_duration * sr)
         # If this is less than the amount of data we have
         if final_length_samples < len(audio):
             audio = audio[:final_length_samples]
