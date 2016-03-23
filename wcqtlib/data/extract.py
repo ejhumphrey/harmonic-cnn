@@ -165,13 +165,11 @@ def split_examples_with_count(input_audio_path,
         Audio files created in this process. The list will be empty if it
         the expected number of clips could not be extracted.
     """
-    if skip_processing:
-        return []
-
     for min_silence in [2, 1, 0.5, 0.25, 0.125, 0.0625]:
         output_files = split_examples(
             input_audio_path, output_dir, sil_pct_thresh=0.5,
-            min_voicing_duration=0.05, min_silence_duration=min_silence)
+            min_voicing_duration=0.05, min_silence_duration=min_silence,
+            skip_processing=skip_processing)
         if len(output_files) == expected_count:
             break
 
@@ -350,7 +348,14 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
             output_dir = os.path.join(extract_path, dataset)
 
             # Get the note files.
-            if dataset in ['uiowa', 'rwc']:
+            note_count = wcqtlib.data.parse.get_num_notes_from_uiowa_filename(
+                original_audio_path)
+            if dataset in ['uiowa'] and note_count:
+                result_notes = split_examples_with_count(
+                    original_audio_path, output_dir,
+                    expected_count=note_count,
+                    skip_processing=skip_processing)
+            elif dataset in ['rwc', 'uiowa']:
                 result_notes = split_examples(
                     original_audio_path, output_dir,
                     skip_processing=skip_processing)

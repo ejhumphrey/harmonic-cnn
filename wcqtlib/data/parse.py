@@ -267,26 +267,29 @@ def parse_uiowa_path(uiowa_path):
 
 
 def get_num_notes_from_uiowa_filename(uiowa_path):
-    """Return the expected number of notes in an uiowa
-    audio file from the filename.
+    """Return the expected number of notes in a UIowa filename if it can be
+    determined.
 
     E.g.
     Bb1B1 => 2
     C4B4 => 12
     C5Bb5 => 10
     B3 => 1
-    None => 1
+    booger => None
 
     Parameters
     ----------
     filename : str
+        A filename potentially conforming to the UIowa MIS conventions.
 
     Returns
     -------
-    num_notes : int
+    num_notes : int, or None
+        Number of notes expected to be in the file, or None if this
+        information cannot be confidently inferred.
     """
     instrument, dynamic, notevalue = parse_uiowa_path(uiowa_path)
-    result = 1
+    result = None
 
     if notevalue:
         notes = re.findall(r"([A-F][b#]?[0-6])", notevalue)
