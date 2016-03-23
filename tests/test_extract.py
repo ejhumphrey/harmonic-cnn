@@ -1,5 +1,4 @@
 import claudio
-import json
 import logging
 import os
 import pandas
@@ -112,7 +111,6 @@ def test_split_examples_uiowa(uiowa_file, workspace):
     output_files = wcqtlib.data.extract.split_examples(
         uiowa_file, workspace, sil_pct_thresh=0.25,
         min_voicing_duration=0.2, min_silence_duration=1.0)
-    # print(json.dumps(output_files, indent=2))
     assert all(map(os.path.exists, output_files))
     assert len(output_files) == 12
     assert uiowa_file not in output_files
