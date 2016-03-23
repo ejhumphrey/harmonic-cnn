@@ -359,6 +359,12 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
                     original_audio_path, output_dir,
                     expected_count=note_count,
                     skip_processing=skip_processing)
+                if not result_notes:
+                    # Unable to extract the expected number of examples!
+                    logger.warning(utils.colored(
+                        "UIOWA file failed to produce the expected number of "
+                        "examples ({}): {}."
+                        .format(note_count, original_audio_path), "yellow"))
             elif dataset in ['rwc', 'uiowa']:
                 result_notes = split_examples(
                     original_audio_path, output_dir,
