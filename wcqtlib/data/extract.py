@@ -4,6 +4,7 @@ import argparse
 import claudio
 import claudio.fileio
 import claudio.sox
+from joblib import Parallel, delayed
 import json
 import librosa
 import logging
@@ -323,9 +324,9 @@ def standardize_one(input_audio_path,
     return input_audio_path if output_fname is None else output_fname
 
 
-def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
-                      skip_processing=False, bogus_files=None,
-                      split_params=None):
+def datasets_to_notes_slow(datasets_df, extract_path, max_duration=2.0,
+                           skip_processing=False, bogus_files=None,
+                           split_params=None):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
     audio files which have multiple notes in them.
@@ -450,6 +451,141 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     if bogus_files:
         with open(bogus_files, 'w') as fp:
             json.dump(big_dummies, fp, indent=2)
+
+    return pandas.DataFrame(records, index=indexes)
+
+
+def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
+                 extract_path, split_params, skip_processing, max_duration):
+
+    output_dir = os.path.join(extract_path, dataset)
+
+    # Get the note files.
+    note_count = wcqtlib.data.parse.get_num_notes_from_uiowa_filename(
+        original_audio_path)
+    if dataset in ['uiowa'] and note_count:
+        result_notes = split_examples_with_count(
+            original_audio_path, output_dir,
+            expected_count=note_count,
+            skip_processing=skip_processing, **split_params)
+        if not result_notes:
+            # Unable to extract the expected number of examples!
+            logger.warning(utils.colored(
+                "UIOWA file failed to produce the expected number of "
+                "examples ({}): {}."
+                .format(note_count, original_audio_path), "yellow"))
+
+    elif dataset in ['rwc', 'uiowa']:
+        result_notes = split_examples(
+            original_audio_path, output_dir,
+            skip_processing=skip_processing, **split_params)
+    else:  # for philharmonia, just pass it through.
+        result_notes = [original_audio_path]
+
+    for note_file_path in result_notes:
+        audio_file_path = note_file_path
+        # For each note, do standardizing (aka check length)
+        if not skip_processing:
+            audio_file_path = standardize_one(
+                note_file_path, output_dir,
+                final_duration=max_duration)
+        # If standardizing failed, don't keep this one.
+        if audio_file_path is None:
+            continue
+
+        record = dict(audio_file=audio_file_path,
+                      dataset=dataset,
+                      instrument=instrument,
+                      dynamic=dynamic)
+        # Hierarchical indexing with (parent, new)
+        return (index,
+                wcqtlib.data.parse.generate_id(dataset, note_file_path),
+                record)
+
+
+def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
+                      skip_processing=False, bogus_files=None,
+                      split_params=None, num_cpus=-1):
+    """Take the dataset dataframe created in parse.py
+    and extract and standardize separate notes from
+    audio files which have multiple notes in them.
+
+    Must have separate behaviors for each dataset, as
+    they each have different setups w.r.t the number of notes
+    in the file.
+
+    RWC : Each file containes scales of many notes.
+        The notes themselves don't seem to be defined in the
+        file name.
+
+    UIOWA : Each file contains a few motes from a scale.
+        The note range is defined in the filename, but
+        does not appear to be consistent.
+        Also the space between them is not consistent either.
+        Keep an ear out for if the blank space algo works here.
+
+    Philharmonia : These files contain single notes,
+        and so are just passed through.
+
+    Parameters
+    ----------
+    dataset_df : pandas.DataFrame
+        Dataframe which defines the locations
+        of all input audio files in the dataset and
+        their associated instrument classes.
+
+    extract_path : str
+        Path which new note-separated files can be written to.
+
+    max_duration : float
+        Max file length in seconds.
+
+    skip_processing : bool or None
+        If true, skips the split-on-silence portion of the procedure, and
+        just generates the dataframe from existing files.
+
+    bogus_files : str, or None
+        If given, filepaths that misbehaved will be written to disk as JSON.
+
+    split_params : dict, or None
+        If provided, parameters to be handed off to `split_along_silence`.
+
+    Returns
+    -------
+    notes_df : pandas.DataFrame
+        Dataframe which points to the extracted
+        note files, still pointing to the same
+        instrument classes as their parent file.
+
+        Indexed By:
+            id : [dataset identifier] + [8 char md5 of filename]
+        Columns:
+            parent_id : id from "dataset" file.
+            audio_file : "split" audio file path.
+            dataset : dataset it is from
+            instrument : instrument label.
+            dynamic : dynamic tag
+    """
+    # Two arrays for multi/hierarchical indexing.
+    indexes = [[], []]
+    records = []
+    split_params = dict(min_voicing_duration=0.1,
+                        min_silence_duration=0.5,
+                        sil_pct_thresh=0.5) \
+        if split_params is None else split_params
+
+    pool = Parallel(n_jobs=num_cpus)
+    fx = delayed(row_to_notes)
+    kwargs = dict(split_params=split_params, extract_path=extract_path,
+                  skip_processing=skip_processing, max_duration=max_duration)
+    results = pool(fx(index, row.audio_file, row.dataset,
+                      row.instrument, row.dynamic, **kwargs)
+                   for (index, row) in datasets_df.iterrows())
+
+    for idx0, idx1, rec in results:
+        indexes[0].append(idx0)
+        indexes[1].append(idx1)
+        records.append(rec)
 
     return pandas.DataFrame(records, index=indexes)
 
