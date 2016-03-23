@@ -128,34 +128,7 @@ def test_split_examples_with_count(uiowa_file, workspace):
     output_files = wcqtlib.data.extract.split_examples_with_count(
         uiowa_file, workspace, 44)
     assert not output_files
-
-
-# def test_standardize_one_onset(testfile):
-#     padding = 0.1
-#     result = wcqtlib.data.extract.standardize_one(
-#         testfile, first_onset_start=padding)
-#     assert result
-
-#     audio, sr = claudio.read(testfile)
-
-#     # Find what librosa thinks is the first onset
-#     onset_samples = wcqtlib.data.extract.get_onsets(audio, sr)
-#     padding_samples = padding * sr
-#     assert np.testing.assert_almost_equal(onset_samples[0],
-#                                           padding_samples, decimal=4)
-
-#     # Check that the file up to this point
-#     # is mostly zero.
-#     starting_mean = audio[:intended_onset_frame].mean()
-#     np.testing.assert_almost_equal(starting_mean, 0.0, decimal=3)
-
-
-# def test_standardize_one_centroid(testfile):
-#     with pytest.raises(NotImplementedError):
-#         result = wcqtlib.data.extract.standardize_one(
-#             testfile, center_of_mass_alignment=True)
-#         assert result
-
+    
 
 def test_standardize_one_final_duration(testfile):
     duration = 1.0
@@ -209,7 +182,6 @@ def test_rwc_notes(rwc_df, workspace):
                              os.path.exists(UIOWA_ROOT)]),
                     reason="Data not found.")
 @pytest.mark.slowtest
-@pytest.mark.runme
 def test_uiowa_notes(uiowa_df, workspace):
     # Pick four files distributed across the df
     input_df = uiowa_df[0:400:50]
@@ -250,6 +222,41 @@ def test_phil_notes(philharmonia_df, workspace):
     for (index, row) in input_df.iterrows():
         matching_notes = notes_df.loc[index]
         assert not matching_notes.empty and len(matching_notes) == 1
+
+
+@pytest.mark.skipif(not all([os.path.exists(DATA_ROOT),
+                             os.path.exists(PHIL_ROOT)]),
+                    reason="Data not found.")
+@pytest.mark.slowtest
+@pytest.mark.runme
+def test_datasets_to_notes_existing(rwc_df, workspace):
+    input_df = rwc_df[0:400:100]
+
+    # Now, do the conversion into the notes_df
+    notes_df = pandas.DataFrame()
+    notes_df = wcqtlib.data.extract.datasets_to_notes(
+        input_df, notes_df, workspace, skip_existing=False,
+        num_cpus=1)
+    assert not notes_df.empty
+
+    for (index, row) in input_df.iterrows():
+        matching_notes = notes_df.loc[index]
+        assert not matching_notes.empty and len(matching_notes) >= 1
+
+    input_df = rwc_df[200:800:100]
+
+    # Now, do the conversion into the notes_df
+    notes_df = wcqtlib.data.extract.datasets_to_notes(
+        input_df, notes_df, workspace, skip_existing=True,
+        num_cpus=1)
+    assert not notes_df.empty
+
+    for (index, row) in input_df.iterrows():
+        matching_notes = notes_df.loc[index]
+        assert not matching_notes.empty and len(matching_notes) >= 1
+
+    # TODO Better tests here?
+    # assert len(notes_df.index.unique()) == 6
 
 
 def test_filter_df(datasets_df):

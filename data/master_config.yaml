@@ -17,6 +17,7 @@ extract:
     min_voicing_duration: 0.1
     min_silence_duration: 0.5
     sil_pct_thresh: 0.5
+  skip_existing: True
 
 features:
   cqt:

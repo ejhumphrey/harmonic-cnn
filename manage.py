@@ -74,18 +74,19 @@ def extract_notes(master_config):
     print(utils.colored("Spliting audio files to notes."))
     config = C.Config.from_yaml(master_config)
 
+    skip_existing = config['extract/skip_existing']
     datasets_path = os.path.join(
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/datasets'])
     run_process_if_not_exists(collect, datasets_path,
                               master_config=master_config,
                               clean_data=False)
-    extract_result = E.extract_notes(config)
+    extract_result = E.extract_notes(config, skip_existing)
 
     return extract_result
 
 
-def extract_features(master_config):
+def extract_features(master_config, skip_existing=True):
     """Extract CQTs from all files collected in collect."""
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))

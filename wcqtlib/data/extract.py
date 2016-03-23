@@ -325,7 +325,8 @@ def standardize_one(input_audio_path,
 
 
 def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
-                 extract_path, split_params, skip_processing, max_duration):
+                 extract_path, split_params, skip_processing,
+                 max_duration):
     """Extract notes for a dataframe's row.
 
     Parameters
@@ -363,7 +364,6 @@ def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
         New entries for the extracted notes. Each item in the tuple contains
         (primary_index, secondary_index, record).
     """
-
     output_dir = os.path.join(extract_path, dataset)
 
     # Get the note files.
@@ -411,8 +411,9 @@ def row_to_notes(index, original_audio_path, dataset, instrument, dynamic,
     return results
 
 
-def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
-                      skip_processing=False, bogus_files=None,
+def datasets_to_notes(datasets_df, notes_df, extract_path, max_duration=2.0,
+                      skip_processing=False, skip_existing=False,
+                      bogus_files=None,
                       split_params=None, num_cpus=-1):
     """Take the dataset dataframe created in parse.py
     and extract and standardize separate notes from
@@ -442,6 +443,9 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
         of all input audio files in the dataset and
         their associated instrument classes.
 
+    notes_df : pandas.DataFrame
+        Existing notes_df, if it exists. Otherwise, a blank one.
+
     extract_path : str
         Path which new note-separated files can be written to.
 
@@ -451,6 +455,12 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     skip_processing : bool or None
         If true, skips the split-on-silence portion of the procedure, and
         just generates the dataframe from existing files.
+
+    skip_existing : bool
+        If True, tries to load an existing notes_df, and skips
+        processing those data points if they have already been
+        processed (if there's an index in the notes_df matching
+        one in the datasets_df, and those files exist.)
 
     bogus_files : str, or None
         If given, filepaths that misbehaved will be written to disk as JSON.
@@ -485,7 +495,21 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
     pool = Parallel(n_jobs=num_cpus, verbose=50)
     fx = delayed(row_to_notes)
     kwargs = dict(split_params=split_params, extract_path=extract_path,
-                  skip_processing=skip_processing, max_duration=max_duration)
+                  skip_processing=skip_processing,
+                  max_duration=max_duration)
+
+    if skip_existing and not notes_df.empty:
+        bidx = []
+        # TODO: this could be prettier, but whatevs.
+        for (index, row) in datasets_df.iterrows():
+            if index in notes_df.index:
+                # See if all the files exist
+                test_records = notes_df.loc[index]
+                if all(map(os.path.exists, test_records["audio_file"])):
+                    continue
+            bidx.append(index)
+
+        datasets_df = datasets_df.loc[bidx]
 
     results = pool(fx(index, row.audio_file, row.dataset,
                       row.instrument, row.dynamic, **kwargs)
@@ -497,7 +521,9 @@ def datasets_to_notes(datasets_df, extract_path, max_duration=2.0,
             indexes[1].append(idx1)
             records.append(rec)
 
-    return pandas.DataFrame(records, index=indexes)
+    return pandas.concat([
+        notes_df,
+        pandas.DataFrame(records, index=indexes)])
 
 
 def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
@@ -551,7 +577,7 @@ def summarize_notes(notes_df):
           len(notes_df[notes_df["dataset"] == "philharmonia"]))
 
 
-def extract_notes(config, skip_processing=False):
+def extract_notes(config, skip_processing=False, skip_existing=True):
     """Given a dataframe pointing to dataset files,
     convert the dataset's original files into "note" files,
     containing a single note, and of a maximum duration.
@@ -569,6 +595,12 @@ def extract_notes(config, skip_processing=False):
     skip_processing : bool
         If true, simply examines the notes files already existing,
         and doesn't try to regenerate them. [For debugging only]
+
+    skip_existing : bool
+        If True, tries to load an existing notes_df, and skips
+        processing those data points if they have already been
+        processed (if there's an index in the notes_df matching
+        one in the datasets_df, and those files exist.)
 
     Returns
     -------
@@ -588,6 +620,11 @@ def extract_notes(config, skip_processing=False):
     datasets_df = pandas.read_json(datasets_df_path)
     print("{} audio files in Datasets.".format(len(datasets_df)))
 
+    if skip_existing and os.path.exists(notes_df_path):
+        notes_df = pandas.read_json(notes_df_path)
+    else:
+        notes_df = pandas.DataFrame(columns=datasets_df.columns)
+
     print("Filtering to selected instrument classes.")
     classmap = wcqtlib.data.parse.InstrumentClassMap()
     filtered_df = filter_datasets_on_selected_instruments(
@@ -599,9 +636,12 @@ def extract_notes(config, skip_processing=False):
     print("Loading Notes DataFrame from {} filtered dataset files".format(
         len(filtered_df)))
 
-    notes_df = datasets_to_notes(filtered_df, output_path,
+    notes_df = datasets_to_notes(filtered_df,
+                                 notes_df,
+                                 output_path,
                                  max_duration=config['extract/max_duration'],
                                  skip_processing=skip_processing,
+                                 skip_existing=skip_existing,
                                  bogus_files=config['extract/bogus_files'],
                                  split_params=config['extract/split_params'])
 
