@@ -74,7 +74,7 @@ def harmonic_cqt(x_in, sr, hop_length=1024, fmin=27.5, n_bins=72,
                                   for x_c in x_in.T])[:, np.newaxis, ...]]
         min_tdim = min([cqt_spectra[-1].shape[2], min_tdim])
     cqt_spectra = [x[:, :, :min_tdim, :] for x in cqt_spectra]
-    
+
     return np.concatenate(cqt_spectra, axis=1)
 
 

@@ -8,12 +8,12 @@ import numpy as np
 import pescador
 
 import wcqtlib.data.extract as extract
-import wcqtlib.data.parse as parse
-import wcqtlib.utils as utils
+import wcqtlib.common.utils as utils
+import wcqtlib.common.labels as labels
 
 logger = logging.getLogger(__name__)
 
-instrument_map = parse.InstrumentClassMap()
+instrument_map = labels.InstrumentClassMap()
 
 
 def cqt_slices(record, t_len, shuffle=True, auto_restart=True):

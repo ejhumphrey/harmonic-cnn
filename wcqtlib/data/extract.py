@@ -5,17 +5,15 @@ import claudio
 import claudio.fileio
 import claudio.sox
 from joblib import Parallel, delayed
-import json
 import librosa
 import logging
-import numpy as np
 import os
 import pandas
 import progressbar
 import sys
 import wave
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
 import wcqtlib.data.parse
 import wcqtlib.common.utils as utils
 
