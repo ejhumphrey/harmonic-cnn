@@ -8,12 +8,13 @@ import pandas
 import shutil
 from sklearn.cross_validation import train_test_split
 
-import wcqtlib.config as C
-import wcqtlib.utils as utils
+import wcqtlib.common.config as C
+import wcqtlib.common.utils as utils
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
 import wcqtlib.evaluate.analyze
-import wcqtlib.evaluate as evaluate
+import wcqtlib.evaluate.model_selection as MS
+import wcqtlib.evaluate.predict
 
 logger = logging.getLogger(__name__)
 
@@ -383,7 +384,7 @@ def find_best_model(config, experiment_name, validation_df, plot_loss=False):
         model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
         # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
 
-        result_df, best_model = evaluate.BinarySearchModelSelector(
+        result_df, best_model = MS.BinarySearchModelSelector(
             model_files, validation_df, slicer, t_len, show_progress=True)()
 
         result_df.to_pickle(validation_error_file)
@@ -459,8 +460,8 @@ def predict(config, experiment_name, selected_model_file,
 
     t_len = original_config['training/t_len']
     logger.info("Running evaluation on all files...")
-    predictions_df = evaluate.evaluate_dataframe(features_df, model, slicer,
-                                                 t_len, show_progress=True)
+    predictions_df = wcqtlib.evaluate.predict.predict_many(
+        features_df, model, slicer, t_len, show_progress=True)
     predictions_df_path = os.path.join(
         experiment_dir,
         original_config.get('experiment/predictions_format',
