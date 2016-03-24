@@ -523,9 +523,6 @@ def load_dataframes(data_dir):
     return result
 
 
-
-
-
 def parse_files_to_dataframe(config):
     """Do-the-thing function for loading all of the
     datasets in and creating a dataframe pointing to all
