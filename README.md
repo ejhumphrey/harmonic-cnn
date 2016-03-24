@@ -1,10 +1,8 @@
-# ismir2016-wcqt
-Work related to ISMIR2016 - Exploiting Harmonic Correlations in the CQT
+# harmonic-cnn
+Exploiting Harmonic Correlations in Convolutional Neural Networks
 
-TODO: These will be dead until public.
-
-[![Build Status](https://travis-ci.org/ejhumphrey/ismir2016-wcqt.svg?branch=master)](https://travis-ci.org/ejhumphrey/ismir2016-wcqt)
-[![Coverage Status](https://coveralls.io/repos/github/ejhumphrey/ismir2016-wcqt/badge.svg?branch=master)](https://coveralls.io/github/ejhumphrey/ismir2016-wcqt?branch=master)
+[![Build Status](https://travis-ci.org/ejhumphrey/harmonic-cnn.svg?branch=master)](https://travis-ci.org/ejhumphrey/harmonic-cnn)
+[![Coverage Status](https://coveralls.io/repos/github/ejhumphrey/harmonic-cnn/badge.svg?branch=master)](https://coveralls.io/github/ejhumphrey/harmonic-cnn?branch=master)
 
 
 ## Getting the data
@@ -16,13 +14,7 @@ This project uses three different solo instrument datasets.
 
 We provide "manifest" files with which one can download the first two collections. For access to the third (RWC), you should contact the kind folks at AIST.
 
-To download the data, you can invoke the following from your cloned repository:
-
-```
-$ python wcqtlib/tools/download.py data/uiowa.json ~/data/uiowa
-...
-$ python wcqtlib/tools/download.py data/philharmonia.json ~/data/philharmonia
-```
+Alternatively, features are provided via the [minst-dataset](https://github.com/ejhumphrey/minst-dataset) project.
 
 ## Preparing the data for training
 ```bash
