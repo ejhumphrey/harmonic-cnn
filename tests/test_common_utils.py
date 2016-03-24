@@ -1,7 +1,7 @@
 import os
 import pytest
 
-import wcqtlib.common.utils as utils
+import wcqtlib.utils as utils
 
 
 def __eq(a, b):
@@ -37,6 +37,16 @@ def test_unzip():
     unzipped_folders = utils.unzip_files(zip_files)
     for dir_path in unzipped_folders:
         assert os.path.exists(dir_path) and os.path.isdir(dir_path)
+
+
+@pytest.mark.skipif(True, reason='todo')
+def test_slice_ndarray():
+    assert False
+
+
+@pytest.mark.skipif(True, reason='todo')
+def test_colored():
+    assert False
 
 
 def test_iter_from_params_filepath():

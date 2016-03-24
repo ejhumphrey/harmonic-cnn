@@ -7,8 +7,7 @@ import pandas
 import pytest
 
 import wcqtlib.config as C
-import wcqtlib.common.utils as utils
-import wcqtlib.train.driver as driver
+import wcqtlib.driver as driver
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig({

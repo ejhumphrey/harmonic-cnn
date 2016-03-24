@@ -3,6 +3,8 @@ import pytest
 import shutil
 import tempfile
 
+import wcqtlib.common.labels
+
 
 @pytest.fixture()
 def workspace(request):
@@ -15,3 +17,8 @@ def workspace(request):
     request.addfinalizer(fin)
 
     return test_workspace
+
+
+@pytest.fixture
+def classmap():
+    return wcqtlib.common.labels.InstrumentClassMap()

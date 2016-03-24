@@ -9,11 +9,11 @@ import shutil
 from sklearn.cross_validation import train_test_split
 
 import wcqtlib.config as C
-import wcqtlib.common.utils as utils
-import wcqtlib.analyze
+import wcqtlib.utils as utils
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
-import wcqtlib.train.evaluate as evaluate
+import wcqtlib.evaluate.analyze
+import wcqtlib.evaluate as evaluate
 
 logger = logging.getLogger(__name__)
 

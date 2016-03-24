@@ -9,7 +9,7 @@ import pescador
 
 import wcqtlib.data.extract as extract
 import wcqtlib.data.parse as parse
-import wcqtlib.common.utils as utils
+import wcqtlib.utils as utils
 
 logger = logging.getLogger(__name__)
 
