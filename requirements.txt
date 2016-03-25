@@ -3,5 +3,6 @@ pescador
 progressbar2
 pyyaml
 colorama
+requests
 https://github.com/Theano/Theano/archive/master.zip
 https://github.com/Lasagne/Lasagne/archive/master.zip
