@@ -4,10 +4,15 @@
 import copy
 import json
 import jsonschema
+import logging
 import os
 import pandas
 import requests
+import sys
 
+import wcqtlib.common.config as C
+
+logger = logging.getLogger(__name__)
 
 SCHEMA_PATH = "https://raw.githubusercontent.com/ejhumphrey/minst-dataset/" \
               "master/minst/schema/observation.json"
@@ -21,7 +26,7 @@ class Observation(object):
     """Document model each item in the collection.
     TODO: Inherit / whatever from minst-dataset repo
     """
-    SCHEMA = json.load(open(SCHEMA_PATH))
+    SCHEMA = get_remote_schema()
 
     def __init__(self, index, dataset, audio_file, instrument, source_key,
                  start_time, duration, note_number, dynamic, partition,
@@ -68,62 +73,121 @@ class Dataset(object):
      - [some provenance information]
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, observations):
+        """
+        Parameters
+        ----------
+        observations : list
+            List of Observations (as dicts or Observations.)
+            If they're dicts, this will convert them to Observations.
+        """
+        def safe_obs(obs):
+            "Get dict from an Observation if an observation, else just dict"
+            if isinstance(obs, Observation):
+                return obs.to_dict()
+            else:
+                return obs
+        self.observations = [Observation(**safe_obs(x)) for x in observations]
 
     @classmethod
-    def read_json(self, csv_path):
-        pass
+    def read_json(cls, json_path):
+        with open(json_path, 'r') as fh:
+            return cls(json.load(fh))
 
-    @classmethod
-    def read_pickle(self, pickle_path):
-        pass
+    def save_json(self, json_path):
+        with open(json_path, 'w') as fh:
+            json.dump(self.to_builtin(), fh)
 
-    def save_json(self, csv_path):
-        pass
-
-    def save_pickle(self, pickle_path):
-        pass
-
-    @property
     def to_df(self):
         """Returns the dataset as a dataframe."""
-        return self._df
+        return pandas.DataFrame.from_dict(self.to_builtin())
+
+    def to_builtin(self):
+        return [x.to_dict() for x in self.observations]
 
     @property
-    def to_builtin(self):
-        return self._to_dict
+    def items(self):
+        return self.observations
+
+    def __len__(self):
+        return len(self.observations)
+
+    def validate(self):
+        if len(self.observations > 0):
+            return all([x.validate for x in self.observations])
+        else:
+            logger.warning("No observations to validate.")
+            return False
 
     def view(self, dataset):
-        """Returns a copy of the analyzer pointing to the desired dataset."""
-        thecopy = copy.copy(self)
-        thecopy.set_test_set(dataset)
-        return thecopy
+        """Returns a copy of the analyzer pointing to the desired dataset.
+        Parameters
+        ----------
+        dataset : str
+            String in ["rwc", "uiowa", "philharmonia"] which is
+            the items in the dataset to return.
+
+        Returns
+        -------
+        """
+        thecopy = copy.copy(self.to_df())
+        ds_view = thecopy[thecopy["dataset"] == dataset]
+        return ds_view
 
 
 def build_tiny_dataset_from_old_dataframe(config):
-    notes_df_path = os.path.join(
-        os.path.expanduser(config['paths/data_dir']),
-        config['dataframes/notes'])
+    def sample_record(df, dataset, instrument):
+        query_records = df.loc[(df["dataset"] == dataset) &
+                               (df["instrument"] == instrument)]
+
+        return query_records.sample() if not query_records.empty else None
+    df_path = os.path.expanduser(config['paths/extract_dir'])
+    notes_df_path = os.path.join(df_path, config['dataframes/notes'])
     notes_df = pandas.read_pickle(notes_df_path)
 
     tiny_dataset = []
     # Get one file for each instrument for each dataset.
     for dataset in notes_df["dataset"].unique():
         for instrument in notes_df["instrument"].unique():
-            record = notes_df.loc[(notes_df["dataset"] == dataset) &
-                                  (notes_df["instrument"] == instrument)][0]
+            # Grab it from the notes
+            record = sample_record(notes_df, dataset, instrument)
+            # If that fails, just grab a file from the original datasets
+            if record is None:
+                logger.warning("Dataset {} has no instrument '{}'".format(
+                    dataset, instrument))
+                continue
+
             tiny_dataset.append(
                 Observation(
-                    index=record.index,
-                    dataset=record['dataset'],
-                    audio_file=record['audio_file'],
-                    instrument=record['instrument'],
+                    index=record.index[0][0],
+                    dataset=record['dataset'][0],
+                    audio_file=record['audio_file'][0],
+                    instrument=record['instrument'][0],
                     source_key=None,
                     start_time=None,
                     duration=None,
-                    note_number=None,
-                    dynamic=None,
+                    note_number=record['note'][0],
+                    dynamic=record['dynamic'][0],
                     partition=None
                     ))
     return tiny_dataset
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    logger.info("Building tiny dataset from notes_df.")
+    ROOT_DIR = os.path.join(
+        os.path.dirname(__file__), os.pardir, os.pardir)
+    CONFIG_PATH = os.path.join(ROOT_DIR, "data", "master_config.yaml")
+    config = C.Config.from_yaml(CONFIG_PATH)
+
+    TINY_DATASET_JSON = os.path.normpath(
+        os.path.join(ROOT_DIR, config['paths/tiny_dataset']))
+
+    tinyds = build_tiny_dataset_from_old_dataframe(config)
+    tinyds = Dataset(tinyds)
+    logger.debug("Tiny Dataset has {} records.".format(len(tinyds)))
+    # Save it.
+    logger.info("Saving dataset to: {}".format(TINY_DATASET_JSON))
+    tinyds.save_json(TINY_DATASET_JSON)
+    sys.exit(os.path.exists(TINY_DATASET_JSON) is False)
