@@ -135,6 +135,22 @@ class Dataset(object):
         return ds_view
 
 
+class TinyDataset(Dataset):
+    ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__),
+        os.pardir, os.pardir, "tests", "tinydata"))
+    DS_FILE = os.path.join(self.ROOT_PATH, "tinydata.json")
+
+    @classmethod
+    def read_json(cls, json_path=DS_FILE):
+        with open(json_path, 'r') as fh:
+            data = json.load(fh)
+            # Update the paths to full paths.
+            for item in data:
+                item['audio_file'] = os.path.join(cls.ROOT_PATH,
+                                                  item['audio_file'])
+        return cls(data)
+
+
 def build_tiny_dataset_from_old_dataframe(config):
     def sample_record(df, dataset, instrument):
         query_records = df.loc[(df["dataset"] == dataset) &
