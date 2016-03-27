@@ -1,3 +1,4 @@
+import datetime
 import numpy as np
 import os
 import re
@@ -171,3 +172,58 @@ def iter_from_params_filepath(params_filepath):
     """
     basename = os.path.basename(params_filepath)
     return re.search('\d+|final', basename).group(0)
+
+
+class TimerHolder(object):
+    def __init__(self):
+        self.timers = {}
+
+    def start(self, tuple_or_list):
+        """
+        Note: tuples can be keys.
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list] = [datetime.datetime.now(), None]
+        elif isinstance(tuple_or_list, list):
+            for key in tuple_or_list:
+                self.timers[key] = [datetime.datetime.now(), None]
+
+    def end(self, tuple_or_list):
+        """
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list][1] = datetime.datetime.now()
+            return self.timers[tuple_or_list][1] - \
+                self.timers[tuple_or_list][0]
+        elif isinstance(tuple_or_list, list):
+            results = []
+            for key in tuple_or_list:
+                self.timers[key][1] = datetime.datetime.now()
+                results += [self.timers[key][1] - self.timers[key][0]]
+            return results
+
+    def get(self, key):
+        if key in self.timers:
+            if self.timers[key][1]:
+                return self.timers[key][1] - self.timers[key][0]
+            else:
+                return self.timers[key][0]
+        else:
+            return None
+
+    def get_start(self, key):
+        return self.timers.get(key, None)[0]
+
+    def get_end(self, key):
+        return self.timers.get(key, None)[1]
+
+    def mean(self, key_root, start_ind, end_ind):
+        keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
+        values = [self.get(k) for k in keys if k in self.timers]
+        return np.mean(values)

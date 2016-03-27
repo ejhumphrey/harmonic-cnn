@@ -1,3 +1,14 @@
+"""Top-level routines, including:
+
+* extract_features
+* train_model
+* find_best_model
+* predict
+* analyze
+* fit_and_predict_one
+* fit_and_predict_cross_validation
+"""
+
 import datetime
 import glob
 import logging
@@ -6,7 +17,6 @@ import numpy as np
 import os
 import pandas
 import shutil
-from sklearn.cross_validation import train_test_split
 
 import wcqtlib.common.config as C
 import wcqtlib.common.utils as utils
@@ -30,104 +40,6 @@ def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
     return val_str
 
 
-class TimerHolder(object):
-    def __init__(self):
-        self.timers = {}
-
-    def start(self, tuple_or_list):
-        """
-        Note: tuples can be keys.
-        Parameters
-        ----------
-        tuple_or_list : str or list of str
-        """
-        if isinstance(tuple_or_list, (str, tuple)):
-            self.timers[tuple_or_list] = [datetime.datetime.now(), None]
-        elif isinstance(tuple_or_list, list):
-            for key in tuple_or_list:
-                self.timers[key] = [datetime.datetime.now(), None]
-
-    def end(self, tuple_or_list):
-        """
-        Parameters
-        ----------
-        tuple_or_list : str or list of str
-        """
-        if isinstance(tuple_or_list, (str, tuple)):
-            self.timers[tuple_or_list][1] = datetime.datetime.now()
-            return self.timers[tuple_or_list][1] - \
-                self.timers[tuple_or_list][0]
-        elif isinstance(tuple_or_list, list):
-            results = []
-            for key in tuple_or_list:
-                self.timers[key][1] = datetime.datetime.now()
-                results += [self.timers[key][1] - self.timers[key][0]]
-            return results
-
-    def get(self, key):
-        if key in self.timers:
-            if self.timers[key][1]:
-                return self.timers[key][1] - self.timers[key][0]
-            else:
-                return self.timers[key][0]
-        else:
-            return None
-
-    def get_start(self, key):
-        return self.timers.get(key, None)[0]
-
-    def get_end(self, key):
-        return self.timers.get(key, None)[1]
-
-    def mean(self, key_root, start_ind, end_ind):
-        keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
-        values = [self.get(k) for k in keys if k in self.timers]
-        return np.mean(values)
-
-
-def construct_training_valid_df(features_df, datasets,
-                                validation_split=0.2,
-                                max_files_per_class=None):
-    """Prepare training and validation dataframes from the features df.
-     * First selects from only the datasets given in datasets.
-     * Then **for each instrument** (so the distribution from each instrument
-        doesn't change)
-        * train_test_split to generate training and validation sets.
-        * if max_files_per_class, also then restrict it to
-            a maximum of that number of files for each train and test
-
-    Parameters
-    ----------
-    features_df : pandas.DataFrame
-
-    datasets : list of str
-        List of datasets to use.
-
-    validation_spilt : float
-        Train/validation split.
-
-    max_files_per_class : int
-        Number of files to restrict the dataset to.
-
-    """
-    search_df = features_df[features_df["dataset"].isin(datasets)]
-
-    selected_instruments_train = []
-    selected_instruments_valid = []
-    for instrument in search_df["instrument"].unique():
-        instrument_df = search_df[search_df["instrument"] == instrument]
-        traindf, validdf = train_test_split(
-            instrument_df, test_size=validation_split)
-
-        if max_files_per_class:
-            traindf = traindf.sample(n=max_files_per_class)
-
-        selected_instruments_train.append(traindf)
-        selected_instruments_valid.append(validdf)
-
-    return pandas.concat(selected_instruments_train), \
-        pandas.concat(selected_instruments_valid)
-
 
 def get_slicer_from_network_def(network_def_name):
     if 'wcqt' in network_def_name:
@@ -135,6 +47,27 @@ def get_slicer_from_network_def(network_def_name):
     else:
         slicer = streams.cqt_slices
     return slicer
+
+
+def extract_features(dataset, destination):
+    """Consumes a dataset containing audio files, and
+    extracts features to the destination folder.
+    A light wrapper on data.cqt.cqt_many.
+
+    Parameters
+    ----------
+    dataset : data.dataset.Dataset
+        Dataset with Observations to extract features from.
+
+    destination : str
+        Output directory to write features to.
+
+    Returns
+    -------
+    updated_dataset : data.dataset.Dataset
+        Dataset updated with parameters to the outputed features.
+    """
+    pass
 
 
 def train_model(config, model_selector, experiment_name,
@@ -241,7 +174,7 @@ def train_model(config, model_selector, experiment_name,
     iter_print_freq = config.get('training/iteration_print_frequency', None)
     iter_write_freq = config.get('training/iteration_write_frequency', None)
 
-    timers = TimerHolder()
+    timers = utils.TimerHolder()
     iter_count = 0
     train_stats = pandas.DataFrame(columns=['timestamp',
                                             'batch_train_dur',
@@ -493,3 +426,21 @@ def analyze(config, experiment_name, model_name, hold_out_set):
     logger.info("Saving analysis to:", analysis_path)
     analyzer.save(analysis_path)
     return analyzer
+
+
+def fit_and_predict_one(dataset, model, test_set):
+    """On a particular model, with a given set
+    * train
+    * model_selection
+    * predict
+    * analyze
+    * Write all outputs to a file
+    """
+    pass
+
+
+def fit_and_predict_cross_validation(datsaet, model):
+    """Master loop for running cross validation across
+    all datasets.
+    """
+    pass

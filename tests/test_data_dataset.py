@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import pandas
 import pytest
@@ -79,3 +80,37 @@ def test_build_tiny_dataset_from_old_dataframe(config):
     # See if we can load it into a dataset class.
     ds = dataset.Dataset(tinyds)
     assert ds.validate()
+
+
+def test_construct_training_valid_df():
+    def __test_result_df(traindf, validdf, datasets, n_per_inst=None):
+        if n_per_inst:
+            assert len(traindf) == 12 * n_per_inst
+            assert len(validdf)
+        else:
+            total_len = len(traindf) + len(validdf)
+            np.testing.assert_almost_equal((total_len*.8)/100.,
+                                           len(traindf)/100.,
+                                           decimal=0)
+            np.testing.assert_almost_equal((total_len*.2)/100.,
+                                           len(validdf)/100.,
+                                           decimal=0)
+        assert set(datasets) == set(traindf['dataset'])
+        assert set(datasets) == set(validdf['dataset'])
+
+    tinyds = dataset.TinyDataset.load()
+
+    test_set = "rwc"
+    # on the tinyds, we hope to have one of each in each
+    # train and validate, because there are only two to begin with.
+    train_df, valid_df = tinyds.get_train_val_split(
+        test_set=test_set, train_val_split=1)
+    # TODO: Come up with a test here.
+    # yield __test_result_df, train_df, valid_df, datasets
+
+    test_set = "philharmonia"
+    train_df, valid_df = tinyds.get_train_val_split(
+        test_set=test_set, train_val_split=1)
+    # TODO: Come up with a test here.
+
+    # TODO: test that some bigger data works.
