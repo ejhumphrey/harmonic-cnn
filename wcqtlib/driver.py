@@ -40,34 +40,12 @@ def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
     return val_str
 
 
-
 def get_slicer_from_network_def(network_def_name):
     if 'wcqt' in network_def_name:
         slicer = streams.wcqt_slices
     else:
         slicer = streams.cqt_slices
     return slicer
-
-
-def extract_features(dataset, destination):
-    """Consumes a dataset containing audio files, and
-    extracts features to the destination folder.
-    A light wrapper on data.cqt.cqt_many.
-
-    Parameters
-    ----------
-    dataset : data.dataset.Dataset
-        Dataset with Observations to extract features from.
-
-    destination : str
-        Output directory to write features to.
-
-    Returns
-    -------
-    updated_dataset : data.dataset.Dataset
-        Dataset updated with parameters to the outputed features.
-    """
-    pass
 
 
 def train_model(config, model_selector, experiment_name,

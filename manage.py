@@ -1,18 +1,18 @@
 import argparse
 import logging
-import logging.config
 import numpy as np
 import os
 import pandas
 import shutil
 import sys
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
+import wcqtlib.common.utils as utils
+import wcqtlib.data.dataset
 import wcqtlib.data.parse as parse
 import wcqtlib.data.extract as E
 import wcqtlib.data.cqt
-import wcqtlib.train.driver as driver
-import wcqtlib.common.utils as utils
+import wcqtlib.driver as driver
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
@@ -90,7 +90,19 @@ def extract_features(master_config, skip_existing=True):
     """Extract CQTs from all files collected in collect."""
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
-    success = wcqtlib.data.cqt.cqt_from_df(config, **config["features/cqt"])
+    selected_ds = config['data/selected']
+    dataset_file = config['data/{}'.format(selected_ds)]
+    dataset = wcqtlib.data.dataset.Dataset.read_json(dataset_file)
+    extract_dir = os.path.expanduser(config['paths/extract_dir'])
+    updated_ds = wcqtlib.data.cqt.cqt_from_dataset(dataset, extract_dir,
+                                                   **config["features/cqt"])
+
+    success = False
+    if updated_ds is not None and len(updated_ds) == len(dataset):
+        write_path = os.path.join(
+            extract_dir, "{}_feat.json".format(utils.filebase(dataset_file)))
+        updated_ds.save_json(write_path)
+        success = os.path.exists(write_path)
     return success
 
 
@@ -361,31 +373,7 @@ if __name__ == "__main__":
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)
 
-    # TODO MOve this to a file config.
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'standard': {
-                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-            },
-        },
-        'handlers': {
-            'default': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': "standard"
-            },
-        },
-        'loggers': {
-            '': {
-                'handlers': ['default'],
-                'level': 'DEBUG',
-                'propagate': True
-            }
-        }
-    })
-    # logging.basicConfig(level=logging.DEBUG)
+    utils.setup_logging(logging.INFO)
 
     args = vars(parser.parse_args())
     fx = args.pop('func', None)

@@ -6,7 +6,8 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
+import wcqtlib.data.dataset as dataset
 import wcqtlib.driver as driver
 
 logger = logging.getLogger(__name__)
@@ -38,13 +39,22 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.from_yaml(CONFIG_PATH)
 
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
+
+@pytest.fixture
+def tinyds():
+    return dataset.TinyDataset.load()
 
 
-def test_extract_features(workspace):
-    pass
+@pytest.fixture
+def tiny_feats(workspace, tinyds):
+    return driver.extract_features(tinyds, workspace)
+
+
+@pytest.mark.runme
+def test_extract_features(workspace, tiny_feats):
+    for obs in tiny_feats.items():
+        assert "cqt" in obs.features
+        assert os.path.exists(obs.features['cqt'])
 
 
 @pytest.mark.slowtest

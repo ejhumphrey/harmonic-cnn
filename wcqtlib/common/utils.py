@@ -1,7 +1,10 @@
+import claudio
 import datetime
+import logging.config
 import numpy as np
 import os
 import re
+import wave
 import zipfile
 
 import colorama
@@ -227,3 +230,57 @@ class TimerHolder(object):
         keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
         values = [self.get(k) for k in keys if k in self.timers]
         return np.mean(values)
+
+
+def check_audio_file(filename, min_duration=0.0):
+    """Check the integrity of an audio file.
+    Parameters
+    ----------
+    filename : str
+        Path to an audio file on disk.
+    min_duration : scalar, default=0.0
+        Minimum time duration for the audio file to be considered valid.
+    Returns
+    -------
+    status : bool
+        True if legit, False otherwise.
+    message : ExceptionType, or None
+        None on success, else the exception class capturing the death.
+    """
+    status = False
+    error = None
+    try:
+        aobj = claudio.fileio.AudioFile(filename, bytedepth=2)
+        status = aobj.duration >= min_duration
+    except (AssertionError, EOFError, wave.Error, ValueError) as derp:
+        # This is a claudio bug, eventually will be a SoX error
+        error = derp
+
+    return status, error
+
+
+def setup_logging(level):
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': level,
+                'class': 'logging.StreamHandler',
+                'formatter': "standard"
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': 'DEBUG',
+                'propagate': True
+            }
+        }
+    })
+    # logging.basicConfig(level=logging.DEBUG)

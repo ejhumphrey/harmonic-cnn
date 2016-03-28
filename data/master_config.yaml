@@ -3,7 +3,10 @@ paths:
   extract_dir: "~/data/ismir2016-wcqt-data"
   model_dir: "~/data/ismir2016-wcqt-models"
 
-  tiny_dataset: "data/tinydata.json"
+data:
+  selected: "tiny"
+  tiny: "data/tinydata.json"
+  canonical: "data/data.json"
 
 datasets: ["rwc", "uiowa", "philharmonia"]
 

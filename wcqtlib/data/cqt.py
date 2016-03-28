@@ -191,23 +191,20 @@ def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
                     for fin, fout in pairs))
 
 
-def cqt_from_df(config,
-                cqt_params=None, audio_params=None, harmonic_params=None,
-                num_cpus=-1, verbose=50, skip_existing=True):
+def cqt_from_dataset(dataset, write_dir,
+                     cqt_params=None, audio_params=None, harmonic_params=None,
+                     num_cpus=-1, verbose=50, skip_existing=True):
     """Compute CQT representation over audio files referenced by
     a dataframe, and return a new dataframe also containing a column
     referencing the cqt files.
 
     Parameters
     ----------
-    config : config.Config
-        The config must specify the following keys:
-        extract_path : str
-            Folder in the data_root where process files will get dumped
-        notes_df_fn : str
-            Filename of notes_df in the extract_path.
-        features_df_fn : str
-            Filename of the features_df in the extract_path.
+    dataset : wcqtlib.data.Dataset
+        Dataset containing references to the audio files.
+
+    write_dir : str
+        Directory to write to.
 
     cqt_params : dict, default=None
         Parameters to use for CQT computation.
@@ -229,47 +226,33 @@ def cqt_from_df(config,
 
     Returns
     -------
-    success : bool
-        True if all files were processed successfully.
+    updated_dataset : data.dataset.Dataset
+        Dataset updated with parameters to the outputed features.
     """
-    extract_dir = os.path.expanduser(config["paths/extract_dir"])
-    cqt_dir = os.path.join(extract_dir, "cqt")
-    utils.create_directory(cqt_dir)
-    notes_df_path = os.path.join(extract_dir,
-                                 config["dataframes/notes"])
-    output_df_path = os.path.join(extract_dir,
-                                  config["dataframes/features"])
-    # Load the dataframe
-    notes_df = pandas.read_pickle(notes_df_path)
-
-    if any(notes_df["audio_file"] == False):
-        logger.error("There are 'False' audio files! {}".format(
-            utils.colored("Red Flag", "red")))
-        import pdb; pdb.set_trace()
-    # Clear out any bad values here.
-    features_df = notes_df.copy(deep=True)
+    utils.create_directory(write_dir)
 
     def features_path_for_audio(audio_path):
-        return os.path.join(cqt_dir,
+        return os.path.join(write_dir,
                             utils.filebase(audio_path) + ".npz")
 
-    audio_paths = features_df["audio_file"].tolist()
+    audio_paths = dataset.to_df()["audio_file"].tolist()
     cqt_paths = [features_path_for_audio(x) for x in audio_paths]
-
-    # Create a new column in the new dataframe pointing to these new paths
-    features_df["cqt"] = pandas.Series(cqt_paths, index=features_df.index)
 
     result = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
                       harmonic_params, num_cpus, verbose, skip_existing)
 
-    # If succeeded, write the new dataframe as a pkl.
     if result:
-        features_df.to_pickle(output_df_path)
-        print("Created artifact: {}".format(
-                utils.colored(output_df_path, "cyan")))
-        return True
+        feats_ds = dataset.copy()
+        # Update the features field if the file was successfully created.
+        for i, path in enumerate(cqt_paths):
+            if os.path.exists(path):
+                feats_ds[i].features["cqt"] = path
+            else:
+                logger.warning("CQT Not successfully created: {}".format(path))
+
+        return feats_ds
     else:
-        return False
+        return None
 
 
 if __name__ == "__main__":

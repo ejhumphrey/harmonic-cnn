@@ -13,6 +13,7 @@ import sys
 
 
 import wcqtlib.common.config as C
+import wcqtlib.common.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,19 @@ class Observation(object):
         self.partition = partition
         self.features = features if features else dict()
 
+    @classmethod
+    def from_record(cls, record):
+        return cls(index=record.index[0][0],
+                   dataset=record['dataset'][0],
+                   audio_file=record['audio_file'][0],
+                   instrument=record['instrument'][0],
+                   source_key="",
+                   start_time=0.0,
+                   duration=0.0,
+                   note_number=record['note'][0],
+                   dynamic=record['dynamic'][0],
+                   partition="")
+
     def to_dict(self):
         return self.__dict__.copy()
 
@@ -56,8 +70,8 @@ class Observation(object):
         except jsonschema.ValidationError:
             success = False
         success &= os.path.exists(self.audio_file)
-        # if success:
-        #     success &= utils.check_audio_file(self.audio_file)[0]
+        if success:
+            success &= utils.check_audio_file(self.audio_file)[0]
 
         return success
 
@@ -114,12 +128,18 @@ class Dataset(object):
     def __len__(self):
         return len(self.observations)
 
+    def __getitem__(self, index):
+        return self.observations[index]
+
     def validate(self):
         if len(self.observations > 0):
             return all([x.validate for x in self.observations])
         else:
             logger.warning("No observations to validate.")
             return False
+
+    def copy(self, deep=True):
+        return Dataset(copy.deepcopy(self.observations))
 
     def view(self, dataset_filter):
         """Returns a copy of the analyzer pointing to the desired dataset.
@@ -208,8 +228,26 @@ def build_tiny_dataset_from_old_dataframe(config):
     def sample_record(df, dataset, instrument):
         query_records = df.loc[(df["dataset"] == dataset) &
                                (df["instrument"] == instrument)]
+        logger.info("[{} - {} - {} records]".format(
+            dataset, instrument, len(query_records)))
 
-        return query_records.sample() if not query_records.empty else None
+        if not query_records.empty:
+            is_valid = False
+            count_limit = 5  # to prevent infinite loops
+            i = 0
+            while not is_valid:
+                record = query_records.sample()
+                obs = Observation.from_record(record)
+                is_valid = obs.validate()
+
+                i += 1
+                if i >= count_limit and not is_valid:
+                    obs = None
+                    break
+            return obs
+        else:
+            return None
+
     df_path = os.path.expanduser(config['paths/extract_dir'])
     notes_df_path = os.path.join(df_path, config['dataframes/notes'])
     notes_df = pandas.read_pickle(notes_df_path)
@@ -217,7 +255,9 @@ def build_tiny_dataset_from_old_dataframe(config):
     tiny_dataset = []
     # Get one file for each instrument for each dataset.
     for dataset in notes_df["dataset"].unique():
+        logger.info("Loading Dataset: {}".format(dataset))
         for instrument in notes_df["instrument"].unique():
+            logger.info("Loading instrument: {}".format(instrument))
             # Grab it from the notes
             record = sample_record(notes_df, dataset, instrument)
             # If that fails, just grab a file from the original datasets
@@ -226,24 +266,13 @@ def build_tiny_dataset_from_old_dataframe(config):
                     dataset, instrument))
                 continue
 
-            tiny_dataset.append(
-                Observation(
-                    index=record.index[0][0],
-                    dataset=record['dataset'][0],
-                    audio_file=record['audio_file'][0],
-                    instrument=record['instrument'][0],
-                    source_key=None,
-                    start_time=None,
-                    duration=None,
-                    note_number=record['note'][0],
-                    dynamic=record['dynamic'][0],
-                    partition=None
-                    ))
+            tiny_dataset.append(record)
+
     return tiny_dataset
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    utils.setup_logging('INFO')
     logger.info("Building tiny dataset from notes_df.")
     ROOT_DIR = os.path.join(
         os.path.dirname(__file__), os.pardir, os.pardir)
@@ -251,7 +280,7 @@ if __name__ == "__main__":
     config = C.Config.from_yaml(CONFIG_PATH)
 
     TINY_DATASET_JSON = os.path.normpath(
-        os.path.join(ROOT_DIR, config['paths/tiny_dataset']))
+        os.path.join(ROOT_DIR, config['data/tiny']))
 
     tinyds = build_tiny_dataset_from_old_dataframe(config)
     tinyds = Dataset(tinyds)
