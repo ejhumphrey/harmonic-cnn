@@ -284,3 +284,18 @@ def setup_logging(level):
         }
     })
     # logging.basicConfig(level=logging.DEBUG)
+
+
+def filter_df(unfiltered_df, instrument=None, datasets=[]):
+    """Return a view of the features_df looking at only
+    the instrument and datasets specified.
+    """
+    new_df = unfiltered_df.copy()
+
+    if instrument:
+        new_df = new_df[new_df["instrument"] == instrument]
+
+    if datasets:
+        new_df = new_df[new_df["dataset"].isin(datasets)]
+
+    return new_df

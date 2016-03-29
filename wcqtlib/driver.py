@@ -48,8 +48,8 @@ def get_slicer_from_network_def(network_def_name):
     return slicer
 
 
-def train_model(config, model_selector, experiment_name,
-                hold_out_set,
+def train_model(config, dataset, model_selector, experiment_name,
+                test_set,
                 max_files_per_class=None):
     """
     Train a model, writing intermediate params
@@ -61,6 +61,9 @@ def train_model(config, model_selector, experiment_name,
     config: wcqtlib.config.Config
         Instantiated config.
 
+    dataset : wcqtlib.data.Dataset
+        Dataset containing references to the cqt features.
+
     model_selector : str
         Name of the model to use.
         (This is a function name from models.py)
@@ -69,7 +72,7 @@ def train_model(config, model_selector, experiment_name,
         Name of the experiment. This is used to
         name the files/parameters saved.
 
-    hold_out_set : str or list of str
+    test_set : str
         Which dataset to leave out in training.
 
     max_files_per_class : int or None
@@ -79,10 +82,12 @@ def train_model(config, model_selector, experiment_name,
     """
     logger.info("Starting training for experiment: {}".format(experiment_name))
     # Important paths & things to load.
-    features_path = os.path.join(
-        os.path.expanduser(config["paths/extract_dir"]),
-        config["dataframes/features"])
-    features_df = pandas.read_pickle(features_path)
+
+    dataset_df = dataset.to_df()
+    if "cqt" not in dataset_df.columns:
+        logger.error("No features for input data; please extract first.")
+        return False
+
     model_dir = os.path.join(
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
@@ -93,22 +98,17 @@ def train_model(config, model_selector, experiment_name,
                                       config['experiment/training_loss'])
     training_df_save_path = os.path.join(
         model_dir, config['experiment/data_split_format'].format(
-            "train", hold_out_set))
+            "train", test_set))
     valid_df_save_path = os.path.join(
         model_dir, config['experiment/data_split_format'].format(
-            "valid", hold_out_set))
+            "valid", test_set))
     utils.create_directory(model_dir)
     utils.create_directory(params_dir)
 
-    # Get the datasets to use excluding the holdout set.
-    exclude_set = set(hold_out_set)
-    datasets = set(features_df["dataset"].unique())
-    datasets = datasets - exclude_set
-
     # Set up the dataframe we're going to train with.
     logger.info("[{}] Constructing training df".format(experiment_name))
-    training_df, valid_df = construct_training_valid_df(
-        features_df, datasets, max_files_per_class=max_files_per_class)
+    training_df, valid_df = dataset.get_train_val_split(
+        test_set, max_files_per_class=max_files_per_class)
     logger.debug("[{}] training_df : {} rows".format(experiment_name,
                                                      len(training_df)))
     # Save the dfs to disk so we can use them for validation later.
@@ -140,8 +140,7 @@ def train_model(config, model_selector, experiment_name,
     # Set up our streamer
     logger.info("[{}] Setting up streamer".format(experiment_name))
     streamer = streams.InstrumentStreamer(
-        training_df, datasets, slicer, t_len=t_len,
-        batch_size=batch_size)
+        training_df, slicer, t_len=t_len, batch_size=batch_size)
 
     # create our model
     logger.info("[{}] Setting up model: {}".format(experiment_name,
@@ -382,7 +381,7 @@ def predict(config, experiment_name, selected_model_file,
     return predictions_df
 
 
-def analyze(config, experiment_name, model_name, hold_out_set):
+def analyze(config, experiment_name, model_name, test_set):
     logger.info("Evaluating experient {} with params from {}".format(
         utils.colored(experiment_name, "magenta"),
         utils.colored(model_name, "cyan")))
@@ -395,7 +394,7 @@ def analyze(config, experiment_name, model_name, hold_out_set):
     original_config = C.Config.from_yaml(experiment_config_path)
 
     analyzer = wcqtlib.analyze.PredictionAnalyzer.from_config(
-        original_config, experiment_name, model_name, hold_out_set)
+        original_config, experiment_name, model_name, test_set)
     analysis_path = os.path.join(
         experiment_dir,
         original_config.get('experiment/analysis_format',

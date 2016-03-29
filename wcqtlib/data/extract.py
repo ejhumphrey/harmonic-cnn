@@ -549,21 +549,6 @@ def filter_datasets_on_selected_instruments(datasets_df, selected_instruments):
     return datasets_df[datasets_df["instrument"].isin(selected_instruments)]
 
 
-def filter_df(unfiltered_df, instrument=None, datasets=[]):
-    """Return a view of the features_df looking at only
-    the instrument and datasets specified.
-    """
-    new_df = unfiltered_df.copy()
-
-    if instrument:
-        new_df = new_df[new_df["instrument"] == instrument]
-
-    if datasets:
-        new_df = new_df[new_df["dataset"].isin(datasets)]
-
-    return new_df
-
-
 def summarize_notes(notes_df):
     """Print a summary of the classes available in summarize_notes."""
     print("Total Note files generated:", len(notes_df))

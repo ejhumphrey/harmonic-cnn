@@ -22,7 +22,11 @@ SCHEMA_PATH = "https://raw.githubusercontent.com/ejhumphrey/minst-dataset/" \
 
 
 def get_remote_schema(url=SCHEMA_PATH):
-    return requests.get(url).json()
+    try:
+        return requests.get(url).json()
+    except requests.exceptions.ConnectionError:
+        logger.error("No internet connection - cannot load remote schema.")
+        return {}
 
 
 class Observation(object):
@@ -62,6 +66,17 @@ class Observation(object):
     def to_dict(self):
         return self.__dict__.copy()
 
+    def to_series(self):
+        """Convert to a flat series (ie make features a column)
+
+        Returns
+        -------
+        pandas.Series
+        """
+        flat_dict = self.to_dict()
+        flat_dict.update(**flat_dict.pop("features"))
+        return pandas.Series(flat_dict)
+
     def validate(self, schema=None):
         schema = self.SCHEMA if schema is None else schema
         success = True
@@ -71,7 +86,8 @@ class Observation(object):
             success = False
         success &= os.path.exists(self.audio_file)
         if success:
-            success &= utils.check_audio_file(self.audio_file)[0]
+            success &= utils.check_audio_file(self.audio_file,
+                                              min_duration=.1)[0]
 
         return success
 
@@ -107,8 +123,12 @@ class Dataset(object):
 
     @classmethod
     def read_json(cls, json_path):
-        with open(json_path, 'r') as fh:
-            return cls(json.load(fh))
+        if os.path.exists(json_path):
+            with open(json_path, 'r') as fh:
+                return cls(json.load(fh))
+        else:
+            logger.error("No dataset available at {}".format(json_path))
+            return None
 
     def save_json(self, json_path):
         with open(json_path, 'w') as fh:
@@ -116,7 +136,7 @@ class Dataset(object):
 
     def to_df(self):
         """Returns the dataset as a dataframe."""
-        return pandas.DataFrame.from_dict(self.to_builtin())
+        return pandas.DataFrame([x.to_series() for x in self.observations])
 
     def to_builtin(self):
         return [x.to_dict() for x in self.observations]

@@ -5,9 +5,9 @@ Generators/Streams for generating data.
 import collections
 import logging
 import numpy as np
+import os
 import pescador
 
-import wcqtlib.data.extract as extract
 import wcqtlib.common.utils as utils
 import wcqtlib.common.labels as labels
 
@@ -52,39 +52,45 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
-    # Load the npz
-    cqt = np.load(record['cqt'])['cqt']
-    target = instrument_map.get_index(record["instrument"])
-
-    num_obs = cqt.shape[1] - t_len
-    # If there aren't enough obs, don't do it.
-    if num_obs > 0:
-        # Get the frame means, and remove the lowest 1/4
-        cqt_mu = cqt[0, :num_obs].mean(axis=1)
-        threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
-        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-        if shuffle:
-            np.random.shuffle(idx)
-
-        counter = 0
-        while True:
-            obs = utils.slice_ndarray(cqt, idx[counter], length=t_len, axis=1)
-            data = dict(
-                x_in=obs[np.newaxis, ...],
-                target=np.asarray((target,)))
-            yield data
-
-            # Once we have used all of the frames once, reshuffle.
-            counter += 1
-            if counter >= len(idx):
-                if not auto_restart:
-                    break
-                if shuffle:
-                    np.random.shuffle(idx)
-                counter = 0
+    if not ('cqt' in record.index and
+            isinstance(record['cqt'], str) and
+            os.path.exists(record['cqt'])):
+        logger.error("No CQT for record.")
     else:
-        logger.warning("File {} doesn't have enough obs for t_len {}".format(
-            record['cqt'], t_len))
+        # Load the npz
+        cqt = np.load(record['cqt'])['cqt']
+        target = instrument_map.get_index(record["instrument"])
+
+        num_obs = cqt.shape[1] - t_len
+        # If there aren't enough obs, don't do it.
+        if num_obs > 0:
+            # Get the frame means, and remove the lowest 1/4
+            cqt_mu = cqt[0, :num_obs].mean(axis=1)
+            threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
+            idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
+            if shuffle:
+                np.random.shuffle(idx)
+
+            counter = 0
+            while True:
+                obs = utils.slice_ndarray(cqt, idx[counter],
+                                          length=t_len, axis=1)
+                data = dict(
+                    x_in=obs[np.newaxis, ...],
+                    target=np.asarray((target,)))
+                yield data
+
+                # Once we have used all of the frames once, reshuffle.
+                counter += 1
+                if counter >= len(idx):
+                    if not auto_restart:
+                        break
+                    if shuffle:
+                        np.random.shuffle(idx)
+                    counter = 0
+        else:
+            logger.warning("File {} doesn't have enough obs for t_len {}"
+                           .format(record['cqt'], t_len))
 
 
 def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
@@ -123,41 +129,47 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
-    # Load the npz
-    cqt = np.load(record['cqt'])['cqt']
-    wcqt = utils.fold_array(cqt[0], length=p_len, stride=p_stride)
-    target = instrument_map.get_index(record["instrument"])
-
-    num_obs = wcqt.shape[1] - t_len
-
-    # If there aren't enough obs, don't do it.
-    if num_obs > 0:
-        # Get the frame means, and remove the lowest 1/4
-        cqt_mu = cqt[0, :num_obs].mean(axis=1)
-        threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
-        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-        if shuffle:
-            np.random.shuffle(idx)
-
-        counter = 0
-        while True:
-            obs = utils.slice_ndarray(wcqt, idx[counter], length=t_len, axis=1)
-            data = dict(
-                x_in=obs[np.newaxis, ...],
-                target=np.asarray((target,), dtype=np.int32))
-            yield data
-
-            # Once we have used all of the frames once, reshuffle.
-            counter += 1
-            if counter >= len(idx):
-                if not auto_restart:
-                    break
-                if shuffle:
-                    np.random.shuffle(idx)
-                counter = 0
+    if not ('cqt' in record.index and
+            isinstance(record['cqt'], str) and
+            os.path.exists(record['cqt'])):
+        logger.error("No CQT for record.")
     else:
-        logger.warning("File {} doesn't have enough obs for t_len {}".format(
-            record['cqt'], t_len))
+        # Load the npz
+        cqt = np.load(record['cqt'])['cqt']
+        wcqt = utils.fold_array(cqt[0], length=p_len, stride=p_stride)
+        target = instrument_map.get_index(record["instrument"])
+
+        num_obs = wcqt.shape[1] - t_len
+
+        # If there aren't enough obs, don't do it.
+        if num_obs > 0:
+            # Get the frame means, and remove the lowest 1/4
+            cqt_mu = cqt[0, :num_obs].mean(axis=1)
+            threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
+            idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
+            if shuffle:
+                np.random.shuffle(idx)
+
+            counter = 0
+            while True:
+                obs = utils.slice_ndarray(wcqt, idx[counter],
+                                          length=t_len, axis=1)
+                data = dict(
+                    x_in=obs[np.newaxis, ...],
+                    target=np.asarray((target,), dtype=np.int32))
+                yield data
+
+                # Once we have used all of the frames once, reshuffle.
+                counter += 1
+                if counter >= len(idx):
+                    if not auto_restart:
+                        break
+                    if shuffle:
+                        np.random.shuffle(idx)
+                    counter = 0
+        else:
+            logger.warning("File {} doesn't have enough obs for t_len {}"
+                           .format(record['cqt'], t_len))
 
 
 def buffer_stream(stream, batch_size):
@@ -203,7 +215,7 @@ class InstrumentStreamer(collections.Iterator):
 
     This class will behave like a generator."""
 
-    def __init__(self, features_df, datasets,
+    def __init__(self, features_df,
                  record_slicer,
                  slicer_kwargs={},
                  t_len=1,
@@ -224,9 +236,6 @@ class InstrumentStreamer(collections.Iterator):
         features_df : pandas.DataFrame
             Dataframe which points to the features files and has ground
             truth data.
-
-        datasets : list of str
-            Dataset(s) to use in the features_df.
 
         record_slicer : function
             Function used to load slices from a df record.
@@ -255,7 +264,6 @@ class InstrumentStreamer(collections.Iterator):
             to generate the data in parallel.
         """
         self.features_df = features_df
-        self.datasets = datasets
         self.record_slicer = record_slicer
         self.slicer_kwargs = slicer_kwargs
         self.t_len = t_len
@@ -307,8 +315,8 @@ class InstrumentStreamer(collections.Iterator):
             One streamer for each instrument file.
         """
         # Get list of instruments
-        instrument_records = extract.filter_df(
-            self.features_df, instrument=instrument, datasets=self.datasets)
+        instrument_records = utils.filter_df(
+            self.features_df, instrument=instrument)
         seed_pool = [pescador.Streamer(self.record_slicer, record, self.t_len,
                                        **self.slicer_kwargs)
                      for _, record in instrument_records.iterrows()]

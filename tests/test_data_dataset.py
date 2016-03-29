@@ -41,6 +41,7 @@ def test_observation(test_obs):
     assert ob is not None
     assert isinstance(ob, dataset.Observation)
     assert isinstance(ob.to_dict(), dict)
+    assert isinstance(ob.to_series(), pandas.Series)
 
 
 def test_json(workspace, test_obs):
@@ -60,7 +61,9 @@ def test_to_df(test_obs):
     df = ds.to_df()
     assert isinstance(df, pandas.DataFrame)
     assert len(test_obs) == len(df)
-    assert set(df.columns) == set(ds.items[0].to_dict().keys())
+    safe_columns = set(ds.items[0].to_dict().keys())
+    safe_columns = safe_columns - set(["features"])
+    assert set(df.columns) == safe_columns
 
 
 def test_dataset_view(test_obs):

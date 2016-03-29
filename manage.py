@@ -58,49 +58,48 @@ def clean(master_config):
         sys.exit(1)
 
 
-def collect(master_config, clean_data=True):
-    """Prepare dataframes of notes for experiments."""
-    config = C.Config.from_yaml(master_config)
+def load_dataset(config, load_features=False):
+    """Load the selected dataset in specified in the config file.
 
-    if clean_data:
-        clean(master_config)
+    Parameters
+    ----------
+    config : wcqtlib.common.config.Config
 
-    print(utils.colored("Parsing directories to collect datasets"))
-    parse_result = parse.parse_files_to_dataframe(config)
-    return parse_result
+    load_features : bool
+        If true, tries to load the features version of the dataset,
+        else just loads the original specified version.
 
+    Returns
+    -------
+    dataset : wcqtlib.data.dataset.Dataset
+        If success
+    """
+    selected_ds = config['data/selected']
+    dataset_file = config['data/{}'.format(selected_ds)]
 
-def extract_notes(master_config):
-    print(utils.colored("Spliting audio files to notes."))
-    config = C.Config.from_yaml(master_config)
-
-    skip_existing = config['extract/skip_existing']
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-    run_process_if_not_exists(collect, datasets_path,
-                              master_config=master_config,
-                              clean_data=False)
-    extract_result = E.extract_notes(config, skip_existing)
-
-    return extract_result
+    if not load_features:
+        return wcqtlib.data.dataset.Dataset.read_json(dataset_file)
+    else:
+        feature_dir = os.path.expanduser(config['paths/feature_dir'])
+        dataset_fn = os.path.basename(dataset_file)
+        feature_ds_path = os.path.join(feature_dir, dataset_fn)
+        return wcqtlib.data.dataset.Dataset.read_json(feature_ds_path)
 
 
 def extract_features(master_config, skip_existing=True):
     """Extract CQTs from all files collected in collect."""
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
-    selected_ds = config['data/selected']
-    dataset_file = config['data/{}'.format(selected_ds)]
-    dataset = wcqtlib.data.dataset.Dataset.read_json(dataset_file)
-    extract_dir = os.path.expanduser(config['paths/extract_dir'])
-    updated_ds = wcqtlib.data.cqt.cqt_from_dataset(dataset, extract_dir,
+
+    dataset = load_dataset(config, load_features=False)
+    feature_dir = os.path.expanduser(config['paths/feature_dir'])
+    updated_ds = wcqtlib.data.cqt.cqt_from_dataset(dataset, feature_dir,
                                                    **config["features/cqt"])
 
     success = False
     if updated_ds is not None and len(updated_ds) == len(dataset):
         write_path = os.path.join(
-            extract_dir, "{}_feat.json".format(utils.filebase(dataset_file)))
+            feature_dir, "{}_feat.json".format(utils.filebase(dataset_file)))
         updated_ds.save_json(write_path)
         success = os.path.exists(write_path)
     return success
@@ -125,7 +124,8 @@ def fit_and_predict(master_config, experiment_name):
 
 
 def train(master_config,
-          experiment_name):
+          experiment_name,
+          test_set):
     """Run training loop.
 
     Parameters
@@ -135,19 +135,23 @@ def train(master_config,
 
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
+
+    test_set : str
+        String in ["rwc", "uiowa", "philharmonia"] specifying which
+        dataset to use as the test set.
     """
-    print(utils.colored("Training"))
+    print(utils.colored("Training experiment: {}".format(experiment_name)))
+    logger.info("Training with test set {}".format(test_set))
     config = C.Config.from_yaml(master_config)
 
     model_definition = config["model"]
-    hold_out_set = config["experiment/hold_out_set"]
     max_files_per_class = config.get(
         "training/max_files_per_class", None)
 
     driver.train_model(config,
                        model_selector=model_definition,
                        experiment_name=experiment_name,
-                       hold_out_set=hold_out_set,
+                       hold_out_set=test_set,
                        max_files_per_class=max_files_per_class)
 
 
@@ -318,12 +322,6 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers()
     save_canonical_parser = subparsers.add_parser('save_canonical_files')
     save_canonical_parser.set_defaults(func=save_canonical_files)
-
-    collect_parser = subparsers.add_parser('collect')
-    collect_parser.set_defaults(func=collect)
-
-    extract_notes_parser = subparsers.add_parser('extract_notes')
-    extract_notes_parser.set_defaults(func=extract_notes)
 
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
