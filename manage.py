@@ -91,6 +91,9 @@ def extract_features(master_config, skip_existing=True):
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
 
+    selected_ds = config['data/selected']
+    dataset_file = config['data/{}'.format(selected_ds)]
+
     dataset = load_dataset(config, load_features=False)
     feature_dir = os.path.expanduser(config['paths/feature_dir'])
     updated_ds = wcqtlib.data.cqt.cqt_from_dataset(dataset, feature_dir,
@@ -98,14 +101,14 @@ def extract_features(master_config, skip_existing=True):
 
     success = False
     if updated_ds is not None and len(updated_ds) == len(dataset):
-        write_path = os.path.join(
-            feature_dir, "{}_feat.json".format(utils.filebase(dataset_file)))
+        dataset_file = config['data/{}'.format(selected_ds)]
+        write_path = os.path.join(feature_dir, os.path.basename(dataset_file))
         updated_ds.save_json(write_path)
         success = os.path.exists(write_path)
     return success
 
 
-def fit_and_predict(master_config, experiment_name):
+def fit_and_predict(master_config, experiment_name, test_set):
     """Runs:
     - train
     - model_selection_df
@@ -113,12 +116,12 @@ def fit_and_predict(master_config, experiment_name):
     - analyze
     """
     # Step 1: train
-    train(master_config, experiment_name)
+    train(master_config, experiment_name, test_set)
     # Step 2: model selection
-    results_df = model_selection(master_config, experiment_name)
+    results_df = model_selection(master_config, experiment_name, test_set)
     best_iter, best_param_file = driver.select_best_iteration(results_df)
     # Step 3: predictions
-    predict(master_config, experiment_name, select_epoch=best_iter)
+    predict(master_config, experiment_name, test_set, select_epoch=best_iter)
     # Step 4: analysis
     analyze(master_config, experiment_name, select_epoch=best_iter)
 
@@ -148,15 +151,23 @@ def train(master_config,
     max_files_per_class = config.get(
         "training/max_files_per_class", None)
 
-    driver.train_model(config,
-                       model_selector=model_definition,
-                       experiment_name=experiment_name,
-                       hold_out_set=test_set,
-                       max_files_per_class=max_files_per_class)
+    dataset = load_dataset(config, load_features=True)
+    if dataset:
+        driver.train_model(config,
+                           dataset,
+                           model_selector=model_definition,
+                           experiment_name=experiment_name,
+                           test_set=test_set,
+                           max_files_per_class=max_files_per_class)
+        return True
+    else:
+        logger.error("Dataset load failed.")
+        return False
 
 
 def model_selection(master_config,
                     experiment_name,
+                    test_set,
                     plot_loss=False):
     """Perform model selection on the validation set.
 
@@ -168,6 +179,10 @@ def model_selection(master_config,
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
+    test_set : str
+        String in ["rwc", "uiowa", "philharmonia"] specifying which
+        dataset to use as the test set.
+
     plot_loss : bool
         If true, uses matplotlib to non-blocking plot the loss
         at each validation.
@@ -175,25 +190,24 @@ def model_selection(master_config,
     print(utils.colored("Model Selection"))
     config = C.Config.from_yaml(master_config)
 
-    hold_out_set = config["experiment/hold_out_set"]
-
     # load the valid_df of files to validate with.
     model_dir = os.path.join(
         os.path.expanduser(config["paths/model_dir"]),
         experiment_name)
     valid_df_path = os.path.join(
         model_dir, config['experiment/data_split_format'].format(
-            "valid", hold_out_set))
+            "valid", test_set))
     valid_df = pandas.read_pickle(valid_df_path)
 
     return driver.find_best_model(config,
-                           experiment_name=experiment_name,
-                           validation_df=valid_df,
-                           plot_loss=plot_loss)
+                                  experiment_name=experiment_name,
+                                  validation_df=valid_df,
+                                  plot_loss=plot_loss)
 
 
 def predict(master_config,
             experiment_name,
+            test_set,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
@@ -317,7 +331,7 @@ def test(master_config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--master_config", default=CONFIG_PATH)
+    parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
     subparsers = parser.add_subparsers()
     save_canonical_parser = subparsers.add_parser('save_canonical_files')
@@ -331,32 +345,32 @@ if __name__ == "__main__":
                                         help="Name of the experiment. "
                                         "Files go in a directory of "
                                         "this name.")
+    fit_and_predict_parser.add_argument('test_set',
+                                        help="Dataset to use for hold-out.")
     fit_and_predict_parser.set_defaults(func=fit_and_predict)
 
     train_parser = subparsers.add_parser('train')
     train_parser.add_argument('experiment_name',
                               help="Name of the experiment. "
                                    "Files go in a directory of this name.")
+    train_parser.add_argument('test_set',
+                              help="Dataset to use for hold-out.")
     train_parser.set_defaults(func=train)
-    modelselect_parser = subparsers.add_parser('model_selection')
-    modelselect_parser.add_argument('experiment_name',
-                                    help="Name of the experiment. "
-                                    "Files go in a directory of this name.")
-    modelselect_parser.add_argument('-p', '--plot_loss', action="store_true")
-    modelselect_parser.set_defaults(func=model_selection)
     predict_parser = subparsers.add_parser('predict')
     predict_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
+                                help="Name of the experiment. "
+                                     "Files go in a directory of this name.")
+    predict_parser.add_argument('test_set',
+                                help="Dataset to use for hold-out.")
     predict_parser.add_argument('-s', '--select_epoch',
-                                 default=None, type=int)
+                                default=None, type=int)
     predict_parser.set_defaults(func=predict)
     analyze_parser = subparsers.add_parser('analyze')
     analyze_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
+                                help="Name of the experiment. "
+                                     "Files go in a directory of this name.")
     analyze_parser.add_argument('-s', '--select_epoch',
-                                 default=None)
+                                default=None)
     analyze_parser.set_defaults(func=analyze)
     notebook_parser = subparsers.add_parser('notebook')
     notebook_parser.set_defaults(func=notebook)

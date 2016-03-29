@@ -115,11 +115,10 @@ class ModelSelector(object):
 
         # Set up our streamer
         logger.info("Setting up streamer")
-        datasets = set(self.valid_df["dataset"].unique())
         instrument_mux_params = dict(k=10, lam=2)
         batch_size = 1000
         streamer = streams.InstrumentStreamer(
-            self.valid_df, datasets, self.slicer_fx, t_len=self.t_len,
+            self.valid_df, self.slicer_fx, t_len=self.t_len,
             instrument_mux_params=instrument_mux_params,
             batch_size=batch_size)
 
