@@ -12,7 +12,7 @@ import wcqtlib.data.dataset
 import wcqtlib.data.parse as parse
 import wcqtlib.data.extract as E
 import wcqtlib.data.cqt
-import wcqtlib.driver as driver
+import wcqtlib.driver
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
@@ -58,54 +58,15 @@ def clean(master_config):
         sys.exit(1)
 
 
-def load_dataset(config, load_features=False):
-    """Load the selected dataset in specified in the config file.
-
-    Parameters
-    ----------
-    config : wcqtlib.common.config.Config
-
-    load_features : bool
-        If true, tries to load the features version of the dataset,
-        else just loads the original specified version.
-
-    Returns
-    -------
-    dataset : wcqtlib.data.dataset.Dataset
-        If success
-    """
-    selected_ds = config['data/selected']
-    dataset_file = config['data/{}'.format(selected_ds)]
-
-    if not load_features:
-        return wcqtlib.data.dataset.Dataset.read_json(dataset_file)
-    else:
-        feature_dir = os.path.expanduser(config['paths/feature_dir'])
-        dataset_fn = os.path.basename(dataset_file)
-        feature_ds_path = os.path.join(feature_dir, dataset_fn)
-        return wcqtlib.data.dataset.Dataset.read_json(feature_ds_path)
-
-
-def extract_features(master_config, skip_existing=True):
+def extract_features(master_config):
     """Extract CQTs from all files collected in collect."""
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
 
-    selected_ds = config['data/selected']
-    dataset_file = config['data/{}'.format(selected_ds)]
-
-    dataset = load_dataset(config, load_features=False)
-    feature_dir = os.path.expanduser(config['paths/feature_dir'])
-    updated_ds = wcqtlib.data.cqt.cqt_from_dataset(dataset, feature_dir,
-                                                   **config["features/cqt"])
-
-    success = False
-    if updated_ds is not None and len(updated_ds) == len(dataset):
-        dataset_file = config['data/{}'.format(selected_ds)]
-        write_path = os.path.join(feature_dir, os.path.basename(dataset_file))
-        updated_ds.save_json(write_path)
-        success = os.path.exists(write_path)
-    return success
+    driver = wcqtlib.driver.Driver(config, load_features=False)
+    result = driver.extract_features()
+    print("Extraction {}".format(utils.result_colored(result)))
+    return result
 
 
 def fit_and_predict(master_config, experiment_name, test_set):
@@ -147,11 +108,6 @@ def train(master_config,
     logger.info("Training with test set {}".format(test_set))
     config = C.Config.from_yaml(master_config)
 
-    model_definition = config["model"]
-    max_files_per_class = config.get(
-        "training/max_files_per_class", None)
-
-    dataset = load_dataset(config, load_features=True)
     if dataset:
         driver.train_model(config,
                            dataset,
@@ -325,8 +281,8 @@ def datastats(master_config):
 
 def test(master_config):
     """Launch all unit tests."""
-    print(utils.colored("Running unit tests."))
-    raise NotImplementedError("notebook not yet implemented")
+    print(utils.colored("Running regression test on tinydata set."))
+
 
 
 if __name__ == "__main__":

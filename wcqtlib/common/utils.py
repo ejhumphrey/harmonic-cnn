@@ -299,3 +299,18 @@ def filter_df(unfiltered_df, instrument=None, datasets=[]):
         new_df = new_df[new_df["dataset"].isin(datasets)]
 
     return new_df
+
+
+def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
+    val_str = formatstr.format(float(value))
+    if value < minval:
+        val_str = colored(val_str, color)
+    return val_str
+
+
+def result_colored(result):
+    "Returns green Success if result, else returns red False"
+    if result:
+        return colored("Success", "green")
+    else:
+        return colored("Failed", "red")

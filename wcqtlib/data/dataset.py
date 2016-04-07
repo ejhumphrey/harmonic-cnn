@@ -66,6 +66,9 @@ class Observation(object):
     def to_dict(self):
         return self.__dict__.copy()
 
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
     def to_series(self):
         """Convert to a flat series (ie make features a column)
 
@@ -105,27 +108,35 @@ class Dataset(object):
      - [some provenance information]
     """
 
-    def __init__(self, observations):
+    def __init__(self, observations, data_root=None):
         """
         Parameters
         ----------
         observations : list
             List of Observations (as dicts or Observations.)
             If they're dicts, this will convert them to Observations.
+
+        data_root : str or None
+            Path to look for an observation, if not None
         """
-        def safe_obs(obs):
+        def safe_obs(obs, data_root=None):
             "Get dict from an Observation if an observation, else just dict"
+            if not os.path.exists(obs['audio_file']) and data_root:
+                new_audio = os.path.join(data_root, obs['audio_file'])
+                if os.path.exists(new_audio):
+                    obs['audio_file'] = new_audio
             if isinstance(obs, Observation):
                 return obs.to_dict()
             else:
                 return obs
-        self.observations = [Observation(**safe_obs(x)) for x in observations]
+        self.observations = [Observation(**safe_obs(x, data_root))
+                             for x in observations]
 
     @classmethod
-    def read_json(cls, json_path):
+    def read_json(cls, json_path, data_root=None):
         if os.path.exists(json_path):
             with open(json_path, 'r') as fh:
-                return cls(json.load(fh))
+                return cls(json.load(fh), data_root=data_root)
         else:
             logger.error("No dataset available at {}".format(json_path))
             return None
