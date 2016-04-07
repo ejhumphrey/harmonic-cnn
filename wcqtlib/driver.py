@@ -83,26 +83,30 @@ class Driver(object):
             self._model_dir = os.path.join(
                 os.path.expanduser(self.config["paths/model_dir"]),
                 self.experiment_name)
-
-            self._params_dir = os.path.join(
-                self.model_dir, self.config["experiment/params_dir"])
             self._experiment_config_path = os.path.join(
-                self.model_dir, self.config['experiment/config_path'])
-            self._training_loss_path = os.path.join(
-                self.model_dir, self.config['experiment/training_loss'])
+                self._model_dir, self.config['experiment/config_path'])
+
+            utils.create_directory(self._model_dir)
 
     def _init_cross_validation(self, test_set):
+        self._cv_model_dir = os.path.join(self._model_dir, test_set)
+        self._params_dir = os.path.join(
+                self._cv_model_dir,
+                self.config["experiment/params_dir"])
+        self._training_loss_path = os.path.join(
+            self._cv_model_dir, self.config['experiment/training_loss'])
+
         self._training_df_save_path = os.path.join(
-            self.model_dir,
+            self._cv_model_dir,
             self.config['experiment/data_split_format'].format(
                 "train", test_set))
         self._valid_df_save_path = os.path.join(
-            self._model_dir,
+            self._cv_model_dir,
             self.config['experiment/data_split_format'].format(
                 "valid", test_set))
 
-        utils.create_directory(self.model_dir)
-        utils.create_directory(self.params_dir)
+        utils.create_directory(self._cv_model_dir)
+        utils.create_directory(self._params_dir)
 
     def check_cross_validation_state(self):
         """Check to make sure everything's ready to run, including:
@@ -111,6 +115,7 @@ class Driver(object):
         if "cqt" not in self.dataset.to_df().columns:
             logger.error("No features for input data; please extract first.")
             return False
+        return True
 
     def load_dataset(self, load_features=True):
         """Load the selected dataset in specified in the config file.
@@ -125,7 +130,7 @@ class Driver(object):
             self.dataset = wcqtlib.data.dataset.Dataset.read_json(
                 self._dataset_file, data_root=self.config['paths/data_dir'])
         else:
-            dataset_fn = os.path.basename(self.dataset_file)
+            dataset_fn = os.path.basename(self._dataset_file)
             feature_ds_path = os.path.join(self._feature_dir, dataset_fn)
             self.dataset = wcqtlib.data.dataset.Dataset.read_json(
                 feature_ds_path, data_root=self.config['paths/data_dir'])
@@ -206,18 +211,20 @@ class Driver(object):
         slicer = get_slicer_from_network_def(self.model_definition)
 
         # Set up our streamer
-        logger.info("[{}] Setting up streamer".format(experiment_name))
+        logger.info("[{}] Setting up streamer".format(self.experiment_name))
         streamer = streams.InstrumentStreamer(
             training_df, slicer, t_len=t_len, batch_size=batch_size)
 
         # create our model
-        logger.info("[{}] Setting up model: {}".format(experiment_name,
-                                                       model_selector))
-        network_def = getattr(models, model_selector)(t_len, n_targets)
+        logger.info("[{}] Setting up model: {}".format(self.experiment_name,
+                                                       self.model_definition))
+        network_def = getattr(models, self.model_definition)(t_len, n_targets)
         model = models.NetworkManager(network_def)
 
-        iter_print_freq = config.get('training/iteration_print_frequency', None)
-        iter_write_freq = config.get('training/iteration_write_frequency', None)
+        iter_print_freq = self.config.get(
+            'training/iteration_print_frequency', None)
+        iter_write_freq = self.config.get(
+            'training/iteration_write_frequency', None)
 
         timers = utils.TimerHolder()
         iter_count = 0
@@ -228,7 +235,7 @@ class Driver(object):
 
         timers.start("train")
         logger.info("[{}] Beginning training loop at {}".format(
-            experiment_name, timers.get("train")))
+            self.experiment_name, timers.get("train")))
         try:
             timers.start(("stream", iter_count))
             for batch in streamer:
@@ -236,8 +243,10 @@ class Driver(object):
                 timers.start(("batch_train", iter_count))
                 loss = model.train(batch)
                 timers.end(("batch_train", iter_count))
-                row = dict(timestamp=timers.get_end(("batch_train", iter_count)),
-                           batch_train_dur=timers.get(("batch_train", iter_count)),
+                row = dict(timestamp=timers.get_end(
+                            ("batch_train", iter_count)),
+                           batch_train_dur=timers.get(
+                            ("batch_train", iter_count)),
                            iteration=iter_count,
                            loss=loss)
                 train_stats.loc[len(train_stats)] = row
@@ -251,23 +260,29 @@ class Driver(object):
                                 ))
                 # Print status
                 if iter_print_freq and (iter_count % iter_print_freq == 0):
-                    mean_train_loss = train_stats["loss"][-iter_print_freq:].mean()
+                    mean_train_loss = \
+                        train_stats["loss"][-iter_print_freq:].mean()
                     logger.info("Iteration: {} | Mean_Train_loss: {}"
                                 .format(iter_count,
                                         utils.conditional_colored(
                                             mean_train_loss, min_train_loss)))
                     min_train_loss = min(mean_train_loss, min_train_loss)
                     # Print the mean times for the last n frames
-                    logger.info("Mean stream time: {}, Mean train time: {}".format(
-                        timers.mean("stream", iter_count - iter_print_freq,
-                                    iter_count),
-                        timers.mean("batch_train", iter_count - iter_print_freq,
-                                    iter_count)))
+                    logger.debug("Mean stream time: {}, Mean train time: {}"
+                                .format(
+                                    timers.mean(
+                                        "stream",
+                                        iter_count - iter_print_freq,
+                                        iter_count),
+                                    timers.mean(
+                                        "batch_train",
+                                        iter_count - iter_print_freq,
+                                        iter_count)))
 
                 # save model, maybe
                 if iter_write_freq and (iter_count % iter_write_freq == 0):
                     save_path = os.path.join(
-                        params_dir, param_format_str.format(iter_count))
+                        self._params_dir, param_format_str.format(iter_count))
                     logger.debug("Writing params to {}".format(save_path))
                     model.save(save_path)
 
@@ -286,28 +301,35 @@ class Driver(object):
             logger.warn(utils.colored("Training Cancelled", "red"))
             print("User cancelled training at epoch:", iter_count)
         except EarlyStoppingException as e:
-            logger.warn(utils.colored("Training Stopped for {}".format(e), "red"))
+            logger.warn(
+                utils.colored("Training Stopped for {}".format(e), "red"))
             print("Training halted for: ", e)
         timers.end("train")
 
         # Print final training loss
         logger.info("Total iterations:".format(iter_count))
         logger.info("Trained for ".format(timers.get("train")))
-        logger.info("Final training loss: {}".format(train_stats["loss"].iloc[-1]))
+        logger.info("Final training loss: {}".format(
+            train_stats["loss"].iloc[-1]))
 
-        # Make sure to save the final model.
-        save_path = os.path.join(params_dir, "final.npz".format(iter_count))
+        # Make sure to save the final iteration's model.
+        save_path = os.path.join(
+                        self._params_dir, param_format_str.format(iter_count))
         model.save(save_path)
         logger.info("Completed training for experiment: {}".format(
-            experiment_name))
+            self.experiment_name))
 
         # Save training loss
-        logger.info("Writing training stats to {}".format(training_loss_path))
-        train_stats.to_pickle(training_loss_path)
+        logger.info("Writing training stats to {}".format(
+            self._training_loss_path))
+        train_stats.to_pickle(
+            self._training_loss_path)
 
+        # We need these files for models election, so make sure they exist
+        return all([os.path.exists(self._training_loss_path),
+                    os.path.exists(self._training_loss_path)])
 
-    def find_best_model(self, config, experiment_name, validation_df,
-                        plot_loss=False):
+    def find_best_model(self, validation_df):
         """Perform model selection on the validation set with a binary search
         for minimum validation loss.
 
@@ -315,18 +337,8 @@ class Driver(object):
 
         Parameters
         ----------
-        master_config : str
-            Full path
-
-        experiment_name : str
-            Name of the experiment. Files are saved in a folder of this name.
-
         validation_df : pandas.DataFrame
             Name of the held out dataset (used to specify the valid file)
-
-        plot_loss : bool
-            If true, uses matplotlib to non-blocking plot the loss
-            at each validation.
 
         Returns
         -------
@@ -334,55 +346,49 @@ class Driver(object):
             DataFrame containing the resulting losses.
         """
         logger.info("Finding best model for {}".format(
-            utils.colored(experiment_name, "magenta")))
-        # load the experiment config
-        experiment_dir = os.path.join(
-            os.path.expanduser(config['paths/model_dir']),
-            experiment_name)
-        model_dir = os.path.join(
-            os.path.expanduser(config["paths/model_dir"]),
-            experiment_name)
-        params_dir = os.path.join(experiment_dir,
-                                  config['experiment/params_dir'])
+            utils.colored(self.experiment_name, "magenta")))
+        if not self.check_cross_validation_state():
+            logger.error("train_model setup state invalid.")
+            return False
 
-        # load all necessary config parameters
-        experiment_config_path = os.path.join(experiment_dir,
-                                              config['experiment/config_path'])
-        original_config = C.Config.from_yaml(experiment_config_path)
+        validation_df = pandas.read_pickle(self._valid_df_save_path)
+
+        # load all necessary config parameters from the ORIGINAL config
+        original_config = C.Config.from_yaml(self._experiment_config_path)
+        validation_error_file = os.path.join(
+            self._cv_model_dir, original_config['experiment/validation_loss'])
+
         slicer = get_slicer_from_network_def(original_config['model'])
         t_len = original_config['training/t_len']
 
-        # Load the training loss
-        training_loss_path = os.path.join(model_dir,
-                                          config['experiment/training_loss'])
-        training_loss = pandas.read_pickle(training_loss_path)
-        validation_error_file = os.path.join(
-            model_dir, original_config['experiment/validation_loss'])
-
         if not os.path.exists(validation_error_file):
-            model_files = glob.glob(os.path.join(params_dir, "params*.npz"))
-            # model_files.extend(glob.glob(os.path.join(params_dir, "final.npz")))
+            model_files = glob.glob(
+                os.path.join(self._params_dir, "params*.npz"))
 
             result_df, best_model = MS.BinarySearchModelSelector(
-                model_files, validation_df, slicer, t_len, show_progress=True)()
+                model_files, validation_df, slicer, t_len,
+                show_progress=True)()
 
             result_df.to_pickle(validation_error_file)
-            best_path = os.path.join(params_dir,
+            best_path = os.path.join(self._params_dir,
                                      original_config['experiment/best_params'])
             shutil.copyfile(best_model['model_file'], best_path)
         else:
             logger.info("Model Search already done; printing previous results")
             result_df = pandas.read_pickle(validation_error_file)
-            #make sure model_iteration is an int so sorting makes sense.
+            # make sure model_iteration is an int so sorting makes sense.
             result_df["model_iteration"].apply(int)
-            logger.info("\n{}".format(result_df.sort_values("model_iteration")))
+            logger.info("\n{}".format(
+                result_df.sort_values("model_iteration")))
 
-        if plot_loss:
-            fig = plt.figure()
-            ax = plt.plot(training_loss["iteration"], training_loss["loss"])
-            ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
-            plt.draw()
-            plt.show()
+        # if plot_loss:
+        # Load the training loss
+        # training_loss = pandas.read_pickle(self._training_loss_path)
+        #     fig = plt.figure()
+        #     ax = plt.plot(training_loss["iteration"], training_loss["loss"])
+        #     ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
+        #     plt.draw()
+        #     plt.show()
 
         return result_df
 
@@ -399,8 +405,7 @@ class Driver(object):
 
         return best["model_iteration"], os.path.basename(best["model_file"])
 
-    def predict(self, config, experiment_name, selected_model_file,
-                features_df_override=None):
+    def predict(self, selected_model_file, features_df_override=None):
         """Generates a prediction for *all* files, and writes them to disk
         as a dataframe.
 
@@ -408,49 +413,45 @@ class Driver(object):
         dataframe (for testing)
         """
         logger.info("Evaluating experient {} with params from iter {}".format(
-            utils.colored(experiment_name, "magenta"),
+            utils.colored(self.experiment_name, "magenta"),
             utils.colored(selected_model_file, "cyan")))
         model_iter = utils.iter_from_params_filepath(selected_model_file)
 
         logger.info("Loading DataFrame...")
         if features_df_override is None:
             features_path = os.path.join(
-                os.path.expanduser(config["paths/extract_dir"]),
-                config["dataframes/features"])
+                os.path.expanduser(self.config["paths/extract_dir"]),
+                self.config["dataframes/features"])
             features_df = pandas.read_pickle(features_path)
         else:
             features_df = features_df_override
 
-        experiment_dir = os.path.join(
-            os.path.expanduser(config['paths/model_dir']),
-            experiment_name)
-        experiment_config_path = os.path.join(experiment_dir,
-                                              config['experiment/config_path'])
-        original_config = C.Config.from_yaml(experiment_config_path)
-        params_file = os.path.join(experiment_dir,
-                                   config['experiment/params_dir'],
+        original_config = C.Config.from_yaml(self._experiment_config_path)
+        params_file = os.path.join(self._params_dir,
                                    selected_model_file)
         slicer = get_slicer_from_network_def(original_config['model'])
 
         logger.info("Deserializing Network & Params...")
         model = models.NetworkManager.deserialize_npz(params_file)
 
+        predictions_df_path = os.path.join(
+            self._cv_model_dir,
+            self.config.get('experiment/predictions_format',
+                            self.config.get(
+                                'experiment/predictions_format', None)
+                           ).format(model_iter))
+
         t_len = original_config['training/t_len']
         logger.info("Running evaluation on all files...")
         predictions_df = wcqtlib.evaluate.predict.predict_many(
             features_df, model, slicer, t_len, show_progress=True)
-        predictions_df_path = os.path.join(
-            experiment_dir,
-            original_config.get('experiment/predictions_format',
-                                config.get('experiment/predictions_format',
-                                           None))
-            .format(model_iter))
         predictions_df.to_pickle(predictions_df_path)
         return predictions_df
 
-    def analyze(config, experiment_name, model_name, test_set):
+    def analyze(self, model_name, test_set):
+        import pdb; pdb.set_trace()
         logger.info("Evaluating experient {} with params from {}".format(
-            utils.colored(experiment_name, "magenta"),
+            utils.colored(self.experiment_name, "magenta"),
             utils.colored(model_name, "cyan")))
 
         experiment_dir = os.path.join(
@@ -471,18 +472,58 @@ class Driver(object):
         analyzer.save(analysis_path)
         return analyzer
 
-    def fit_and_predict_one(self, dataset, model, test_set):
+    def fit_and_predict_one(self, test_set):
         """On a particular model, with a given set
         * train
         * model_selection
         * predict
         * analyze
         * Write all outputs to a file
-        """
-        pass
 
-    def fit_and_predict_cross_validation(self, datsaet, model):
+        Returns
+        -------
+        success : true if succeeded.
+        """
+        logger.info("Beginning fit_and_predict_one:{}".format(test_set))
+        result = False
+
+        # Step 1: train
+        result = self.train_model(test_set)
+
+        # Step 2: model selection
+        if result:
+            results_df = self.find_best_model(test_set)
+            best_iter, best_param_file = self.select_best_iteration(results_df)
+
+            # Step 3: predictions
+            result = self.predict(best_iter)
+
+            # Step 4: analysis
+            if result:
+                self.analyze(select_epoch=best_iter)
+            else:
+                logger.error("Problem predicting on {}".format(test_set))
+        else:
+            logger.error("Problem with training on {}".format(test_set))
+
+        logger.info("Completed fit_and_predict_one:{}. Result={}"
+                    .format(test_set, result))
+        return result
+
+    def fit_and_predict_cross_validation(self):
         """Master loop for running cross validation across
         all datasets.
+
+        Returns
+        -------
+        success : bool
+            True if succeeded end-to-end, False if anything failed.
         """
-        pass
+        logger.info("Beginning fit_and_predict_cross_validation")
+        results = []
+        for test_set in ["rwc", "uiowa", "philharmonia"]:
+            results.append(self.fit_and_predict_one(test_set))
+        final_result = all(results)
+        logger.info("Completed fit_and_predict_cross_validation. Result={}"
+                    .format(final_result))
+        return final_result

@@ -47,7 +47,8 @@ def clean(master_config):
 
     data_path = os.path.expanduser(config['paths/extract_dir'])
     # Clean data
-    answer = input("Are you sure you want to delete {} (y|s to skip): ".format(data_path))
+    answer = input("Are you sure you want to delete {} (y|s to skip): "
+                   .format(data_path))
     if answer in ['y', 'Y']:
         shutil.rmtree(data_path)
         logger.info("clean done.")
@@ -69,6 +70,25 @@ def extract_features(master_config):
     return result
 
 
+def run(master_config, experiment_name):
+    """Run an experiment end-to-end with cross validation.
+    Note: requires extracted features.
+    """
+    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Running experiment end-to-end."))
+
+    timer = utils.TimerHolder()
+    timer.start("run")
+    logger.debug("Running with experiment_name={} at {}"
+                 .format(experiment_name, timer.get_start("run")))
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
+    result = driver.fit_and_predict_cross_validation()
+    print("Experiment {} in duration {}".format(
+        utils.result_colored(result), timer.end("run")))
+    return result
+
+
 def fit_and_predict(master_config, experiment_name, test_set):
     """Runs:
     - train
@@ -76,15 +96,21 @@ def fit_and_predict(master_config, experiment_name, test_set):
     - predict
     - analyze
     """
-    # Step 1: train
-    train(master_config, experiment_name, test_set)
-    # Step 2: model selection
-    results_df = model_selection(master_config, experiment_name, test_set)
-    best_iter, best_param_file = driver.select_best_iteration(results_df)
-    # Step 3: predictions
-    predict(master_config, experiment_name, test_set, select_epoch=best_iter)
-    # Step 4: analysis
-    analyze(master_config, experiment_name, select_epoch=best_iter)
+    run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
+
+    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Running {} end-to-end.".format(run_name)))
+
+    timer = utils.TimerHolder()
+    timer.start(run_name)
+    logger.debug("Running with experiment_name={} at {}"
+                 .format(experiment_name, timer.get_start("run")))
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
+    result = driver.fit_and_predict_one(test_set)
+    print("{} - {} complted in duration {}".format(
+        run_name, utils.result_colored(result), timer.end(run_name)))
+    return result
 
 
 def train(master_config,
@@ -145,15 +171,6 @@ def model_selection(master_config,
     """
     print(utils.colored("Model Selection"))
     config = C.Config.from_yaml(master_config)
-
-    # load the valid_df of files to validate with.
-    model_dir = os.path.join(
-        os.path.expanduser(config["paths/model_dir"]),
-        experiment_name)
-    valid_df_path = os.path.join(
-        model_dir, config['experiment/data_split_format'].format(
-            "valid", test_set))
-    valid_df = pandas.read_pickle(valid_df_path)
 
     return driver.find_best_model(config,
                                   experiment_name=experiment_name,
@@ -227,6 +244,7 @@ def analyze(master_config,
 def notebook(master_config):
     """Launch the associated notebook."""
     print(utils.colored("Launching notebook."))
+    import pdb; pdb.set_trace()
     raise NotImplementedError("notebook not yet implemented")
 
 
@@ -280,9 +298,17 @@ def datastats(master_config):
 
 
 def test(master_config):
-    """Launch all unit tests."""
-    print(utils.colored("Running regression test on tinydata set."))
+    """Runs integration test.
+    This is equivalent to running
+    python manage.py -c data/integrationtest_config.yaml run
+    """
+    # Load integrationtest config
+    CONFIG_PATH = "./data/integrationtest_config.yaml"
 
+    print(utils.colored("Running regression test on tinydata set."))
+    result = run(CONFIG_PATH, experiment_name="integration_test")
+    print("IntegrationTest {}".format(utils.result_colored(result)))
+    return result
 
 
 if __name__ == "__main__":
