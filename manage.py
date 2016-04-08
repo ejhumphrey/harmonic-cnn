@@ -294,7 +294,11 @@ def datatest(master_config, show_full=False):
 
 def datastats(master_config):
     config = C.Config.from_yaml(master_config)
-    canonical_df = parse.print_stats(config)
+    print(utils.colored("Printing Stats."))
+
+    driver = wcqtlib.driver.Driver(config, load_features=False)
+    driver.print_stats()
+    return True
 
 
 def test(master_config):

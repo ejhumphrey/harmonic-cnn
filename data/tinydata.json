@@ -52,6 +52,19 @@
         "dataset": "philharmonia"
     },
     {
+        "audio_file": "tinyset/philharmonia/flute_G6_long_fortissimo_normal.mp3",
+        "source_key": "",
+        "note_number": "G6",
+        "start_time": 0.0,
+        "duration": 0.0,
+        "index": "",
+        "partition": "",
+        "features": {},
+        "instrument": "flute",
+        "dynamic": "fortissimo",
+        "dataset": "philharmonia"
+    },
+    {
         "audio_file": "tinyset/philharmonia/french-horn_E2_long_forte_normal.mp3",
         "source_key": "",
         "note_number": "E2",
@@ -122,11 +135,24 @@
         "note_number": "C1",
         "start_time": 0.0,
         "duration": 0.0,
-        "index": "p69d6ae51",
+        "index": "",
         "partition": "",
         "features": {},
         "instrument": "tuba",
         "dynamic": "mezzo-piano",
+        "dataset": "philharmonia"
+    },
+    {
+        "audio_file": "tinyset/philharmonia/violin_C4_15_fortissimo_arco-normal.mp3",
+        "source_key": "",
+        "note_number": "C4",
+        "start_time": 0.0,
+        "duration": 0.0,
+        "index": "",
+        "partition": "",
+        "features": {},
+        "instrument": "violin",
+        "dynamic": "fortissimo",
         "dataset": "philharmonia"
     },
     {
@@ -294,7 +320,7 @@
         "index": "",
         "partition": "",
         "features": {},
-        "instrument": "bass",
+        "instrument": "double-bass",
         "dynamic": "mezzo-forte",
         "dataset": "uiowa"
     },

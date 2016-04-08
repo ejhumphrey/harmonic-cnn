@@ -135,6 +135,36 @@ class Driver(object):
             self.dataset = wcqtlib.data.dataset.Dataset.read_json(
                 feature_ds_path, data_root=self.config['paths/data_dir'])
 
+    def print_stats(self):
+        dataset_df = self.dataset.to_df()
+        datasets = ["rwc", "uiowa", "philharmonia"]
+
+        def print_datasetcount(dataset):
+            print("{:<20} {:<30}".format(
+                "{} count".format(dataset),
+                len(dataset_df[dataset_df["dataset"] == dataset])))
+        for dataset in datasets:
+            print_datasetcount(dataset)
+
+        def print_dataset_instcount(df, instrument):
+            inst_filter = df[df["instrument"] == instrument]
+            print("{:<20} {:<30} {:<30} {:<30}".format(
+                "{} count".format(instrument),
+                len(inst_filter[inst_filter["dataset"] == "rwc"]),
+                len(inst_filter[inst_filter["dataset"] == "uiowa"]),
+                len(inst_filter[inst_filter["dataset"] == "philharmonia"])))
+
+        classmap = wcqtlib.common.labels.InstrumentClassMap()
+
+        print("---------------------------")
+        print("Datasets-Instrument count / dataset")
+        print("---------------------------")
+        print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format(
+            "item", "rwc", "uiowa", "philharmonia")))
+        for inst in sorted(dataset_df["instrument"].unique()):
+            if inst in classmap.allnames:
+                print_dataset_instcount(dataset_df, inst)
+
     def extract_features(self):
         """Extract CQTs from all files collected in collect."""
         updated_ds = wcqtlib.data.cqt.cqt_from_dataset(
