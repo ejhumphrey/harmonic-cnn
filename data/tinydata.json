@@ -321,7 +321,7 @@
         "partition": "",
         "features": {},
         "instrument": "double-bass",
-        "dynamic": "mezzo-forte",
+        "dynamic": "mf",
         "dataset": "uiowa"
     },
     {
@@ -334,7 +334,7 @@
         "partition": "",
         "features": {},
         "instrument": "bassoon",
-        "dynamic": "mezzo-forte",
+        "dynamic": "mf",
         "dataset": "uiowa"
     },
     {
@@ -347,7 +347,7 @@
         "partition": "",
         "features": {},
         "instrument": "clarinet",
-        "dynamic": "",
+        "dynamic": "ff",
         "dataset": "uiowa"
     },
     {

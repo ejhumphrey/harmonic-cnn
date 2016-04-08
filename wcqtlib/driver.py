@@ -17,6 +17,7 @@ import numpy as np
 import os
 import pandas
 import shutil
+import time
 
 import wcqtlib.common.config as C
 import wcqtlib.common.utils as utils
@@ -32,6 +33,14 @@ logger = logging.getLogger(__name__)
 
 
 class EarlyStoppingException(Exception):
+    pass
+
+
+class StaleFeaturesError(Exception):
+    pass
+
+
+class NoFeaturesException(Exception):
     pass
 
 
@@ -108,7 +117,37 @@ class Driver(object):
         utils.create_directory(self._cv_model_dir)
         utils.create_directory(self._params_dir)
 
-    def check_cross_validation_state(self):
+    @property
+    def param_format_str(self):
+        # Lazy instantiation for param_format_str
+        if not hasattr(self, "_param_format_str") or \
+                self._param_format_str is None:
+            # set up the param formatter.
+            max_iterations = self.config['training/max_iterations']
+            params_zero_pad = int(np.ceil(np.log10(max_iterations)))
+            param_format_str = self.config['experiment/params_format']
+            # insert the zero padding into the format string.
+            self._param_format_str = param_format_str.format(params_zero_pad)
+
+        return self._param_format_str
+
+    def _format_params_fn(self, model_iter):
+        "Convert the model iteration index into a params filename."
+        return self.param_format_str.format(model_iter)
+
+    def _format_predictions_fn(self, model_iter):
+        return os.path.join(
+            self._cv_model_dir,
+            self.config.get('experiment/predictions_format', None).format(
+                model_iter))
+
+    def _format_analysis_fn(self, model_iter):
+        return os.path.join(
+            self._cv_model_dir,
+            self.config.get('experiment/analysis_format', None).format(
+                model_iter))
+
+    def check_features_input(self):
         """Check to make sure everything's ready to run, including:
          * existing features
         """
@@ -132,8 +171,21 @@ class Driver(object):
         else:
             dataset_fn = os.path.basename(self._dataset_file)
             feature_ds_path = os.path.join(self._feature_dir, dataset_fn)
-            self.dataset = wcqtlib.data.dataset.Dataset.read_json(
-                feature_ds_path, data_root=self.config['paths/data_dir'])
+
+            if os.path.exists(feature_ds_path):
+                if time.ctime(os.path.getmtime(feature_ds_path)) < \
+                        time.ctime(os.path.getmtime(self._dataset_file)):
+                    logger.error(utils.colored(
+                        "Your features file is out of date; "
+                        "please re-run 'extract_features'.", "red"))
+                    raise StaleFeaturesError("Features file out of date.")
+
+                self.dataset = wcqtlib.data.dataset.Dataset.read_json(
+                    feature_ds_path, data_root=self.config['paths/data_dir'])
+            else:
+                logger.error("Features dataset does not exist; "
+                             "please run extract_features")
+                raise NoFeaturesException("Features file doesn't exist.")
 
     def print_stats(self):
         dataset_df = self.dataset.to_df()
@@ -209,7 +261,7 @@ class Driver(object):
 
         # Important paths & things to load.
         self._init_cross_validation(test_set)
-        if not self.check_cross_validation_state():
+        if not self.check_features_input():
             logger.error("train_model setup state invalid.")
             return False
 
@@ -223,11 +275,7 @@ class Driver(object):
 
         # Duration parameters
         max_iterations = self.config['training/max_iterations']
-        params_zero_pad = int(np.ceil(np.log10(max_iterations)))
         max_time = self.config['training/max_time']  # in seconds
-        param_format_str = self.config['experiment/params_format']
-        # insert the zero padding into the format string.
-        param_format_str = param_format_str.format(params_zero_pad)
 
         # Collect various necessary parameters
         t_len = self.config['training/t_len']
@@ -312,7 +360,8 @@ class Driver(object):
                 # save model, maybe
                 if iter_write_freq and (iter_count % iter_write_freq == 0):
                     save_path = os.path.join(
-                        self._params_dir, param_format_str.format(iter_count))
+                        self._params_dir,
+                        self.param_format_str.format(iter_count))
                     logger.debug("Writing params to {}".format(save_path))
                     model.save(save_path)
 
@@ -344,7 +393,8 @@ class Driver(object):
 
         # Make sure to save the final iteration's model.
         save_path = os.path.join(
-                        self._params_dir, param_format_str.format(iter_count))
+                        self._params_dir,
+                        self.param_format_str.format(iter_count))
         model.save(save_path)
         logger.info("Completed training for experiment: {}".format(
             self.experiment_name))
@@ -377,8 +427,8 @@ class Driver(object):
         """
         logger.info("Finding best model for {}".format(
             utils.colored(self.experiment_name, "magenta")))
-        if not self.check_cross_validation_state():
-            logger.error("train_model setup state invalid.")
+        if not self.check_features_input():
+            logger.error("find_best_model features missing invalid.")
             return False
 
         validation_df = pandas.read_pickle(self._valid_df_save_path)
@@ -432,75 +482,68 @@ class Driver(object):
             The iteration number which produced the best model.
         """
         best = model_selection_df.loc[model_selection_df["mean_acc"].argmax()]
+        return best["model_iteration"]
 
-        return best["model_iteration"], os.path.basename(best["model_file"])
-
-    def predict(self, selected_model_file, features_df_override=None):
+    def predict(self, model_iter):
         """Generates a prediction for *all* files, and writes them to disk
         as a dataframe.
 
         If features_df_override, replace the features_df with this
         dataframe (for testing)
         """
+        if not self.check_features_input():
+            logger.error("predict - features missing.")
+            return False
+
         logger.info("Evaluating experient {} with params from iter {}".format(
             utils.colored(self.experiment_name, "magenta"),
-            utils.colored(selected_model_file, "cyan")))
-        model_iter = utils.iter_from_params_filepath(selected_model_file)
-
-        logger.info("Loading DataFrame...")
-        if features_df_override is None:
-            features_path = os.path.join(
-                os.path.expanduser(self.config["paths/extract_dir"]),
-                self.config["dataframes/features"])
-            features_df = pandas.read_pickle(features_path)
-        else:
-            features_df = features_df_override
+            utils.colored(model_iter, "cyan")))
+        selected_param_file = self._format_params_fn(model_iter)
 
         original_config = C.Config.from_yaml(self._experiment_config_path)
         params_file = os.path.join(self._params_dir,
-                                   selected_model_file)
+                                   selected_param_file)
         slicer = get_slicer_from_network_def(original_config['model'])
 
         logger.info("Deserializing Network & Params...")
         model = models.NetworkManager.deserialize_npz(params_file)
 
-        predictions_df_path = os.path.join(
-            self._cv_model_dir,
-            self.config.get('experiment/predictions_format',
-                            self.config.get(
-                                'experiment/predictions_format', None)
-                           ).format(model_iter))
+        dataset_df = self.dataset.to_df()
+        logger.debug("Predicting across {} files.".format(
+            len(dataset_df['cqt'].nonzero()[0])))
+
+        predictions_df_path = self._format_predictions_fn(model_iter)
 
         t_len = original_config['training/t_len']
         logger.info("Running evaluation on all files...")
         predictions_df = wcqtlib.evaluate.predict.predict_many(
-            features_df, model, slicer, t_len, show_progress=True)
+            dataset_df, model, slicer, t_len, show_progress=True)
         predictions_df.to_pickle(predictions_df_path)
         return predictions_df
 
-    def analyze(self, model_name, test_set):
-        import pdb; pdb.set_trace()
+    def analyze_from_predictions(self, model_iter, test_set):
+        """Loads predictions from a file before calling analyze."""
+        original_config = C.Config.from_yaml(self._experiment_config_path)
+        analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer.from_config(
+            original_config, self.experiment_name, model_iter, test_set)
+
+        analysis_path = self._format_analysis_fn(model_iter)
+        logger.info("Saving analysis to:".format(analysis_path))
+        analyzer.save(analysis_path)
+
+        return os.path.exists(analysis_path)
+
+    def analyze(self, predictions, model_iter):
         logger.info("Evaluating experient {} with params from {}".format(
             utils.colored(self.experiment_name, "magenta"),
-            utils.colored(model_name, "cyan")))
+            utils.colored(model_iter, "cyan")))
 
-        experiment_dir = os.path.join(
-            os.path.expanduser(config['paths/model_dir']),
-            experiment_name)
-        experiment_config_path = os.path.join(experiment_dir,
-                                              config['experiment/config_path'])
-        original_config = C.Config.from_yaml(experiment_config_path)
-
-        analyzer = wcqtlib.analyze.PredictionAnalyzer.from_config(
-            original_config, experiment_name, model_name, test_set)
-        analysis_path = os.path.join(
-            experiment_dir,
-            original_config.get('experiment/analysis_format',
-                                config.get('experiment/analysis_format', None))
-            .format(model_name))
-        logger.info("Saving analysis to:", analysis_path)
+        analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer(predictions)
+        analysis_path = self._format_analysis_fn(model_iter)
+        logger.info("Saving analysis to:".format(analysis_path))
         analyzer.save(analysis_path)
-        return analyzer
+
+        return os.path.exists(analysis_path)
 
     def fit_and_predict_one(self, test_set):
         """On a particular model, with a given set
@@ -523,14 +566,14 @@ class Driver(object):
         # Step 2: model selection
         if result:
             results_df = self.find_best_model(test_set)
-            best_iter, best_param_file = self.select_best_iteration(results_df)
+            best_iter = self.select_best_iteration(results_df)
 
             # Step 3: predictions
-            result = self.predict(best_iter)
+            predictions = self.predict(best_iter)
 
             # Step 4: analysis
             if result:
-                self.analyze(select_epoch=best_iter)
+                self.analyze(predictions, best_iter)
             else:
                 logger.error("Problem predicting on {}".format(test_set))
         else:

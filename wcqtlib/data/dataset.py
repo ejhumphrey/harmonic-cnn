@@ -21,6 +21,10 @@ SCHEMA_PATH = "https://raw.githubusercontent.com/ejhumphrey/minst-dataset/" \
               "master/minst/schema/observation.json"
 
 
+class MissingDataException(Exception):
+    pass
+
+
 def get_remote_schema(url=SCHEMA_PATH):
     try:
         return requests.get(url).json()
@@ -122,6 +126,9 @@ class Dataset(object):
         def safe_obs(obs, data_root=None):
             "Get dict from an Observation if an observation, else just dict"
             if not os.path.exists(obs['audio_file']) and data_root:
+                if not os.path.exists(data_root):
+                    raise MissingDataException(
+                        "Input data {} missing; have you extracted the zip?")
                 new_audio = os.path.join(data_root, obs['audio_file'])
                 if os.path.exists(new_audio):
                     obs['audio_file'] = new_audio

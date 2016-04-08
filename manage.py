@@ -241,13 +241,6 @@ def analyze(master_config,
     return 0
 
 
-def notebook(master_config):
-    """Launch the associated notebook."""
-    print(utils.colored("Launching notebook."))
-    import pdb; pdb.set_trace()
-    raise NotImplementedError("notebook not yet implemented")
-
-
 def datatest(master_config, show_full=False):
     """Check your generated data."""
     config = C.Config.from_yaml(master_config)
@@ -307,10 +300,17 @@ def test(master_config):
     python manage.py -c data/integrationtest_config.yaml run
     """
     # Load integrationtest config
-    CONFIG_PATH = "./data/integrationtest_config.yaml"
+    features_result, run_result = False, False
 
-    print(utils.colored("Running regression test on tinydata set."))
-    result = run(CONFIG_PATH, experiment_name="integration_test")
+    CONFIG_PATH = "./data/integrationtest_config.yaml"
+    print(utils.colored("Extracting features from tinydata set."))
+    features_result = extract_features(CONFIG_PATH)
+
+    if features_result:
+        print(utils.colored("Running regression test on tinydata set."))
+        run_result = run(CONFIG_PATH, experiment_name="integration_test")
+
+    result = all([features_result, run_result])
     print("IntegrationTest {}".format(utils.result_colored(result)))
     return result
 
@@ -358,8 +358,6 @@ if __name__ == "__main__":
     analyze_parser.add_argument('-s', '--select_epoch',
                                 default=None)
     analyze_parser.set_defaults(func=analyze)
-    notebook_parser = subparsers.add_parser('notebook')
-    notebook_parser.set_defaults(func=notebook)
 
     # Tests
     datatest_parser = subparsers.add_parser('datatest')
