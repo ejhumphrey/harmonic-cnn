@@ -300,17 +300,26 @@ def test(master_config):
     python manage.py -c data/integrationtest_config.yaml run
     """
     # Load integrationtest config
-    features_result, run_result = False, False
+    results = []
 
-    CONFIG_PATH = "./data/integrationtest_config.yaml"
+    INT_CONFIG_PATHS = [
+        "./data/integrationtest_config_cqt.yaml",
+        "./data/integrationtest_config_wcqt.yaml"
+        # "./data/integrationtest_config_hcqt.yaml"
+        ]
+
     print(utils.colored("Extracting features from tinydata set."))
-    features_result = extract_features(CONFIG_PATH)
+    results.append(extract_features(INT_CONFIG_PATHS[0]))
 
-    if features_result:
-        print(utils.colored("Running regression test on tinydata set."))
-        run_result = run(CONFIG_PATH, experiment_name="integration_test")
+    if results[-1]:
+        for config in INT_CONFIG_PATHS:
+            print(utils.colored(
+                "Running regression test on tinydata set : {}."
+                .format(config)))
+            results.append(
+                run(config, experiment_name="integration_test"))
 
-    result = all([features_result, run_result])
+    result = all(results)
     print("IntegrationTest {}".format(utils.result_colored(result)))
     return result
 
