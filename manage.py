@@ -133,18 +133,10 @@ def train(master_config,
     print(utils.colored("Training experiment: {}".format(experiment_name)))
     logger.info("Training with test set {}".format(test_set))
     config = C.Config.from_yaml(master_config)
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
 
-    if dataset:
-        driver.train_model(config,
-                           dataset,
-                           model_selector=model_definition,
-                           experiment_name=experiment_name,
-                           test_set=test_set,
-                           max_files_per_class=max_files_per_class)
-        return True
-    else:
-        logger.error("Dataset load failed.")
-        return False
+    return driver.train_model(test_set)
 
 
 def model_selection(master_config,
@@ -280,9 +272,9 @@ def datatest(master_config, show_full=False):
     print(utils.colored("{} files could not be opened".format(
                         len(bad_files)), "red"))
     if bad_files:
-        print("Unable to open the following audio files:")
+        logger.error("Unable to open the following audio files:")
         for filepath in bad_files:
-            print(filepath)
+            logger.error(filepath)
 
 
 def datastats(master_config):

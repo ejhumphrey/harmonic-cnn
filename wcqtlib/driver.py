@@ -183,7 +183,7 @@ class Driver(object):
                 self.dataset = wcqtlib.data.dataset.Dataset.read_json(
                     feature_ds_path, data_root=self.config['paths/data_dir'])
             else:
-                logger.error("Features dataset does not exist; "
+                 logger.error("Features dataset does not exist; "
                              "please run extract_features")
                 raise NoFeaturesException("Features file doesn't exist.")
 
