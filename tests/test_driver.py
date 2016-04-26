@@ -9,7 +9,7 @@ import pytest
 import wcqtlib.common.config as C
 import wcqtlib.data.dataset as dataset
 import wcqtlib.data.cqt
-import wcqtlib.driver as driver
+import wcqtlib.driver
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig({
@@ -66,13 +66,16 @@ def test_train_simple_model(workspace, tiny_feats):
     thisconfig = copy.deepcopy(config)
     thisconfig.data['training']['max_iterations'] = 200
     thisconfig.data['training']['batch_size'] = 12
+    thisconfig.data['training']['max_files_per_class'] = 1
     thisconfig.data['paths']['model_dir'] = workspace
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver.train_model(thisconfig, tiny_feats, 'cqt_iX_f1_oY',
-                       experiment_name, hold_out,
-                       max_files_per_class=1)
+    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
+                                   load_features=True)
+
+    result = driver.train_model(hold_out)
+    assert result is True
 
     # Expected files this should generate
     new_config = os.path.join(workspace, experiment_name, "config.yaml")
@@ -99,6 +102,7 @@ def test_find_best_model(workspace):
     thisconfig.data['training']['iteration_print_frequency'] = 10
     thisconfig.data['training']['max_iterations'] = 200
     thisconfig.data['training']['batch_size'] = 12
+    thisconfig.data['training']['max_files_per_class'] = 3
     thisconfig.data['paths']['model_dir'] = workspace
     thisconfig.data['experiment']['hold_out_set'] = "rwc"
     experiment_name = "testexperiment"
@@ -109,9 +113,11 @@ def test_find_best_model(workspace):
         thisconfig['experiment/data_split_format'].format(
             "valid", hold_out))
 
-    driver.train_model(thisconfig, 'cqt_iX_f1_oY',
-                       experiment_name, hold_out,
-                       max_files_per_class=3)
+    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
+                                   load_features=True)
+    result = driver.train_model(hold_out)
+    assert result is True
+
     # This should have been created by the training process.
     assert os.path.exists(valid_df_path)
 
@@ -120,25 +126,21 @@ def test_find_best_model(workspace):
     valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size)
     assert len(valid_df) == validation_size
 
-    results_df = driver.find_best_model(thisconfig, experiment_name, valid_df,
-                                        plot_loss=False)
+    results_df = driver.find_best_model(valid_df, plot_loss=False)
     # check that the results_df is ordered by iteration.
     assert all(results_df["model_iteration"] ==
                sorted(results_df["model_iteration"]))
 
     # Get the best param
-    param_iter, best_param_file = driver.select_best_iteration(results_df)
-    assert best_param_file is not None
+    param_iter = driver.select_best_iteration(results_df)
+    assert param_iter is not None
 
     # load it again to test the reloading thing.
     #  Just making sure this runs through
-    results_df2 = driver.find_best_model(thisconfig, experiment_name, valid_df,
-                                         plot_loss=False)
+    results_df2 = driver.find_best_model(valid_df, plot_loss=False)
     assert all(results_df == results_df2)
 
-    predictions_df = driver.predict(
-        thisconfig, experiment_name,
-        best_param_file, features_df_override=valid_df)
+    predictions_df = driver.predict(param_iter)
     assert not predictions_df.empty
     predictions_df_path = os.path.join(
         workspace, experiment_name,
