@@ -1,21 +1,30 @@
 import argparse
 import logging
-import logging.config
-import pandas
+import numpy as np
 import os
+import pandas
+import shutil
 import sys
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
+import wcqtlib.common.utils as utils
+import wcqtlib.data.dataset
 import wcqtlib.data.parse as parse
 import wcqtlib.data.extract as E
 import wcqtlib.data.cqt
-import wcqtlib.train.driver as driver
-import wcqtlib.common.utils as utils
+import wcqtlib.driver
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
 
 logger = logging.getLogger(__name__)
+
+
+def run_process_if_not_exists(process, filepath, **kwargs):
+    if not os.path.exists(filepath):
+        return process(**kwargs)
+    else:
+        return True
 
 
 def save_canonical_files(master_config):
@@ -32,32 +41,81 @@ def save_canonical_files(master_config):
     return success
 
 
-def collect(master_config, skip_notes=False):
-    """Prepare dataframes of notes for experiments."""
+def clean(master_config):
+    """Clean dataframes and extracted audio/features."""
     config = C.Config.from_yaml(master_config)
 
-    print(utils.colored("Parsing directories to collect datasets"))
-    parse_result = parse.parse_files_to_dataframe(config)
-
-    extract_result = True
-    if not skip_notes:
-        print(utils.colored("Spliting audio files to notes."))
-        extract_result = E.extract_notes(config)
-
-    return all([parse_result,
-                extract_result])
+    data_path = os.path.expanduser(config['paths/extract_dir'])
+    # Clean data
+    answer = input("Are you sure you want to delete {} (y|s to skip): "
+                   .format(data_path))
+    if answer in ['y', 'Y']:
+        shutil.rmtree(data_path)
+        logger.info("clean done.")
+    elif answer in ['s', 'S']:
+        return True
+    else:
+        print("Exiting")
+        sys.exit(1)
 
 
 def extract_features(master_config):
     """Extract CQTs from all files collected in collect."""
     config = C.Config.from_yaml(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
-    success = wcqtlib.data.cqt.cqt_from_df(config, **config["features/cqt"])
-    return success
+
+    driver = wcqtlib.driver.Driver(config, load_features=False)
+    result = driver.extract_features()
+    print("Extraction {}".format(utils.result_colored(result)))
+    return result
+
+
+def run(master_config, experiment_name):
+    """Run an experiment end-to-end with cross validation.
+    Note: requires extracted features.
+    """
+    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Running experiment end-to-end."))
+
+    timer = utils.TimerHolder()
+    timer.start("run")
+    logger.debug("Running with experiment_name={} at {}"
+                 .format(experiment_name, timer.get_start("run")))
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
+    result = driver.fit_and_predict_cross_validation()
+    print("Experiment {} in duration {}".format(
+        utils.result_colored(result), timer.end("run")))
+    return result
+
+
+def fit_and_predict(master_config, experiment_name, test_set):
+    """Runs:
+    - train
+    - model_selection_df
+    - predict
+    - analyze
+    """
+    run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
+
+    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Running {} end-to-end.".format(run_name)))
+
+    timer = utils.TimerHolder()
+    timer.start(run_name)
+    logger.debug("Running with experiment_name={} at {}"
+                 .format(experiment_name, timer.get_start("run")))
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
+    result = driver.fit_and_predict_one(test_set)
+    print("{} - {} complted in duration {}".format(
+        run_name, utils.result_colored(result), timer.end(run_name)))
+    return result
 
 
 def train(master_config,
-          experiment_name):
+          experiment_name,
+          test_set):
     """Run training loop.
 
     Parameters
@@ -67,24 +125,23 @@ def train(master_config,
 
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
+
+    test_set : str
+        String in ["rwc", "uiowa", "philharmonia"] specifying which
+        dataset to use as the test set.
     """
-    print(utils.colored("Training"))
+    print(utils.colored("Training experiment: {}".format(experiment_name)))
+    logger.info("Training with test set {}".format(test_set))
     config = C.Config.from_yaml(master_config)
+    driver = wcqtlib.driver.Driver(config, experiment_name,
+                                   load_features=True)
 
-    model_definition = config["model"]
-    hold_out_set = config["experiment/hold_out_set"]
-    max_files_per_class = config.get(
-        "training/max_files_per_class", None)
-
-    driver.train_model(config,
-                       model_selector=model_definition,
-                       experiment_name=experiment_name,
-                       hold_out_set=hold_out_set,
-                       max_files_per_class=max_files_per_class)
+    return driver.train_model(test_set)
 
 
 def model_selection(master_config,
                     experiment_name,
+                    test_set,
                     plot_loss=False):
     """Perform model selection on the validation set.
 
@@ -96,6 +153,10 @@ def model_selection(master_config,
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
+    test_set : str
+        String in ["rwc", "uiowa", "philharmonia"] specifying which
+        dataset to use as the test set.
+
     plot_loss : bool
         If true, uses matplotlib to non-blocking plot the loss
         at each validation.
@@ -103,25 +164,15 @@ def model_selection(master_config,
     print(utils.colored("Model Selection"))
     config = C.Config.from_yaml(master_config)
 
-    hold_out_set = config["experiment/hold_out_set"]
-
-    # load the valid_df of files to validate with.
-    model_dir = os.path.join(
-        os.path.expanduser(config["paths/model_dir"]),
-        experiment_name)
-    valid_df_path = os.path.join(
-        model_dir, config['experiment/data_split_format'].format(
-            "valid", hold_out_set))
-    valid_df = pandas.read_pickle(valid_df_path)
-
-    driver.find_best_model(config,
-                           experiment_name=experiment_name,
-                           validation_df=valid_df,
-                           plot_loss=plot_loss)
+    return driver.find_best_model(config,
+                                  experiment_name=experiment_name,
+                                  validation_df=valid_df,
+                                  plot_loss=plot_loss)
 
 
 def predict(master_config,
             experiment_name,
+            test_set,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
@@ -140,8 +191,13 @@ def predict(master_config,
     print(utils.colored("Evaluating"))
     config = C.Config.from_yaml(master_config)
 
-    selected_model_file = "params{}.npz".format(select_epoch) \
-        if select_epoch else "final.npz"
+    max_iterations = config['training/max_iterations']
+    params_zero_pad = int(np.ceil(np.log10(max_iterations)))
+    param_format_str = config['experiment/params_format']
+    param_format_str = param_format_str.format(params_zero_pad)
+    selected_model_file = param_format_str.format(select_epoch) \
+        if str(select_epoch).isdigit() else "{}.npz".format(
+            select_epoch)
 
     results = driver.predict(
         config, experiment_name, selected_model_file)
@@ -177,18 +233,17 @@ def analyze(master_config,
     return 0
 
 
-def notebook(master_config):
-    """Launch the associated notebook."""
-    print(utils.colored("Launching notebook."))
-    raise NotImplementedError("notebook not yet implemented")
-
-
 def datatest(master_config, show_full=False):
     """Check your generated data."""
     config = C.Config.from_yaml(master_config)
     datasets_path = os.path.join(
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/datasets'])
+
+    # Regenerate the datasets_df to make sure it's not stale.
+    if not collect(master_config, clean_data=False):
+        logger.error("Failed to regenerate datasets_df.")
+
     datasets_df = pandas.read_json(datasets_path)
     logger.info("Your datasets_df has {} records".format(len(datasets_df)))
 
@@ -204,64 +259,106 @@ def datatest(master_config, show_full=False):
         for index, row in diff_df.iterrows():
             print("{:<40}\t{:<20}\t{:<15}".format(
                 index, row['dirnamecan'], row['datasetcan']))
-        return 1
     else:
         print(utils.colored("You're all set; your dataset matches.", "green"))
-        return 0
+
+    print(utils.colored("Now checking all files for validity."))
+
+    classmap = wcqtlib.data.parse.InstrumentClassMap()
+    filtered_df = datasets_df[datasets_df["instrument"].isin(
+        classmap.allnames)]
+    bad_files = E.check_valid_audio_files(filtered_df,
+                                          write_path="bad_file_reads.txt")
+    print(utils.colored("{} files could not be opened".format(
+                        len(bad_files)), "red"))
+    if bad_files:
+        logger.error("Unable to open the following audio files:")
+        for filepath in bad_files:
+            logger.error(filepath)
 
 
 def datastats(master_config):
     config = C.Config.from_yaml(master_config)
-    canonical_df = parse.print_stats(config)
+    print(utils.colored("Printing Stats."))
+
+    driver = wcqtlib.driver.Driver(config, load_features=False)
+    driver.print_stats()
+    return True
 
 
 def test(master_config):
-    """Launch all unit tests."""
-    print(utils.colored("Running unit tests."))
-    raise NotImplementedError("notebook not yet implemented")
+    """Runs integration test.
+    This is equivalent to running
+    python manage.py -c data/integrationtest_config.yaml run
+    """
+    # Load integrationtest config
+    results = []
+
+    INT_CONFIG_PATHS = [
+        "./data/integrationtest_config_cqt.yaml",
+        "./data/integrationtest_config_wcqt.yaml"
+        # "./data/integrationtest_config_hcqt.yaml"
+        ]
+
+    print(utils.colored("Extracting features from tinydata set."))
+    results.append(extract_features(INT_CONFIG_PATHS[0]))
+
+    if results[-1]:
+        for config in INT_CONFIG_PATHS:
+            print(utils.colored(
+                "Running regression test on tinydata set : {}."
+                .format(config)))
+            results.append(
+                run(config, experiment_name="integration_test"))
+
+    result = all(results)
+    print("IntegrationTest {}".format(utils.result_colored(result)))
+    return result
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--master_config", default=CONFIG_PATH)
+    parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
     subparsers = parser.add_subparsers()
     save_canonical_parser = subparsers.add_parser('save_canonical_files')
     save_canonical_parser.set_defaults(func=save_canonical_files)
 
-    collect_parser = subparsers.add_parser('collect')
-    collect_parser.add_argument('--skip_notes', action='store_true',
-                                help="Don't extract notes from files.")
-    collect_parser.set_defaults(func=collect)
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
+
+    fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
+    fit_and_predict_parser.add_argument('experiment_name',
+                                        help="Name of the experiment. "
+                                        "Files go in a directory of "
+                                        "this name.")
+    fit_and_predict_parser.add_argument('test_set',
+                                        help="Dataset to use for hold-out.")
+    fit_and_predict_parser.set_defaults(func=fit_and_predict)
+
     train_parser = subparsers.add_parser('train')
     train_parser.add_argument('experiment_name',
                               help="Name of the experiment. "
                                    "Files go in a directory of this name.")
+    train_parser.add_argument('test_set',
+                              help="Dataset to use for hold-out.")
     train_parser.set_defaults(func=train)
-    modelselect_parser = subparsers.add_parser('model_selection')
-    modelselect_parser.add_argument('experiment_name',
-                                    help="Name of the experiment. "
-                                    "Files go in a directory of this name.")
-    modelselect_parser.add_argument('-p', '--plot_loss', action="store_true")
-    modelselect_parser.set_defaults(func=model_selection)
     predict_parser = subparsers.add_parser('predict')
     predict_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
+                                help="Name of the experiment. "
+                                     "Files go in a directory of this name.")
+    predict_parser.add_argument('test_set',
+                                help="Dataset to use for hold-out.")
     predict_parser.add_argument('-s', '--select_epoch',
-                                 default=None, type=int)
+                                default=None, type=int)
     predict_parser.set_defaults(func=predict)
     analyze_parser = subparsers.add_parser('analyze')
     analyze_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
+                                help="Name of the experiment. "
+                                     "Files go in a directory of this name.")
     analyze_parser.add_argument('-s', '--select_epoch',
-                                 default=None)
+                                default=None)
     analyze_parser.set_defaults(func=analyze)
-    notebook_parser = subparsers.add_parser('notebook')
-    notebook_parser.set_defaults(func=notebook)
 
     # Tests
     datatest_parser = subparsers.add_parser('datatest')
@@ -273,31 +370,7 @@ if __name__ == "__main__":
     test_parser = subparsers.add_parser('test')
     test_parser.set_defaults(func=test)
 
-    # TODO MOve this to a file config.
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'standard': {
-                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-            },
-        },
-        'handlers': {
-            'default': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': "standard"
-            },
-        },
-        'loggers': {
-            '': {
-                'handlers': ['default'],
-                'level': 'DEBUG',
-                'propagate': True
-            }
-        }
-    })
-    # logging.basicConfig(level=logging.DEBUG)
+    utils.setup_logging(logging.INFO)
 
     args = vars(parser.parse_args())
     fx = args.pop('func', None)

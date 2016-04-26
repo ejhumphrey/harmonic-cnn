@@ -39,6 +39,16 @@ def test_unzip():
         assert os.path.exists(dir_path) and os.path.isdir(dir_path)
 
 
+@pytest.mark.skipif(True, reason='todo')
+def test_slice_ndarray():
+    assert False
+
+
+@pytest.mark.skipif(True, reason='todo')
+def test_colored():
+    assert False
+
+
 def test_iter_from_params_filepath():
     tests = [
         ("foo/bar/params/params0500.npz", "0500"),

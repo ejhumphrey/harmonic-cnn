@@ -6,7 +6,7 @@ import pandas
 import pytest
 import sys
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
 import wcqtlib.train.streams as streams
 import wcqtlib.train.models as models
 
@@ -19,7 +19,8 @@ config = C.Config.from_yaml(CONFIG_PATH)
 
 EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
 features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
+features_df = pandas.read_pickle(features_path) \
+    if os.path.exists(features_path) else pandas.DataFrame()
 
 
 @pytest.fixture
@@ -269,6 +270,8 @@ def test_networkmanager_train_and_predict(simple_network_def):
 
 @pytest.mark.cqt
 @pytest.mark.slowtest
+@pytest.mark.skipif(features_df.empty,
+                    reason="No Available features.")
 def test_overfit_two_samples_cqt():
     """Prove that our network works by training it with two random files
     from our dataset, intentionally overfitting it.
@@ -323,6 +326,8 @@ def test_overfit_two_samples_cqt():
 
 @pytest.mark.wcqt
 @pytest.mark.slowtest
+@pytest.mark.skipif(features_df.empty,
+                    reason="No Available features.")
 def test_overfit_two_samples_wcqt():
     """Prove that our network works by training it with two random files
     from our dataset, intentionally overfitting it.

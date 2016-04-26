@@ -1,6 +1,10 @@
+import claudio
+import datetime
+import logging.config
 import numpy as np
 import os
 import re
+import wave
 import zipfile
 
 import colorama
@@ -171,3 +175,142 @@ def iter_from_params_filepath(params_filepath):
     """
     basename = os.path.basename(params_filepath)
     return re.search('\d+|final', basename).group(0)
+
+
+class TimerHolder(object):
+    def __init__(self):
+        self.timers = {}
+
+    def start(self, tuple_or_list):
+        """
+        Note: tuples can be keys.
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list] = [datetime.datetime.now(), None]
+        elif isinstance(tuple_or_list, list):
+            for key in tuple_or_list:
+                self.timers[key] = [datetime.datetime.now(), None]
+
+    def end(self, tuple_or_list):
+        """
+        Parameters
+        ----------
+        tuple_or_list : str or list of str
+        """
+        if isinstance(tuple_or_list, (str, tuple)):
+            self.timers[tuple_or_list][1] = datetime.datetime.now()
+            return self.timers[tuple_or_list][1] - \
+                self.timers[tuple_or_list][0]
+        elif isinstance(tuple_or_list, list):
+            results = []
+            for key in tuple_or_list:
+                self.timers[key][1] = datetime.datetime.now()
+                results += [self.timers[key][1] - self.timers[key][0]]
+            return results
+
+    def get(self, key):
+        if key in self.timers:
+            if self.timers[key][1]:
+                return self.timers[key][1] - self.timers[key][0]
+            else:
+                return self.timers[key][0]
+        else:
+            return None
+
+    def get_start(self, key):
+        return self.timers.get(key, None)[0]
+
+    def get_end(self, key):
+        return self.timers.get(key, None)[1]
+
+    def mean(self, key_root, start_ind, end_ind):
+        keys = [(key_root, x) for x in range(max(start_ind, 0), end_ind)]
+        values = [self.get(k) for k in keys if k in self.timers]
+        return np.mean(values)
+
+
+def check_audio_file(filename, min_duration=0.0):
+    """Check the integrity of an audio file.
+    Parameters
+    ----------
+    filename : str
+        Path to an audio file on disk.
+    min_duration : scalar, default=0.0
+        Minimum time duration for the audio file to be considered valid.
+    Returns
+    -------
+    status : bool
+        True if legit, False otherwise.
+    message : ExceptionType, or None
+        None on success, else the exception class capturing the death.
+    """
+    status = False
+    error = None
+    try:
+        aobj = claudio.fileio.AudioFile(filename, bytedepth=2)
+        status = aobj.duration >= min_duration
+    except (AssertionError, EOFError, wave.Error, ValueError) as derp:
+        # This is a claudio bug, eventually will be a SoX error
+        error = derp
+
+    return status, error
+
+
+def setup_logging(level):
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': level,
+                'class': 'logging.StreamHandler',
+                'formatter': "standard"
+            },
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': 'DEBUG',
+                'propagate': True
+            }
+        }
+    })
+    # logging.basicConfig(level=logging.DEBUG)
+
+
+def filter_df(unfiltered_df, instrument=None, datasets=[]):
+    """Return a view of the features_df looking at only
+    the instrument and datasets specified.
+    """
+    new_df = unfiltered_df.copy()
+
+    if instrument:
+        new_df = new_df[new_df["instrument"] == instrument]
+
+    if datasets:
+        new_df = new_df[new_df["dataset"].isin(datasets)]
+
+    return new_df
+
+
+def conditional_colored(value, minval, formatstr="{:0.3f}", color="green"):
+    val_str = formatstr.format(float(value))
+    if value < minval:
+        val_str = colored(val_str, color)
+    return val_str
+
+
+def result_colored(result):
+    "Returns green Success if result, else returns red False"
+    if result:
+        return colored("Success", "green")
+    else:
+        return colored("Failed", "red")

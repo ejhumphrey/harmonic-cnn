@@ -1,6 +1,6 @@
 import os
 import pytest
-import wcqtlib.config as config
+import wcqtlib.common.config as config
 
 DEFAULT_PATH = os.path.join(os.path.dirname(__file__),
                             os.pardir, "data", "master_config.yaml")

@@ -1,5 +1,5 @@
 paths:
-  data_dir: "~/data"
+  data_dir: "./data"
   extract_dir: "~/data/ismir2016-wcqt-data"
   feature_dir: "~/data/ismir2016-wcqt-data/cqt"
   model_dir: "~/data/ismir2016-wcqt-models"
@@ -10,11 +10,6 @@ data:
   canonical: "data/data.json"
 
 datasets: ["rwc", "uiowa", "philharmonia"]
-
-dataframes:
-  datasets: "datasets_df.json"
-  notes: "notes_df.pkl"
-  features: "features_df.pkl"
 
 extract:
   max_duration: 2.0
@@ -45,12 +40,12 @@ experiment:
 
 training:
   t_len: 8
-  max_iterations: 100000
-  max_time: 8000
-  batch_size: 60
+  max_iterations: 500
+  max_time: 10
+  batch_size: 12
   n_targets: 12
-  iteration_print_frequency: 100
-  iteration_write_frequency: 500
+  iteration_print_frequency: 25
+  iteration_write_frequency: 25
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9

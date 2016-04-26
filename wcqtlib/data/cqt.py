@@ -74,7 +74,7 @@ def harmonic_cqt(x_in, sr, hop_length=1024, fmin=27.5, n_bins=72,
                                   for x_c in x_in.T])[:, np.newaxis, ...]]
         min_tdim = min([cqt_spectra[-1].shape[2], min_tdim])
     cqt_spectra = [x[:, :, :min_tdim, :] for x in cqt_spectra]
-    
+
     return np.concatenate(cqt_spectra, axis=1)
 
 
@@ -132,23 +132,27 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
 
     logger.debug("[{0}] Audio conversion {1}".format(
         time.asctime(), input_file))
-    x, fs = claudio.read(input_file, **audio_params)
-    logger.debug("[{0}] Computing features {1}".format(
-        time.asctime(), input_file))
-    cqt_spectra = np.array([np.abs(librosa.cqt(x_c, sr=fs, **cqt_params).T)
-                            for x_c in x.T])
+    try:
+        x, fs = claudio.read(input_file, **audio_params)
+        logger.debug("[{0}] Computing features {1}".format(
+            time.asctime(), input_file))
+        cqt_spectra = np.array([np.abs(librosa.cqt(x_c, sr=fs, **cqt_params).T)
+                                for x_c in x.T])
 
-    cqt_params.update(**harmonic_params)
-    harm_spectra = harmonic_cqt(x, fs, **cqt_params)
+        cqt_params.update(**harmonic_params)
+        harm_spectra = harmonic_cqt(x, fs, **cqt_params)
 
-    frame_idx = np.arange(cqt_spectra.shape[1])
-    time_points = librosa.frames_to_time(
-        frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
-    logger.debug("[{0}] Saving: {1}".format(time.asctime(), output_file))
-    np.savez(
-        output_file, time_points=time_points,
-        cqt=np.abs(cqt_spectra).astype(np.float32),
-        harmonic_cqt=np.abs(harm_spectra).astype(np.float32))
+        frame_idx = np.arange(cqt_spectra.shape[1])
+        time_points = librosa.frames_to_time(
+            frame_idx, sr=fs, hop_length=cqt_params['hop_length'])
+        logger.debug("[{0}] Saving: {1}".format(time.asctime(), output_file))
+        np.savez(
+            output_file, time_points=time_points,
+            cqt=np.abs(cqt_spectra).astype(np.float32),
+            harmonic_cqt=np.abs(harm_spectra).astype(np.float32))
+    except AssertionError as e:
+        logger.error("Failed to load audio file: {} with error:\n{}".format(
+                     input_file, e))
     logger.debug("[{0}] Finished: {1}".format(time.asctime(), output_file))
     return os.path.exists(output_file)
 
@@ -180,34 +184,32 @@ def cqt_many(audio_files, output_files, cqt_params=None, audio_params=None,
 
     Returns
     -------
-    success : bool
-        True if all input files were processed successfully.
+    failed_files : array of audio_files
+        Array indicating which files failed to load.
     """
     pool = Parallel(n_jobs=num_cpus, verbose=50)
     dcqt = delayed(cqt_one)
     pairs = zip(audio_files, output_files)
-    return all(pool(dcqt(fin, fout, cqt_params, audio_params,
+    statuses = pool(dcqt(fin, fout, cqt_params, audio_params,
                          harmonic_params, skip_existing)
-                    for fin, fout in pairs))
+                    for fin, fout in pairs)
+    return [audio_files[i] for i, x in enumerate(statuses) if not x]
 
 
-def cqt_from_df(config,
-                cqt_params=None, audio_params=None, harmonic_params=None,
-                num_cpus=-1, verbose=50, skip_existing=True):
+def cqt_from_dataset(dataset, write_dir,
+                     cqt_params=None, audio_params=None, harmonic_params=None,
+                     num_cpus=-1, verbose=50, skip_existing=True):
     """Compute CQT representation over audio files referenced by
     a dataframe, and return a new dataframe also containing a column
     referencing the cqt files.
 
     Parameters
     ----------
-    config : config.Config
-        The config must specify the following keys:
-        extract_path : str
-            Folder in the data_root where process files will get dumped
-        notes_df_fn : str
-            Filename of notes_df in the extract_path.
-        features_df_fn : str
-            Filename of the features_df in the extract_path.
+    dataset : wcqtlib.data.Dataset
+        Dataset containing references to the audio files.
+
+    write_dir : str
+        Directory to write to.
 
     cqt_params : dict, default=None
         Parameters to use for CQT computation.
@@ -229,47 +231,35 @@ def cqt_from_df(config,
 
     Returns
     -------
-    success : bool
-        True if all files were processed successfully.
+    updated_dataset : data.dataset.Dataset
+        Dataset updated with parameters to the outputed features.
     """
-    extract_dir = os.path.expanduser(config["paths/extract_dir"])
-    cqt_dir = os.path.join(extract_dir, "cqt")
-    utils.create_directory(cqt_dir)
-    notes_df_path = os.path.join(extract_dir,
-                                 config["dataframes/notes"])
-    output_df_path = os.path.join(extract_dir,
-                                  config["dataframes/features"])
-    # Load the dataframe
-    notes_df = pandas.read_pickle(notes_df_path)
+    utils.create_directory(write_dir)
 
-    if any(notes_df["audio_file"] == False):
-        logger.error("There are 'False' audio files! {}".format(
-            utils.colored("Red Flag", "red")))
-        import pdb; pdb.set_trace()
-    # Clear out any bad values here.
-    features_df = notes_df.copy(deep=True)
+    ####
+    ## TODO IF skip_existing, try to reload the dataset with features
+    ## And modify it instead of replacing it.
 
     def features_path_for_audio(audio_path):
-        return os.path.join(cqt_dir,
+        return os.path.join(write_dir,
                             utils.filebase(audio_path) + ".npz")
 
-    audio_paths = features_df["audio_file"].tolist()
+    audio_paths = dataset.to_df()["audio_file"].tolist()
     cqt_paths = [features_path_for_audio(x) for x in audio_paths]
 
-    # Create a new column in the new dataframe pointing to these new paths
-    features_df["cqt"] = pandas.Series(cqt_paths, index=features_df.index)
+    failed_files = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
+                            harmonic_params, num_cpus, verbose, skip_existing)
+    logger.warning("{} files failed to extract.".format(len(failed_files)))
 
-    result = cqt_many(audio_paths, cqt_paths, cqt_params, audio_params,
-                      harmonic_params, num_cpus, verbose, skip_existing)
+    feats_ds = dataset.copy()
+    # Update the features field if the file was successfully created.
+    for i, path in enumerate(cqt_paths):
+        if os.path.exists(path):
+            feats_ds[i].features["cqt"] = path
+        else:
+            logger.warning("CQT Not successfully created: {}".format(path))
 
-    # If succeeded, write the new dataframe as a pkl.
-    if result:
-        features_df.to_pickle(output_df_path)
-        print("Created artifact: {}".format(
-                utils.colored(output_df_path, "cyan")))
-        return True
-    else:
-        return False
+    return feats_ds
 
 
 if __name__ == "__main__":

@@ -43,7 +43,8 @@ import pandas
 import re
 import sys
 
-import wcqtlib.config as C
+import wcqtlib.common.config as C
+import wcqtlib.common.labels
 import wcqtlib.common.utils as utils
 
 if not hasattr(os, 'scandir'):
@@ -266,6 +267,87 @@ def parse_uiowa_path(uiowa_path):
     return instrument, dynamic, notevalue
 
 
+def get_num_notes_from_uiowa_filename(uiowa_path):
+    """Return the expected number of notes in a UIowa filename if it can be
+    determined.
+
+    E.g.
+    Bb1B1 => 2
+    C4B4 => 12
+    C5Bb5 => 10
+    B3 => 1
+    booger => None
+
+    Parameters
+    ----------
+    filename : str
+        A filename potentially conforming to the UIowa MIS conventions.
+
+    Returns
+    -------
+    num_notes : int, or None
+        Number of notes expected to be in the file, or None if this
+        information cannot be confidently inferred.
+    """
+    instrument, dynamic, notevalue = parse_uiowa_path(uiowa_path)
+    result = None
+
+    if notevalue:
+        notes = re.findall(r"([A-F][b#]?[0-6])", notevalue)
+        if len(notes) == 1:
+            result = 1
+        elif len(notes) == 2:
+            # Get note distance
+            result = 1 + get_note_distance(notes)
+
+    return result
+
+
+def get_note_distance(note_pair):
+    """Get the distance in semitones between two named
+    notes.
+
+    E.g.
+    (Bb1, B1) => 1
+    (C4, B4) => 11
+    (C5, Bb5) => 10
+
+    Parameters
+    ----------
+    note_pair : tuple of ints
+
+    Returns
+    -------
+    note_distance : int
+    """
+    char_map = {'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11}
+
+    def apply_modifier(val, modifier):
+        if modifier == "#":
+            return val + 1
+        elif modifier == 'b':
+            return val - 1
+        else:
+            return val
+
+    # get the chars
+    first_note = [x for x in note_pair[0]]
+    second_note = [x for x in note_pair[1]]
+
+    first_name, first_oct = first_note[0], first_note[-1]
+    first_mod = first_note[1] if len(first_note) == 3 else None
+    second_name, second_oct = second_note[0], second_note[-1]
+    second_mod = second_note[1] if len(second_note) == 3 else None
+
+    base_dist = apply_modifier(char_map[second_name], second_mod) - \
+        apply_modifier(char_map[first_name], first_mod)
+
+    oct_diff = int(second_oct) - int(first_oct)
+    base_dist += (oct_diff * 12)
+
+    return base_dist
+
+
 def uiowa_to_dataframe(base_dir, dataset="uiowa"):
     """Convert a base directory of UIowa files to a pandas dataframe.
 
@@ -410,7 +492,7 @@ def normalize_instrument_names(datasets_df):
         A copy of your dataframe, with instruments only from
         the InstrumentClassMap
     """
-    classmap = InstrumentClassMap()
+    classmap = wcqtlib.common.labels.InstrumentClassMap()
     new_df = datasets_df.copy()
     for i in range(len(new_df)):
         old_class = new_df.iloc[i]["instrument"]
@@ -439,71 +521,6 @@ def load_dataframes(data_dir):
     logger.info("Total dataset records: {}".format(len(result)))
 
     return result
-
-
-class InstrumentClassMap(object):
-    """Class for handling map between class names and the
-    names they possibly could be from the datasets."""
-
-    def __init__(self, file_path=CLASS_MAP):
-        """
-        Parameters
-        ----------
-        file_path : str
-        """
-        with open(file_path, 'r') as fh:
-            self.data = json.load(fh)
-
-        # Create the reverse map so we can efficiently do the
-        # reverse lookup
-        self.reverse_map = {}
-        for classname in self.data:
-            for item in self.data[classname]:
-                self.reverse_map[item] = classname
-
-        self.index_map = {}
-        for i, classname in enumerate(sorted(self.data.keys())):
-            self.index_map[classname] = i
-
-    @property
-    def allnames(self):
-        """Return a complete list of all class names for searching the
-        dataframe."""
-        return sorted(self.reverse_map.keys())
-
-    @property
-    def classnames(self):
-        return sorted(self.data.keys())
-
-    def __getitem__(self, searchkey):
-        """Get the actual class name. (Actually the reverse map)."""
-        return self.reverse_map.get(searchkey, None)
-
-    def get_index(self, searchkey):
-        """Get the class index for training.
-
-        This is actually the index of the sorted keys.
-
-        Parameters
-        ----------
-        searchkey : str
-
-        Returns
-        -------
-        index : int
-        """
-        return self.index_map[self[searchkey]]
-
-    def from_index(self, index):
-        """Get the instrument name for an index."""
-        return sorted(self.data.keys())[index]
-
-    @property
-    def size(self):
-        """Return the size of the index map (the number of
-        data keys)
-        """
-        return len(self.data.keys())
 
 
 def parse_files_to_dataframe(config):
@@ -543,75 +560,6 @@ def parse_files_to_dataframe(config):
             return True
     finally:
         return False
-
-
-def print_stats(config):
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-    notes_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/notes'])
-    features_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/features'])
-    datasets_df = pandas.read_json(datasets_path) \
-        if os.path.exists(datasets_path) else \
-        pandas.DataFrame(columns=["dataset", "instrument"])
-    notes_df = pandas.read_pickle(notes_path) \
-        if os.path.exists(datasets_path) else \
-        pandas.DataFrame(columns=["dataset", "instrument"])
-    features_df = pandas.read_pickle(features_path) \
-        if os.path.exists(datasets_path) else \
-        pandas.DataFrame(columns=["dataset", "instrument"])
-
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format(
-        "item", "datasets_df", "notes_df", "features_df")))
-    print("{:<20} {:<30} {:<30} {:<30}".format(
-        "count", len(datasets_df), len(notes_df), len(features_df)))
-
-    datasets = ["rwc", "uiowa", "philharmonia"]
-
-    def print_datasetcount(dataset):
-        print("{:<20} {:<30} {:<30} {:<30}".format(
-            "{} count".format(dataset),
-            len(datasets_df[datasets_df["dataset"] == dataset]),
-            len(notes_df[notes_df["dataset"] == dataset]),
-            len(features_df[features_df["dataset"] == dataset])))
-    for dataset in datasets:
-        print_datasetcount(dataset)
-
-    def print_dataset_instcount(df, instrument):
-        inst_filter = df[df["instrument"] == instrument]
-        print("{:<20} {:<30} {:<30} {:<30}".format(
-            "{} count".format(instrument),
-            len(inst_filter[inst_filter["dataset"] == "rwc"]),
-            len(inst_filter[inst_filter["dataset"] == "uiowa"]),
-            len(inst_filter[inst_filter["dataset"] == "philharmonia"])))
-
-    classmap = InstrumentClassMap()
-
-    print("---------------------------")
-    print("Datasets-Instrument count / dataset")
-    print("---------------------------")
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
-    for inst in sorted(datasets_df["instrument"].unique()):
-        if inst in classmap.allnames:
-            print_dataset_instcount(datasets_df, inst)
-
-    print("---------------------------")
-    print("Notes-Instrument count / dataset")
-    print("---------------------------")
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
-    for inst in sorted(notes_df["instrument"].unique()):
-        print_dataset_instcount(notes_df, inst)
-
-    print("---------------------------")
-    print("Features-Instrument count / dataset")
-    print("---------------------------")
-    print(utils.colored("{:<20} {:<30} {:<30} {:<30}".format("item", "rwc", "uiowa", "philharmonia")))
-    for inst in classmap.classnames:
-        print_dataset_instcount(features_df, inst)
 
 
 if __name__ == "__main__":

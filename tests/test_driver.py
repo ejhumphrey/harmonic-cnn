@@ -6,8 +6,10 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.config as C
-import wcqtlib.train.driver as driver
+import wcqtlib.common.config as C
+import wcqtlib.data.dataset as dataset
+import wcqtlib.data.cqt
+import wcqtlib.driver as driver
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig({
@@ -38,48 +40,29 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.from_yaml(CONFIG_PATH)
 
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
+
+@pytest.fixture(scope="module")
+def tinyds():
+    return dataset.TinyDataset.load()
 
 
-def test_construct_training_valid_df():
-    def __test_result_df(traindf, validdf, datasets, n_per_inst):
-        if n_per_inst:
-            assert len(traindf) == 12 * n_per_inst
-            assert len(validdf)
-        else:
-            total_len = len(traindf) + len(validdf)
-            np.testing.assert_almost_equal((total_len*.8)/100.,
-                                           len(traindf)/100.,
-                                           decimal=0)
-            np.testing.assert_almost_equal((total_len*.2)/100.,
-                                           len(validdf)/100.,
-                                           decimal=0)
-        assert set(datasets) == set(traindf['dataset'])
-        assert set(datasets) == set(validdf['dataset'])
-
-    datasets = ["rwc"]
-    n_files_per_inst = 1
-    train_df, valid_df = driver.construct_training_valid_df(
-        features_df, datasets, max_files_per_class=n_files_per_inst)
-    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
-
-    datasets = ["rwc", "uiowa"]
-    n_files_per_inst = 5
-    train_df, valid_df = driver.construct_training_valid_df(
-        features_df, datasets, max_files_per_class=n_files_per_inst)
-    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
-
-    datasets = ["rwc", "philharmonia"]
-    n_files_per_inst = None
-    train_df, valid_df = driver.construct_training_valid_df(
-        features_df, datasets, max_files_per_class=n_files_per_inst)
-    yield __test_result_df, train_df, valid_df, datasets, n_files_per_inst
+@pytest.fixture(scope="module")
+def tiny_feats(module_workspace, tinyds):
+    return wcqtlib.data.cqt.cqt_from_dataset(
+        tinyds, module_workspace, num_cpus=1, skip_existing=False)
 
 
 @pytest.mark.slowtest
-def test_train_simple_model(workspace):
+@pytest.mark.xfail(reason="baddata")
+def test_extract_features(module_workspace, tiny_feats):
+    for obs in tiny_feats.items:
+        assert "cqt" in obs.features
+        assert os.path.exists(obs.features['cqt'])
+
+
+@pytest.mark.runme
+@pytest.mark.slowtest
+def test_train_simple_model(workspace, tiny_feats):
     thisconfig = copy.deepcopy(config)
     thisconfig.data['training']['max_iterations'] = 200
     thisconfig.data['training']['batch_size'] = 12
@@ -87,7 +70,7 @@ def test_train_simple_model(workspace):
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver.train_model(thisconfig, 'cqt_iX_f1_oY',
+    driver.train_model(thisconfig, tiny_feats, 'cqt_iX_f1_oY',
                        experiment_name, hold_out,
                        max_files_per_class=1)
 
@@ -109,7 +92,6 @@ def test_train_simple_model(workspace):
     assert os.path.exists(valid_fp)
 
 
-@pytest.mark.runme
 @pytest.mark.slowtest
 def test_find_best_model(workspace):
     thisconfig = copy.deepcopy(config)
@@ -129,7 +111,7 @@ def test_find_best_model(workspace):
 
     driver.train_model(thisconfig, 'cqt_iX_f1_oY',
                        experiment_name, hold_out,
-                       max_files_per_class=1)
+                       max_files_per_class=3)
     # This should have been created by the training process.
     assert os.path.exists(valid_df_path)
 
@@ -144,14 +126,21 @@ def test_find_best_model(workspace):
     assert all(results_df["model_iteration"] ==
                sorted(results_df["model_iteration"]))
 
-    best_params_file = os.path.join(
-        os.path.expanduser(thisconfig['paths/model_dir']),
-        experiment_name, thisconfig['experiment/params_dir'],
-        thisconfig['experiment/best_params'])
-    assert os.path.exists(best_params_file)
+    # Get the best param
+    param_iter, best_param_file = driver.select_best_iteration(results_df)
+    assert best_param_file is not None
 
     # load it again to test the reloading thing.
     #  Just making sure this runs through
     results_df2 = driver.find_best_model(thisconfig, experiment_name, valid_df,
                                          plot_loss=False)
     assert all(results_df == results_df2)
+
+    predictions_df = driver.predict(
+        thisconfig, experiment_name,
+        best_param_file, features_df_override=valid_df)
+    assert not predictions_df.empty
+    predictions_df_path = os.path.join(
+        workspace, experiment_name,
+        "model_{}_predictions.pkl".format(param_iter))
+    assert os.path.exists(predictions_df_path)
