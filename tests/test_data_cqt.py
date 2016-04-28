@@ -41,4 +41,5 @@ def test_download_many(workspace):
                    for fname in ("sax_cres.mp3", "mandolin_trem.mp3")]
     output_files = [os.path.join(workspace, fname)
                     for fname in ('foo.npz', 'bar.npz')]
-    assert CQT.cqt_many(input_files, output_files)
+    # cqt_many returns files that failed; should be none.
+    assert not CQT.cqt_many(input_files, output_files)

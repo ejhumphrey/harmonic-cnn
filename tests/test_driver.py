@@ -42,11 +42,6 @@ config = C.Config.from_yaml(CONFIG_PATH)
 
 
 @pytest.fixture(scope="module")
-def tinyds():
-    return dataset.TinyDataset.load()
-
-
-@pytest.fixture(scope="module")
 def tiny_feats(module_workspace, tinyds):
     return wcqtlib.data.cqt.cqt_from_dataset(
         tinyds, module_workspace, num_cpus=1, skip_existing=False)
