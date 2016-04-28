@@ -236,7 +236,9 @@ class Dataset(object):
                 instrument_df, test_size=train_val_split)
 
             if max_files_per_class:
-                traindf = traindf.sample(n=max_files_per_class)
+                replace = False if len(traindf) > max_files_per_class else True
+                traindf = traindf.sample(n=max_files_per_class,
+                                         replace=replace)
 
             selected_instruments_train.append(traindf)
             selected_instruments_valid.append(validdf)
@@ -248,7 +250,7 @@ class Dataset(object):
 class TinyDataset(Dataset):
     ROOT_PATH = os.path.abspath(
         os.path.join(os.path.dirname(__file__),
-        os.pardir, os.pardir, "tests", "tinydata"))
+        os.pardir, os.pardir, "data"))
     DS_FILE = os.path.join(ROOT_PATH, "tinydata.json")
 
     @classmethod

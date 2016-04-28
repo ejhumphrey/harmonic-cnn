@@ -79,18 +79,16 @@ def test_train_simple_model(workspace, tiny_feats):
 
     # Expected files this should generate
     new_config = os.path.join(workspace, experiment_name, "config.yaml")
-    final_params = os.path.join(workspace, experiment_name, "params",
-                                "final.npz")
-    train_loss_fp = os.path.join(workspace,
-                                 experiment_name, "training_loss.pkl")
-    assert os.path.exists(new_config) and os.path.exists(final_params)
+    train_loss_fp = os.path.join(workspace, experiment_name, hold_out,
+                                 "training_loss.pkl")
+    assert os.path.exists(new_config)
     assert os.path.exists(train_loss_fp)
 
     # Also make sure the training & validation splits got written out
-    train_fp = os.path.join(workspace, experiment_name,
+    train_fp = os.path.join(workspace, experiment_name, hold_out,
                             "train_df_{}.pkl".format(hold_out))
     assert os.path.exists(train_fp)
-    valid_fp = os.path.join(workspace, experiment_name,
+    valid_fp = os.path.join(workspace, experiment_name, hold_out,
                             "train_df_{}.pkl".format(hold_out))
     assert os.path.exists(valid_fp)
 
@@ -109,7 +107,7 @@ def test_find_best_model(workspace):
     hold_out = thisconfig['experiment/hold_out_set']
 
     valid_df_path = os.path.join(
-        workspace, experiment_name,
+        workspace, experiment_name, hold_out,
         thisconfig['experiment/data_split_format'].format(
             "valid", hold_out))
 
@@ -123,10 +121,11 @@ def test_find_best_model(workspace):
 
     # Create a vastly reduced validation dataframe so it'll take less long.
     validation_size = 20
-    valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size)
+    valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size,
+                                                        replace=True)
     assert len(valid_df) == validation_size
 
-    results_df = driver.find_best_model(valid_df, plot_loss=False)
+    results_df = driver.find_best_model(valid_df)
     # check that the results_df is ordered by iteration.
     assert all(results_df["model_iteration"] ==
                sorted(results_df["model_iteration"]))
@@ -137,12 +136,12 @@ def test_find_best_model(workspace):
 
     # load it again to test the reloading thing.
     #  Just making sure this runs through
-    results_df2 = driver.find_best_model(valid_df, plot_loss=False)
+    results_df2 = driver.find_best_model(valid_df)
     assert all(results_df == results_df2)
 
     predictions_df = driver.predict(param_iter)
     assert not predictions_df.empty
     predictions_df_path = os.path.join(
-        workspace, experiment_name,
+        workspace, experiment_name, hold_out,
         "model_{}_predictions.pkl".format(param_iter))
     assert os.path.exists(predictions_df_path)
