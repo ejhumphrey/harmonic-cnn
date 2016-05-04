@@ -4,6 +4,7 @@ import shutil
 import tempfile
 
 import wcqtlib.common.labels
+import wcqtlib.data.dataset as dataset
 
 
 @pytest.fixture()
@@ -35,3 +36,8 @@ def module_workspace(request):
 @pytest.fixture
 def classmap():
     return wcqtlib.common.labels.InstrumentClassMap()
+
+
+@pytest.fixture(scope="module")
+def tinyds():
+    return dataset.TinyDataset.load()

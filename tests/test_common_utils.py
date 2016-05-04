@@ -62,3 +62,29 @@ def test_iter_from_params_filepath():
 
     for test_input, expected in tests:
         yield __test, utils.iter_from_params_filepath(test_input), expected
+
+
+def test_filter_df(tinyds):
+    datasets_df = tinyds.to_df()
+    # Test filtering on different Instruments
+    filtered_df = utils.filter_df(
+        datasets_df, instrument="bassoon")
+    assert filtered_df["instrument"].unique() == ["bassoon"]
+
+    filtered_df = utils.filter_df(
+        datasets_df, instrument="trumpet")
+    assert filtered_df["instrument"].unique() == ["trumpet"]
+
+    # Test filtering on different datasets and dataset combinations.
+    filtered_df = utils.filter_df(
+        datasets_df, datasets=["rwc"])
+    assert filtered_df["dataset"].unique() == ["rwc"]
+
+    filtered_df = utils.filter_df(
+        datasets_df, datasets=["philharmonia"])
+    assert filtered_df["dataset"].unique() == ["philharmonia"]
+
+    filtered_df = utils.filter_df(
+        datasets_df, datasets=["philharmonia", "rwc"])
+    assert set(filtered_df["dataset"].unique()) == \
+           set(["philharmonia", "rwc"])

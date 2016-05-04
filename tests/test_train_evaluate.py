@@ -6,11 +6,11 @@ import pytest
 from sklearn.metrics import classification_report
 import sys
 
-import wcqtlib.config as C
-import wcqtlib.train.evaluate as evaluate
+import wcqtlib.common.config as C
+import wcqtlib.evaluate.analyze
+import wcqtlib.evaluate.predict
 import wcqtlib.train.models as models
 import wcqtlib.train.streams as streams
-import wcqtlib.analyze
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
@@ -56,14 +56,16 @@ def test_evaluate_one(slicer_and_model):
         if iter_count >= max_count:
             break
 
-    result = evaluate.evaluate_one(test_record, model, slicer, t_len)
+    result = wcqtlib.evaluate.predict.predict_one(
+        test_record, model, slicer, t_len)
     for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in result
     assert result['max_likelihood'] == result['target']
     assert result['vote'] == result['target']
     print("Test Result:\n", result)
 
-    other = evaluate.evaluate_one(other_record, model, slicer, t_len)
+    other = wcqtlib.evaluate.predict.predict_one(
+        other_record, model, slicer, t_len)
     for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in other
     print("Other Result:\n", other)
@@ -99,10 +101,11 @@ def test_evalute_dataframe(slicer_and_model):
 
     # Run evaluation on some number of datapoints (10ish),
     #  and make sure you get a dataframe back
-    eval_df = evaluate.evaluate_dataframe(test_df, model, slicer, t_len)
+    eval_df = wcqtlib.evaluate.predict.predict_many(
+        test_df, model, slicer, t_len)
     assert isinstance(eval_df, pandas.DataFrame)
     assert len(eval_df) == len(test_df)
 
-    analyzer = wcqtlib.analyze.PredictionAnalyzer(eval_df, test_df)
+    analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer(eval_df, test_df)
     print(analyzer.classification_report)
     print(analyzer.pprint())
