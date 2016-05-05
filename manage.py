@@ -295,7 +295,7 @@ def test(master_config):
     results = []
 
     INT_CONFIG_PATHS = [
-        "./data/integrationtest_config_cqt.yaml",
+        # "./data/integrationtest_config_cqt.yaml",
         "./data/integrationtest_config_wcqt.yaml"
         # "./data/integrationtest_config_hcqt.yaml"
         ]

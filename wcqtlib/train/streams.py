@@ -172,6 +172,85 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
                            .format(record['cqt'], t_len))
 
 
+def hcqt_slices(record, t_len, shuffle=True, auto_restart=True):
+    """Generate slices of pre-generated harmonic cqts from a cqt file.
+
+    To use this for training, use the following parameters:
+        hcqt_slices(..., shuffle=True, auto_restart=True)
+    To use this for prediction / eval, use the following parameters:
+        hcqt_slices(..., shuffle=False, auto_restart=False)
+
+    Parameters
+    ----------
+    record : pandas.Series
+        Single pandas record containing a 'cqt' record
+        which points to the cqt file in question.
+        Also must contain an "instrument" column
+        which contains the ground truth.
+
+    t_len : int
+        Length of the sliced array [in time/frames]
+
+    shuffle : bool
+        If True, shuffles the frames every time through the file.
+        If False, Reads frames from start fo finish.
+
+    auto_restart : bool
+        If True, yields infinitely.
+        If False, only goes through the file once.
+
+    Yields
+    -------
+    sample : dict with fields {x_in, label}
+        The windowed observation.
+    """
+    if not ('cqt' in record.index and
+            isinstance(record['cqt'], str) and
+            os.path.exists(record['cqt'])):
+        logger.error("No CQT for record.")
+    else:
+        # Load the npz
+        hcqt = np.load(record['cqt'])['harmonic_cqt']
+        target = instrument_map.get_index(record["instrument"])
+
+        # Do this so it's easier to operate on time. @ejhumphrey - better way?
+        tmp_hcqt = np.swapaxes(hcqt, 1, 2)
+
+        num_obs = tmp_hcqt.shape[1] - t_len
+        # If there aren't enough obs, don't do it.
+        if num_obs > 0:
+            # Get the frame means, and remove the lowest 1/4
+            # TODO: Need to think through whether this should be axis=1/2
+            # hcqt_mu = tmp_hcqt[0, :num_obs].mean(axis=1)
+            # threshold = sorted(hcqt_mu)[int(len(hcqt_mu) * .25)]
+            # idx = (hcqt_mu[:num_obs] >= threshold).nonzero()[0]
+            idx = np.arange(num_obs)
+            if shuffle:
+                np.random.shuffle(idx)
+
+            counter = 0
+            while True:
+                # TODO: Need to think through whether this should be axis=1/2
+                obs = utils.slice_ndarray(tmp_hcqt, idx[counter],
+                                          length=t_len, axis=1)
+                data = dict(
+                    x_in=np.swapaxes(obs, 1, 2),
+                    target=np.asarray((target,)))
+                yield data
+
+                # Once we have used all of the frames once, reshuffle.
+                counter += 1
+                if counter >= len(idx):
+                    if not auto_restart:
+                        break
+                    if shuffle:
+                        np.random.shuffle(idx)
+                    counter = 0
+        else:
+            logger.warning("File {} doesn't have enough obs for t_len {}"
+                           .format(record['cqt'], t_len))
+
+
 def buffer_stream(stream, batch_size):
     """Buffer stream into ndarrays.
 
