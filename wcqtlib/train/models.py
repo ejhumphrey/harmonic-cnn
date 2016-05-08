@@ -457,3 +457,44 @@ def hcqt_iX_c1f1_oY(n_in, n_out):
         "loss": "loss.categorical_crossentropy"
     }
     return network_def
+
+
+def hcqt_iX_c2f2_oY(n_in, n_out):
+    network_def = {
+        "input_shape": (None, HCQT_DIMS[0], n_in, HCQT_DIMS[1]),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": 32,
+            "filter_size": (3, 3),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (2, 2)
+        }, {
+            "type": "layers.Conv2DLayer",
+            "num_filters": 64,
+            "filter_size": (1, 4),
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (1, 2)
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": 256,
+            "nonlinearity": "nonlin.rectify"
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+        }],
+        "loss": "loss.categorical_crossentropy"
+    }
+    return network_def

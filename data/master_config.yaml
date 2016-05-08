@@ -11,11 +11,6 @@ data:
 
 datasets: ["rwc", "uiowa", "philharmonia"]
 
-dataframes:
-  datasets: "datasets_df.json"
-  notes: "notes_df.pkl"
-  features: "features_df.pkl"
-
 extract:
   max_duration: 2.0
   bogus_files: "bogus_audio_files.json"

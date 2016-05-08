@@ -19,6 +19,11 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__),
 
 logger = logging.getLogger(__name__)
 
+import theano
+# theano debug values. probably remove these later.
+theano.config.exception_verbosity = 'high'
+theano.config.optimizer = 'fast_compile'
+
 
 def run_process_if_not_exists(process, filepath, **kwargs):
     if not os.path.exists(filepath):
@@ -295,21 +300,21 @@ def test(master_config):
     results = []
 
     INT_CONFIG_PATHS = [
-        "./data/integrationtest_config_cqt.yaml",
-        "./data/integrationtest_config_wcqt.yaml"
-        # "./data/integrationtest_config_hcqt.yaml"
+        # ("./data/integrationtest_config_cqt.yaml", "integration_test_cqt"),
+        # ("./data/integrationtest_config_wcqt.yaml", "integration_test_wcqt")
+        ("./data/integrationtest_config_hcqt.yaml", "integration_test_hcqt")
     ]
 
     print(utils.colored("Extracting features from tinydata set."))
-    results.append(extract_features(INT_CONFIG_PATHS[0]))
+    results.append(extract_features(INT_CONFIG_PATHS[0][0]))
 
     if results[-1]:
-        for config in INT_CONFIG_PATHS:
+        for config, experiment_name in INT_CONFIG_PATHS:
             print(utils.colored(
                 "Running regression test on tinydata set : {}."
                 .format(config)))
             results.append(
-                run(config, experiment_name="integration_test"))
+                run(config, experiment_name=experiment_name))
 
     result = all(results)
     print("IntegrationTest {}".format(utils.result_colored(result)))
