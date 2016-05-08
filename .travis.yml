@@ -3,9 +3,33 @@ python:
   - 2.7
   - 3.4
   - 3.5
+
+notifications:
+  email: false
+
+before_install:
+    - bash .travis_dependencies.sh
+    - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
+        export PATH="$HOME/env/miniconda27/bin:$PATH";
+      elif [[ "$TRAVIS_PYTHON_VERSION" == "3.4" ]]; then
+        export PATH="$HOME/env/miniconda34/bin:$PATH";
+      else
+        export PATH="$HOME/env/miniconda35/bin:$PATH";
+      fi
+    - hash -r
+    - source activate test-environment
+
 # command to install dependencies
-install: "pip install -r requirements.txt"
+install:
+  - pip install coveralls
+  - pip install -r requirements.txt
+
 script:
-  - py.test
+  - py.test -vs
   - python manage.py test
 
+after_success:
+    - coveralls
+
+after_failure:
+  
