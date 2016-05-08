@@ -295,10 +295,10 @@ def test(master_config):
     results = []
 
     INT_CONFIG_PATHS = [
-        # "./data/integrationtest_config_cqt.yaml",
+        "./data/integrationtest_config_cqt.yaml",
         "./data/integrationtest_config_wcqt.yaml"
         # "./data/integrationtest_config_hcqt.yaml"
-        ]
+    ]
 
     print(utils.colored("Extracting features from tinydata set."))
     results.append(extract_features(INT_CONFIG_PATHS[0]))

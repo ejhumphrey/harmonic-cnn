@@ -1,9 +1,14 @@
+"""
+Tests for evalute.predict.predict_one, and evalute.predict.predict_many.
+
+Also serves to make sure all the theano-complied functions for training
+and evaluating work when passed some real data.
+"""
+
 import logging
-import numpy as np
 import os
 import pandas
 import pytest
-from sklearn.metrics import classification_report
 import sys
 
 import wcqtlib.common.config as C
@@ -19,24 +24,30 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.from_yaml(CONFIG_PATH)
 
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
-
 
 @pytest.fixture(params=[(streams.cqt_slices, models.cqt_iX_c1f1_oY),
-                        (streams.wcqt_slices, models.wcqt_iX_c1f1_oY)],
-                ids=["cqt", "wcqt"])
+                        (streams.cqt_slices, models.cqt_iX_c2f2_oY),
+                        (streams.wcqt_slices, models.wcqt_iX_c1f1_oY),
+                        (streams.wcqt_slices, models.wcqt_iX_c2f2_oY),
+                        (streams.hcqt_slices, models.hcqt_iX_c1f1_oY)],
+                ids=["cqt_c1f1", "cqt_c2f2",
+                     "wcqt_c1f1", "wcqt_c2f2",
+                     "hcqt_c1f1"])
 def slicer_and_model(request):
     return request.param
 
 
-def test_evaluate_one(slicer_and_model):
+@pytest.fixture(scope="module")
+def feats_df(tiny_feats):
+    return tiny_feats.to_df()
+
+
+def test_predict_one(slicer_and_model, feats_df):
     # TODO: random seeds for consistency / reproducability.
     print("Running on:")
     # Get a record
-    test_record = features_df.iloc[42]
-    other_record = features_df.iloc[142]
+    test_record = feats_df.iloc[0]
+    other_record = feats_df.iloc[1]
     assert test_record['instrument'] != other_record['instrument']
 
     # Pick a model
@@ -71,10 +82,10 @@ def test_evaluate_one(slicer_and_model):
     print("Other Result:\n", other)
 
 
-def test_evalute_dataframe(slicer_and_model):
+def test_predict_dataframe(slicer_and_model, feats_df):
     # For the purposes of this we don't care too much about what we train with.
     # TODO: random seeds for consistency / reproducability.
-    test_df = features_df.sample(n=(12*12))
+    test_df = feats_df.sample(n=(12 * 12), replace=True)
 
     # Pick a model
     t_len = 8
@@ -84,7 +95,7 @@ def test_evalute_dataframe(slicer_and_model):
     model = models.NetworkManager(network_def)
 
     # Create the streamer.
-    streamer = streams.InstrumentStreamer(test_df, ["rwc", "uiowa"],
+    streamer = streams.InstrumentStreamer(test_df,
                                           record_slicer=slicer,
                                           t_len=t_len,
                                           batch_size=12)

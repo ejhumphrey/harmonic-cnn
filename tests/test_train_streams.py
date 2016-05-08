@@ -11,13 +11,6 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
 config = C.Config.from_yaml(CONFIG_PATH)
 
 
-@pytest.fixture(scope="module")
-def tiny_feats(module_workspace, tinyds):
-    limited_ds = wcqtlib.data.dataset.Dataset(tinyds.observations[0:2])
-    return wcqtlib.data.cqt.cqt_from_dataset(
-        limited_ds, module_workspace, skip_existing=True)
-
-
 def __assert_cqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
                                 *slicer_args)
