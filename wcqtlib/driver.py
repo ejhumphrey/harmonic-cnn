@@ -47,6 +47,8 @@ class NoFeaturesException(Exception):
 def get_slicer_from_network_def(network_def_name):
     if 'wcqt' in network_def_name:
         slicer = streams.wcqt_slices
+    elif 'hcqt' in network_def_name:
+        slicer = streams.hcqt_slices
     else:
         slicer = streams.cqt_slices
     return slicer

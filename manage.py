@@ -300,8 +300,8 @@ def test(master_config):
     results = []
 
     INT_CONFIG_PATHS = [
-        # ("./data/integrationtest_config_cqt.yaml", "integration_test_cqt"),
-        # ("./data/integrationtest_config_wcqt.yaml", "integration_test_wcqt")
+        ("./data/integrationtest_config_cqt.yaml", "integration_test_cqt"),
+        ("./data/integrationtest_config_wcqt.yaml", "integration_test_wcqt"),
         ("./data/integrationtest_config_hcqt.yaml", "integration_test_hcqt")
     ]
 
