@@ -8,28 +8,24 @@ notifications:
   email: false
 
 before_install:
-    - bash .travis_dependencies.sh
-    - if [[ "$TRAVIS_PYTHON_VERSION" == "2.7" ]]; then
-        export PATH="$HOME/env/miniconda27/bin:$PATH";
-      elif [[ "$TRAVIS_PYTHON_VERSION" == "3.4" ]]; then
-        export PATH="$HOME/env/miniconda34/bin:$PATH";
-      else
-        export PATH="$HOME/env/miniconda35/bin:$PATH";
-      fi
-    - hash -r
-    - source activate test-environment
+  - bash .travis_dependencies.sh
+  - export PATH="$HOME/env/miniconda$TRAVIS_PYTHON_VERSION/bin:$PATH";
+  - hash -r
+  - source activate test-environment
 
 # command to install dependencies
 install:
-  - pip install coveralls
+  # install your own package
+  - pip install -e .
   - pip install -r requirements.txt
+  # - pip install coveralls
 
 script:
   - py.test -vs
   - python manage.py test
 
 after_success:
-    - coveralls
+    # - coveralls
 
 after_failure:
   
