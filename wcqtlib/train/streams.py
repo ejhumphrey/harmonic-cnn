@@ -427,3 +427,6 @@ class InstrumentStreamer(collections.Iterator):
     def __next__(self):
         """Generate batches of samples and return them."""
         return next(self.buffered_streamer)
+
+    def next(self):
+        return self.__next__()

@@ -6,21 +6,11 @@ import pandas
 import pytest
 import sys
 
-import wcqtlib.common.config as C
 import wcqtlib.train.streams as streams
 import wcqtlib.train.models as models
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
-                           "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
-
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path) \
-    if os.path.exists(features_path) else pandas.DataFrame()
 
 
 @pytest.fixture
@@ -34,16 +24,13 @@ def simple_network_def():
             "filter_size": (2, 2),
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-        },
-        {
+        }, {
             "type": "layers.MaxPool2DLayer",
             "pool_size": (2, 2)
-        },
-        {
+        }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
-        },
-        {
+        }, {
             "type": "layers.DenseLayer",
             "num_units": 2,
             "nonlinearity": "nonlin.softmax"
@@ -270,14 +257,13 @@ def test_networkmanager_train_and_predict(simple_network_def):
 
 @pytest.mark.cqt
 @pytest.mark.slowtest
-@pytest.mark.skipif(features_df.empty,
-                    reason="No Available features.")
-def test_overfit_two_samples_cqt():
+def test_overfit_two_samples_cqt(tiny_feats):
     """Prove that our network works by training it with two random files
     from our dataset, intentionally overfitting it.
 
     Warning: not deterministic, but you could make it.
     """
+    features_df = tiny_feats.to_df()
 
     # Get list of instruments
     instruments = sorted(features_df["instrument"].unique())
@@ -292,11 +278,10 @@ def test_overfit_two_samples_cqt():
 
     t_len = 8
     batch_size = 8
-    datasets = ["rwc"]
     n_targets = 2
     # Create a streamer that samples just those two files.
     streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.cqt_slices,
+        test_df, streams.cqt_slices,
         t_len=t_len, batch_size=batch_size)
 
     # Create a new model
@@ -326,14 +311,13 @@ def test_overfit_two_samples_cqt():
 
 @pytest.mark.wcqt
 @pytest.mark.slowtest
-@pytest.mark.skipif(features_df.empty,
-                    reason="No Available features.")
-def test_overfit_two_samples_wcqt():
+def test_overfit_two_samples_wcqt(tiny_feats):
     """Prove that our network works by training it with two random files
     from our dataset, intentionally overfitting it.
 
     Warning: not deterministic, but you could make it.
     """
+    features_df = tiny_feats.to_df()
 
     # Get list of instruments
     instruments = sorted(features_df["instrument"].unique())
@@ -348,11 +332,10 @@ def test_overfit_two_samples_wcqt():
 
     t_len = 8
     batch_size = 8
-    datasets = ["rwc"]
     n_targets = 2
     # Create a streamer that samples just those two files.
     streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.wcqt_slices,
+        test_df, streams.wcqt_slices,
         t_len=t_len, batch_size=batch_size)
     input_shape = next(streamer)['x_in'].shape
     print(input_shape)

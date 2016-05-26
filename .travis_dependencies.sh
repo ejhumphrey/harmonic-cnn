@@ -10,7 +10,7 @@ conda_create ()
     conda update -q conda
     conda config --add channels pypi
     conda info -a
-    deps='pip numpy scipy pyzmq scikit-learn'
+    deps='pip numpy scipy pyzmq scikit-learn pandas'
 
     conda create -q -n $ENV_NAME "python=$1" $deps
 }
