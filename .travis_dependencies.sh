@@ -10,7 +10,7 @@ conda_create()
     conda update -q conda
     conda config --add channels pypi
     conda info -a
-    deps='pip numpy scipy nose pytest scikit-learn pandas'
+    deps='pip numpy scipy nose pytest scikit-learn pandas coverage'
 
     conda create -q -n $ENV_NAME "python=$TRAVIS_PYTHON_VERSION" $deps
 }
