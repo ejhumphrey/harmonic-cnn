@@ -125,7 +125,6 @@ class ModelSelector(object):
         # Get a batch worth
         valid_loss, valid_acc = model.evaluate(next(streamer))
 
-        # Convert it to the mean over the whole dataframe.
         evaluation_results = pandas.Series({
             "mean_loss": valid_loss,
             "mean_acc": valid_acc

@@ -1,0 +1,42 @@
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - sox
+
+cache:
+  directories:
+  - $HOME/env
+
+language: python
+python:
+  - 2.7
+  - 3.4
+  - 3.5
+
+notifications:
+  email: false
+
+before_install:
+  - bash .travis_dependencies.sh
+  - export PATH="$HOME/env/miniconda$TRAVIS_PYTHON_VERSION/bin:$PATH";
+  - hash -r
+  - source activate test-environment
+
+# command to install dependencies
+install:
+  # install your own package
+  - pip install -e .
+  - pip install -r requirements.txt
+  # - pip install coveralls
+
+script:
+  - py.test -vs
+  - python manage.py test
+
+after_success:
+    # - coveralls
+
+after_failure:
+  

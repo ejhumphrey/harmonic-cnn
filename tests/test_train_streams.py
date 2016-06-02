@@ -1,61 +1,59 @@
 import os
-import pandas
 import pytest
 
 import wcqtlib.common.config as C
+import wcqtlib.data.cqt
+import wcqtlib.data.dataset
 import wcqtlib.train.streams as streams
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.from_yaml(CONFIG_PATH)
 
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path) \
-    if os.path.exists(features_path) else pandas.DataFrame()
+
+def __assert_cqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
+                                *slicer_args)
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] == 1
+        assert data.shape[2] == t_len
 
 
-def test_cqt_slices():
-    @pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                                 os.path.exists(features_path),
-                                 not features_df.empty]),
-                        reason="Data not found.")
-    def __test_slicer(t_len, *slicer_args):
-        slicer = streams.cqt_slices(features_df.iloc[0], t_len,
-                                    *slicer_args)
-        for i in range(10):
-            data = next(slicer)['x_in']
-            assert len(data.shape) == 4
-            assert data.shape[1] == 1
-            assert data.shape[2] == t_len
-
-    yield __test_slicer, 5
-    yield __test_slicer, 1
-    yield __test_slicer, 10
-    yield __test_slicer, 8, False, False
+def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args)
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] > 1 and data.shape[1] < 10
+        assert data.shape[2] == t_len
 
 
-def test_wcqt_slices():
-    @pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                                 os.path.exists(features_path),
-                                 not features_df.empty]),
-                        reason="Data not found.")
-    def __test_slicer(t_len, *slicer_args):
-        slicer = streams.wcqt_slices(features_df.iloc[0], t_len,
-                                     *slicer_args)
-        for i in range(10):
-            data = next(slicer)['x_in']
-            assert len(data.shape) == 4
-            assert data.shape[1] == 1
-            assert data.shape[2] == t_len
-
-    yield __test_slicer, 5
-    yield __test_slicer, 1
-    yield __test_slicer, 10
-    yield __test_slicer, 8, False, False
+def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args)
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] == 6
+        assert data.shape[2] == t_len
 
 
-@pytest.mark.xfail(reason="zmq is always generating batches of only one.")
+@pytest.mark.parametrize(
+    "slicer_test",
+    [__assert_cqt_slicer,
+     __assert_wcqt_slicer,
+     __assert_hcqt_slicer],
+    ids=["cqt", "wcqt", "hcqt"])
+def test_slices(slicer_test, tiny_feats):
+    slicer_test(tiny_feats, 5)
+    slicer_test(tiny_feats, 1)
+    slicer_test(tiny_feats, 10)
+    slicer_test(tiny_feats, 8, False, False)
+
+
 def __test_streamer(streamer, t_len, batch_size):
     counter = 0
     while counter < 5:
@@ -71,46 +69,27 @@ def __test_streamer(streamer, t_len, batch_size):
         counter += 1
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_cqt():
+@pytest.mark.parametrize("slicer", [streams.cqt_slices,
+                                    streams.wcqt_slices,
+                                    streams.hcqt_slices],
+                         ids=["cqt", "wcqt", "hcqt"])
+def test_instrument_streamer(slicer, tiny_feats):
+    df = tiny_feats.to_df()
     t_len = 10
     batch_size = 12
-    datasets = ["rwc"]
-    if not features_df.empty:
+    if not df.empty:
         streamer = streams.InstrumentStreamer(
-            features_df, datasets, streams.cqt_slices,
-            t_len=t_len, batch_size=batch_size)
-        yield __test_streamer, streamer, t_len, batch_size
+            df, slicer, t_len=t_len, batch_size=batch_size)
+        __test_streamer(streamer, t_len, batch_size)
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_wcqt():
+@pytest.mark.xfail(reason="zmq is always generating batches of only one.")
+def test_instrument_streamer_with_zmq(tiny_feats):
+    df = tiny_feats.to_df()
     t_len = 10
     batch_size = 12
-    datasets = ["rwc"]
-    if not features_df.empty:
+    if not df.empty:
         streamer = streams.InstrumentStreamer(
-            features_df, datasets, streams.wcqt_slices,
-            t_len=t_len, batch_size=batch_size)
-        yield __test_streamer, streamer, t_len, batch_size
-
-
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_with_zmq():
-    t_len = 10
-    batch_size = 12
-    datasets = ["rwc"]
-    if not features_df.empty:
-        streamer = streams.InstrumentStreamer(
-            features_df, datasets, streams.cqt_slices,
+            df, streams.cqt_slices,
             t_len=t_len, batch_size=batch_size, use_zmq=True)
-        yield __test_streamer, streamer, t_len, batch_size
+        __test_streamer(streamer, t_len, batch_size)

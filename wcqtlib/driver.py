@@ -47,6 +47,8 @@ class NoFeaturesException(Exception):
 def get_slicer_from_network_def(network_def_name):
     if 'wcqt' in network_def_name:
         slicer = streams.wcqt_slices
+    elif 'hcqt' in network_def_name:
+        slicer = streams.hcqt_slices
     else:
         slicer = streams.cqt_slices
     return slicer
@@ -173,8 +175,8 @@ class Driver(object):
             feature_ds_path = os.path.join(self._feature_dir, dataset_fn)
 
             if os.path.exists(feature_ds_path):
-                if time.ctime(os.path.getmtime(feature_ds_path)) < \
-                        time.ctime(os.path.getmtime(self._dataset_file)):
+                if os.path.getmtime(feature_ds_path) < \
+                        os.path.getmtime(self._dataset_file):
                     logger.error(utils.colored(
                         "Your features file is out of date; "
                         "please re-run 'extract_features'.", "red"))

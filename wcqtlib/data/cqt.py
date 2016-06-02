@@ -23,7 +23,6 @@ import librosa
 import logging
 import numpy as np
 import os
-import pandas
 import sys
 import time
 
