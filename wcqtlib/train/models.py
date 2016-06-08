@@ -156,8 +156,7 @@ class NetworkManager(object):
                 raise InvalidNetworkDefinition(
                     "Each layer must contain a 'type'")
 
-            if object_definition.get("batch_norm", False) is True \
-                    and 'nonlinearity' in layer:
+            if object_definition.get("batch_norm", False) is True:
                 network = lasagne.layers.batch_norm(
                     layer_class(network, **layer))
             else:
