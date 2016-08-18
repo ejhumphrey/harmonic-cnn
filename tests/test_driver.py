@@ -43,7 +43,6 @@ config = C.Config.load(CONFIG_PATH)
 
 @pytest.mark.slowtest
 def test_extract_features(module_workspace, tiny_feats):
-    import pdb; pdb.set_trace()
     for obs in tiny_feats.items:
         assert "cqt" in obs.features
         assert os.path.exists(obs.features['cqt'])

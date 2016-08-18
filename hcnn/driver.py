@@ -12,12 +12,10 @@
 import datetime
 import glob
 import logging
-import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas
 import shutil
-import time
 
 import hcnn.common.config as C
 import hcnn.common.utils as utils

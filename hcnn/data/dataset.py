@@ -142,6 +142,16 @@ class Dataset(object):
                              for x in observations]
 
     @classmethod
+    def load(cls, path, data_root=None):
+        _, ext = os.path.splitext(path)
+        if ext == '.json':
+            return cls.read_json(path, data_root)
+        elif ext == '.csv':
+            return cls.read_csv(path, data_root)
+        else:
+            raise NotImplementedError()
+
+    @classmethod
     def read_json(cls, json_path, data_root=None):
         if os.path.exists(json_path):
             with open(json_path, 'r') as fh:
@@ -149,6 +159,18 @@ class Dataset(object):
         else:
             logger.error("No dataset available at {}".format(json_path))
             return None
+
+    @classmethod
+    def read_csv(cls, csv_path, data_root=None):
+        data = pandas.read_csv(csv_path, index_col=0).to_dict(
+            orient='records')
+
+        # Update the paths to full paths.
+        for item in data:
+            if 'note_file' in item:
+                item['audio_file'] = os.path.join(
+                    data_root, item.pop('note_file'))
+        return cls(data, data_root=data_root)
 
     def save_json(self, json_path):
         with open(json_path, 'w') as fh:
@@ -256,15 +278,8 @@ class TinyDataset(Dataset):
     DS_FILE = os.path.join(ROOT_PATH, "notes_index.csv")
 
     @classmethod
-    def load(cls, data_path=DS_FILE):
-        data = pandas.read_csv(data_path, index_col=0).to_dict(
-            orient='records')
-
-        # Update the paths to full paths.
-        for item in data:
-            item['audio_file'] = os.path.join(
-                cls.ROOT_PATH, item.pop('note_file'))
-        return cls(data)
+    def load(cls, data_path=DS_FILE, data_root=ROOT_PATH):
+        return Dataset.read_csv(data_path, data_root=data_root)
 
 
 def build_tiny_dataset_from_old_dataframe(config):
