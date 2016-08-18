@@ -1,6 +1,6 @@
 import pytest
 
-import wcqtlib.evaluate.model_selection as model_slection
+import hcnn.evaluate.model_selection as model_slection
 
 
 @pytest.mark.xfail(reason="Todo")

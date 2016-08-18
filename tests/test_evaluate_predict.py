@@ -11,18 +11,18 @@ import pandas
 import pytest
 import sys
 
-import wcqtlib.common.config as C
-import wcqtlib.evaluate.analyze
-import wcqtlib.evaluate.predict
-import wcqtlib.train.models as models
-import wcqtlib.train.streams as streams
+import hcnn.common.config as C
+import hcnn.evaluate.analyze
+import hcnn.evaluate.predict
+import hcnn.train.models as models
+import hcnn.train.streams as streams
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
+config = C.Config.load(CONFIG_PATH)
 
 
 @pytest.fixture(params=[(streams.cqt_slices, models.cqt_iX_c1f1_oY),
@@ -68,7 +68,7 @@ def test_predict_one(slicer_and_model, feats_df):
         if iter_count >= max_count:
             break
 
-    result = wcqtlib.evaluate.predict.predict_one(
+    result = hcnn.evaluate.predict.predict_one(
         test_record, model, slicer, t_len)
     for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in result
@@ -76,7 +76,7 @@ def test_predict_one(slicer_and_model, feats_df):
     assert result['vote'] == result['target']
     print("Test Result:\n", result)
 
-    other = wcqtlib.evaluate.predict.predict_one(
+    other = hcnn.evaluate.predict.predict_one(
         other_record, model, slicer, t_len)
     for key in ["mean_loss", "mean_acc", "max_likelihood", "vote", "target"]:
         assert key in other
@@ -113,11 +113,11 @@ def test_predict_dataframe(slicer_and_model, feats_df):
 
     # Run evaluation on some number of datapoints (10ish),
     #  and make sure you get a dataframe back
-    eval_df = wcqtlib.evaluate.predict.predict_many(
+    eval_df = hcnn.evaluate.predict.predict_many(
         test_df, model, slicer, t_len)
     assert isinstance(eval_df, pandas.DataFrame)
     assert len(eval_df) == len(test_df)
 
-    analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer(eval_df, test_df)
+    analyzer = hcnn.evaluate.analyze.PredictionAnalyzer(eval_df, test_df)
     print(analyzer.classification_report)
     print(analyzer.pprint())

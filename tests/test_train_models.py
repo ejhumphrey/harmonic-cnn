@@ -7,8 +7,8 @@ import pandas
 import pytest
 import sys
 
-import wcqtlib.train.streams as streams
-import wcqtlib.train.models as models
+import hcnn.train.streams as streams
+import hcnn.train.models as models
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)

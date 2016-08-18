@@ -3,8 +3,8 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.common.config as C
-import wcqtlib.data.dataset as dataset
+import hcnn.common.config as C
+import hcnn.data.dataset as dataset
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            os.pardir, "data", "master_config.yaml")

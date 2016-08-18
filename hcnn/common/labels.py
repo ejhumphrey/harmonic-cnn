@@ -1,8 +1,6 @@
 import json
 import os
 
-import wcqtlib.common.config as C
-import wcqtlib.common.utils as utils
 
 DATA_DIR = os.path.join(
     os.path.dirname(__file__), os.pardir, os.pardir,

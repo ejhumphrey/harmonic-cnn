@@ -1,5 +1,5 @@
+import anyconfig
 import logging
-import os
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -20,9 +20,8 @@ class Config(object):
         self.data = data
 
     @classmethod
-    def from_yaml(cls, yaml_path):
-        with open(yaml_path, 'r') as fh:
-            return cls(yaml.load(fh))
+    def load(cls, path):
+        return cls(anyconfig.load(path))
 
     def get(self, key, default=None):
         return self._recursive_get(self.data, key, default)

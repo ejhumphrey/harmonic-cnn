@@ -3,7 +3,7 @@ import os
 import pytest
 import numpy as np
 
-import wcqtlib.data.cqt as CQT
+import hcnn.data.cqt as CQT
 
 DIRNAME = os.path.dirname(__file__)
 

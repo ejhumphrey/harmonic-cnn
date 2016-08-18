@@ -12,8 +12,8 @@ from sklearn.cross_validation import train_test_split
 import sys
 
 
-import wcqtlib.common.config as C
-import wcqtlib.common.utils as utils
+import hcnn.common.config as C
+import hcnn.common.utils as utils
 
 logger = logging.getLogger(__name__)
 

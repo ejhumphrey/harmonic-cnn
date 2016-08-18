@@ -26,7 +26,7 @@ import os
 import sys
 import time
 
-import wcqtlib.common.utils as utils
+import hcnn.common.utils as utils
 
 logger = logging.getLogger(__name__)
 
@@ -204,7 +204,7 @@ def cqt_from_dataset(dataset, write_dir,
 
     Parameters
     ----------
-    dataset : wcqtlib.data.Dataset
+    dataset : hcnn.data.Dataset
         Dataset containing references to the audio files.
 
     write_dir : str

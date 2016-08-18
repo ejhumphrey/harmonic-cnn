@@ -6,10 +6,10 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.common.config as C
-import wcqtlib.data.dataset as dataset
-import wcqtlib.data.cqt
-import wcqtlib.driver
+import hcnn.common.config as C
+import hcnn.data.dataset as dataset
+import hcnn.data.cqt
+import hcnn.driver
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig({
@@ -38,7 +38,7 @@ logging.config.dictConfig({
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
+config = C.Config.load(CONFIG_PATH)
 
 
 @pytest.mark.slowtest
@@ -60,7 +60,7 @@ def test_train_simple_model(workspace, tiny_feats):
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
+    driver = hcnn.driver.Driver(thisconfig, experiment_name,
                                    load_features=True)
 
     result = driver.train_model(hold_out)
@@ -100,7 +100,7 @@ def test_find_best_model(workspace):
         thisconfig['experiment/data_split_format'].format(
             "valid", hold_out))
 
-    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
+    driver = hcnn.driver.Driver(thisconfig, experiment_name,
                                    load_features=True)
     result = driver.train_model(hold_out)
     assert result is True

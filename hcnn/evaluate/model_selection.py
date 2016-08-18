@@ -1,11 +1,10 @@
 import logging
 import numpy as np
 import pandas
-import progressbar
 
-import wcqtlib.common.utils as utils
-import wcqtlib.train.models
-import wcqtlib.train.streams as streams
+import hcnn.common.utils as utils
+import hcnn.train.models
+import hcnn.train.streams as streams
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +107,7 @@ class ModelSelector(object):
         """Evaluate a model as defined by a params file, returning
         a single value (mean loss by default) to compare over the validation
         set."""
-        model = wcqtlib.train.models.NetworkManager.deserialize_npz(
+        model = hcnn.train.models.NetworkManager.deserialize_npz(
             params_file)
         # Results contains one point accross the whole dataset
         logger.debug("Evaluating model: {}".format(params_file))

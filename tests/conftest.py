@@ -3,9 +3,9 @@ import pytest
 import shutil
 import tempfile
 
-import wcqtlib.common.labels
-import wcqtlib.data.cqt
-import wcqtlib.data.dataset
+import hcnn.common.labels
+import hcnn.data.cqt
+import hcnn.data.dataset
 
 
 @pytest.fixture()
@@ -36,16 +36,16 @@ def module_workspace(request):
 
 @pytest.fixture
 def classmap():
-    return wcqtlib.common.labels.InstrumentClassMap()
+    return hcnn.common.labels.InstrumentClassMap()
 
 
 @pytest.fixture(scope="module")
 def tinyds():
-    return wcqtlib.data.dataset.TinyDataset.load()
+    return hcnn.data.dataset.TinyDataset.load()
 
 
 @pytest.fixture(scope="module")
 def tiny_feats(module_workspace, tinyds):
-    limited_ds = wcqtlib.data.dataset.Dataset(tinyds.observations[0:2])
-    return wcqtlib.data.cqt.cqt_from_dataset(
+    limited_ds = hcnn.data.dataset.Dataset(tinyds.observations[0:2])
+    return hcnn.data.cqt.cqt_from_dataset(
         limited_ds, module_workspace, skip_existing=True)

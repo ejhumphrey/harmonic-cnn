@@ -19,15 +19,15 @@ import pandas
 import shutil
 import time
 
-import wcqtlib.common.config as C
-import wcqtlib.common.utils as utils
-import wcqtlib.data.cqt
-import wcqtlib.data.dataset
-import wcqtlib.train.models as models
-import wcqtlib.train.streams as streams
-import wcqtlib.evaluate.analyze
-import wcqtlib.evaluate.model_selection as MS
-import wcqtlib.evaluate.predict
+import hcnn.common.config as C
+import hcnn.common.utils as utils
+import hcnn.data.cqt
+import hcnn.data.dataset
+import hcnn.train.models as models
+import hcnn.train.streams as streams
+import hcnn.evaluate.analyze
+import hcnn.evaluate.model_selection as MS
+import hcnn.evaluate.predict
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ class Driver(object):
         """
         Parameters
         ----------
-        config: wcqtlib.config.Config
+        config: hcnn.config.Config
             Instantiated config.
 
         experiment_name : str or None
@@ -168,7 +168,7 @@ class Driver(object):
             else just loads the original specified version.
         """
         if not load_features:
-            self.dataset = wcqtlib.data.dataset.Dataset.read_json(
+            self.dataset = hcnn.data.dataset.Dataset.read_json(
                 self._dataset_file, data_root=self.config['paths/data_dir'])
         else:
             dataset_fn = os.path.basename(self._dataset_file)
@@ -182,7 +182,7 @@ class Driver(object):
                         "please re-run 'extract_features'.", "red"))
                     raise StaleFeaturesError("Features file out of date.")
 
-                self.dataset = wcqtlib.data.dataset.Dataset.read_json(
+                self.dataset = hcnn.data.dataset.Dataset.read_json(
                     feature_ds_path, data_root=self.config['paths/data_dir'])
             else:
                 logger.error("Features dataset does not exist; "
@@ -208,7 +208,7 @@ class Driver(object):
                 len(inst_filter[inst_filter["dataset"] == "uiowa"]),
                 len(inst_filter[inst_filter["dataset"] == "philharmonia"])))
 
-        classmap = wcqtlib.common.labels.InstrumentClassMap()
+        classmap = hcnn.common.labels.InstrumentClassMap()
 
         print("---------------------------")
         print("Datasets-Instrument count / dataset")
@@ -221,7 +221,7 @@ class Driver(object):
 
     def extract_features(self):
         """Extract CQTs from all files collected in collect."""
-        updated_ds = wcqtlib.data.cqt.cqt_from_dataset(
+        updated_ds = hcnn.data.cqt.cqt_from_dataset(
             self.dataset, self._feature_dir, **self.config["features/cqt"])
 
         success = False
@@ -518,7 +518,7 @@ class Driver(object):
 
         t_len = original_config['training/t_len']
         logger.info("Running evaluation on all files...")
-        predictions_df = wcqtlib.evaluate.predict.predict_many(
+        predictions_df = hcnn.evaluate.predict.predict_many(
             dataset_df, model, slicer, t_len, show_progress=True)
         predictions_df.to_pickle(predictions_df_path)
         return predictions_df
@@ -526,7 +526,7 @@ class Driver(object):
     def analyze_from_predictions(self, model_iter, test_set):
         """Loads predictions from a file before calling analyze."""
         original_config = C.Config.from_yaml(self._experiment_config_path)
-        analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer.from_config(
+        analyzer = hcnn.evaluate.analyze.PredictionAnalyzer.from_config(
             original_config, self.experiment_name, model_iter, test_set)
 
         analysis_path = self._format_analysis_fn(model_iter)
@@ -540,7 +540,7 @@ class Driver(object):
             utils.colored(self.experiment_name, "magenta"),
             utils.colored(model_iter, "cyan")))
 
-        analyzer = wcqtlib.evaluate.analyze.PredictionAnalyzer(predictions)
+        analyzer = hcnn.evaluate.analyze.PredictionAnalyzer(predictions)
         analysis_path = self._format_analysis_fn(model_iter)
         logger.info("Saving analysis to:".format(analysis_path))
         analyzer.save(analysis_path)

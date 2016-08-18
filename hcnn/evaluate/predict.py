@@ -3,7 +3,7 @@ import numpy as np
 import pandas
 import progressbar
 
-import wcqtlib.common.labels as labels
+import hcnn.common.labels as labels
 instrument_map = labels.InstrumentClassMap()
 
 logger = logging.getLogger(__name__)

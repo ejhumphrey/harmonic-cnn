@@ -8,8 +8,8 @@ import numpy as np
 import os
 import pescador
 
-import wcqtlib.common.utils as utils
-import wcqtlib.common.labels as labels
+import hcnn.common.utils as utils
+import hcnn.common.labels as labels
 
 logger = logging.getLogger(__name__)
 
