@@ -41,15 +41,9 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
 config = C.Config.from_yaml(CONFIG_PATH)
 
 
-@pytest.fixture(scope="module")
-def tiny_feats(module_workspace, tinyds):
-    return wcqtlib.data.cqt.cqt_from_dataset(
-        tinyds, module_workspace, num_cpus=1, skip_existing=False)
-
-
 @pytest.mark.slowtest
-@pytest.mark.xfail(reason="baddata")
 def test_extract_features(module_workspace, tiny_feats):
+    import pdb; pdb.set_trace()
     for obs in tiny_feats.items:
         assert "cqt" in obs.features
         assert os.path.exists(obs.features['cqt'])

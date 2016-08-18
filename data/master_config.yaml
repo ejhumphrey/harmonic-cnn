@@ -6,7 +6,7 @@ paths:
 
 data:
   selected: "tiny"
-  tiny: "data/tinydata.json"
+  tiny: "data/tinyset/notes_index.csv"
   canonical: "data/data.json"
 
 datasets: ["rwc", "uiowa", "philharmonia"]

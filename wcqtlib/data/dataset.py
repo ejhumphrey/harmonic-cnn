@@ -39,8 +39,10 @@ class Observation(object):
     """
     SCHEMA = get_remote_schema()
 
-    def __init__(self, index, dataset, audio_file, instrument, source_key,
-                 start_time, duration, note_number, dynamic, partition,
+    def __init__(self, dataset, audio_file, instrument,
+                 index=None, source_key=None,
+                 start_time=None, duration=None, note_number=None,
+                 dynamic=None, partition=None,
                  features=None):
         self.index = index
         self.dataset = dataset
@@ -250,17 +252,18 @@ class Dataset(object):
 class TinyDataset(Dataset):
     ROOT_PATH = os.path.abspath(
         os.path.join(os.path.dirname(__file__),
-        os.pardir, os.pardir, "data"))
-    DS_FILE = os.path.join(ROOT_PATH, "tinydata.json")
+                     os.pardir, os.pardir, "data", "tinyset"))
+    DS_FILE = os.path.join(ROOT_PATH, "notes_index.csv")
 
     @classmethod
-    def load(cls, json_path=DS_FILE):
-        with open(json_path, 'r') as fh:
-            data = json.load(fh)
-            # Update the paths to full paths.
-            for item in data:
-                item['audio_file'] = os.path.join(cls.ROOT_PATH,
-                                                  item['audio_file'])
+    def load(cls, data_path=DS_FILE):
+        data = pandas.read_csv(data_path, index_col=0).to_dict(
+            orient='records')
+
+        # Update the paths to full paths.
+        for item in data:
+            item['audio_file'] = os.path.join(
+                cls.ROOT_PATH, item.pop('note_file'))
         return cls(data)
 
 
