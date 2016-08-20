@@ -176,57 +176,6 @@ class Observation(object):
 #         ds_view = thecopy[thecopy["dataset"] == dataset_filter]
 #         return ds_view
 
-#     def get_train_val_split(self, test_set, train_val_split=0.2,
-#                             max_files_per_class=None):
-#         """Returns Datasets for train and validation constructed
-#         from the datasets not in the test_set, and split with
-#         the ratio train_val_split.
-
-#          * First selects from only the datasets given in datasets.
-#          * Then **for each instrument** (so the distribution from
-#              each instrument doesn't change)
-#             * train_test_split to generate training and validation sets.
-#             * if max_files_per_class, also then restrict the training set to
-#                 a maximum of that number of files for each train and test
-
-#         Parameters
-#         ----------
-#         test_set : str
-#             String in ["rwc", "uiowa", "philharmonia"] which selects
-#             the hold-out-set to be used for testing.
-
-#         Returns
-#         -------
-#         train_df, valid_df : pd.DataFrame
-#             DataFrames referencing the files for train and validation.
-#         """
-#         df = self.to_df()
-#         datasets = set(df["dataset"].unique()) - set([test_set])
-#         search_df = df[df["dataset"].isin(datasets)]
-
-#         selected_instruments_train = []
-#         selected_instruments_valid = []
-#         for instrument in search_df["instrument"].unique():
-#             instrument_df = search_df[search_df["instrument"] == instrument]
-
-#             if len(instrument_df) < 2:
-#                 logger.warning("Instrument {} doesn't haven enough samples "
-#                                "to split.".format(instrument))
-#                 continue
-
-#             traindf, validdf = train_test_split(
-#                 instrument_df, test_size=train_val_split)
-
-#             if max_files_per_class:
-#                 replace = False if len(traindf) > max_files_per_class else True
-#                 traindf = traindf.sample(n=max_files_per_class,
-#                                          replace=replace)
-
-#             selected_instruments_train.append(traindf)
-#             selected_instruments_valid.append(validdf)
-
-#         return pd.concat(selected_instruments_train), \
-#             pd.concat(selected_instruments_valid)
 
 def expand_audio_paths(df, data_root):
     # Update the paths to full paths, and make sure it's
@@ -240,8 +189,9 @@ def expand_audio_paths(df, data_root):
 
 
 class Dataset(object):
-    def __init__(self, df):
+    def __init__(self, df, split=None):
         self.df = df
+        self.split = split
 
     @classmethod
     def from_observations(cls, observations):
@@ -309,6 +259,100 @@ class Dataset(object):
 
     def __getitem__(self, index):
         return Observation(**self.df.iloc[index].to_dict())
+
+    @property
+    def datasets(self):
+        return list(self.df['dataset'].unique())
+
+    def filter(self, dataset_name=None, instrument=None, invert=False):
+        """Return a copy of the dataset, filtering on dataset name
+        or instrument
+        """
+        result = self.df.copy()
+        if dataset_name:
+            if invert:
+                result = result[result['dataset'] != dataset_name]
+            else:
+                result = result[result['dataset'] == dataset_name]
+        if instrument:
+            if invert:
+                result = result[result['instrument'] != instrument]
+            else:
+                result = result[result['instrument'] == instrument]
+
+        return Dataset(result)
+
+    def test_set(self, selected_set):
+        """Assumption: a "test set" is simply all of the samples from
+        one of the datasets.
+
+        Parameters
+        ----------
+        selected_set : str in ['rwc', 'philharmonia', 'uiowa']
+            Subsamples to get for the test set.
+        """
+        ds = self.filter(dataset_name=selected_set)
+        ds.split = 'test'
+        return ds
+
+    def train_valid_sets(self, test_set, train_val_split=0.2,
+                         max_files_per_class=None):
+        """Assumption: a "test set" is simply all of the samples from
+        one of the datasets
+
+        Returns Datasets for train and validation constructed
+        from the datasets not in the test_set, and split with
+        the ratio train_val_split.
+
+         * First selects from only the datasets given in datasets.
+         * Then **for each instrument** (so the distribution from
+             each instrument doesn't change)
+            * train_test_split to generate training and validation sets.
+            * if max_files_per_class, also then restrict the training set to
+                a maximum of that number of files for each train and test
+
+        Parameters
+        ----------
+        test_set : str
+            String in ["rwc", "uiowa", "philharmonia"] which selects
+            the hold-out-set to be used for testing.
+
+        train_val_split : float
+            Amount of validation data to split out from the dataset.
+
+        max_files_per_class : int or None
+            Limit the data to this number of samples per class.
+
+        Returns
+        -------
+        train_df, valid_df : pd.DataFrame
+            DataFrames referencing the files for train and validation.
+        """
+        df = self.filter(dataset_name=test_set, invert=True).to_df()
+
+        selected_instruments_train = []
+        selected_instruments_valid = []
+        for instrument in df["instrument"].unique():
+            instrument_df = df[df["instrument"] == instrument]
+
+            if len(instrument_df) < 2:
+                logger.warning("Instrument {} doesn't haven enough samples "
+                               "to split.".format(instrument))
+                continue
+
+            traindf, validdf = train_test_split(
+                instrument_df, test_size=train_val_split)
+
+            if max_files_per_class:
+                replace = False if len(traindf) > max_files_per_class else True
+                traindf = traindf.sample(n=max_files_per_class,
+                                         replace=replace)
+
+            selected_instruments_train.append(traindf)
+            selected_instruments_valid.append(validdf)
+
+        return Dataset(pd.concat(selected_instruments_train), 'train'), \
+            Dataset(pd.concat(selected_instruments_valid), 'valid')
 
 
 class TinyDataset(Dataset):

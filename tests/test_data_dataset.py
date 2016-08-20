@@ -14,6 +14,12 @@ def tinydata_csv():
     return os.path.join(DATA_PATH, "tinyset", "notes_index.csv")
 
 
+@pytest.fixture
+def tinydata(tinydata_csv):
+    return dataset.Dataset.read_csv(
+        tinydata_csv, os.path.dirname(tinydata_csv))
+
+
 # @pytest.fixture(scope="module")
 # def config():
 #     CONFIG_PATH = os.path.join(DATA_PATH, "master_config.yaml")
@@ -102,64 +108,45 @@ def test_load_save_dataset_as_csv(tinydata_csv, workspace):
     assert all(ds.to_df().index == ds2.to_df().index)
 
 
-# def test_to_df(test_obs):
-#     ds = dataset.Dataset(test_obs)
-#     df = ds.to_df()
-#     assert isinstance(df, pandas.DataFrame)
-#     assert len(test_obs) == len(df)
-#     safe_columns = set(ds.items[0].to_dict().keys())
-#     safe_columns = safe_columns - set(["features"])
-#     assert set(df.columns) == safe_columns
+def test_filter_dataset(tinydata):
+    # Filter dataset
+    assert len(tinydata.filter(dataset_name="rwc")) == 52
+    # Filter instrument
+    assert len(tinydata.filter(instrument="guitar")) == 16
+    # Filter both
+    assert len(tinydata.filter(dataset_name="rwc", instrument="guitar")) == 8
 
 
-# def test_dataset_view(test_obs):
-#     ds = dataset.Dataset(test_obs)
-#     rwc_view = ds.view("rwc")
-#     assert set(rwc_view["dataset"].unique()) == set(["rwc"])
+def test_get_test_set(tinydata):
+    testset = tinydata.test_set("rwc")
+    assert isinstance(testset, dataset.Dataset)
+    assert len(testset) == 52
+    assert testset.split == 'test'
 
 
-# @pytest.mark.xfail(reason="Data is wrong; TODO")
-# def test_build_tiny_dataset_from_old_dataframe(config):
-#     tinyds = dataset.build_tiny_dataset_from_old_dataframe(config)
+def test_training_valid_sets():
+    tinydata = dataset.TinyDataset.load()
 
-#     assert isinstance(tinyds, list)
-#     assert len(tinyds) == 36
-#     assert all([obs.validate() for obs in tinyds])
+    def __test_result(train, valid, test_set, split, n_per_inst):
+        if n_per_inst:
+            assert len(train) == 12 * n_per_inst
+            assert len(valid)
+        else:
+            total_len = len(train) + len(valid)
+            np.testing.assert_almost_equal((total_len * (1 - split)) / 100.,
+                                           len(train) / 100.,
+                                           decimal=0)
+            np.testing.assert_almost_equal((total_len * split) / 100.,
+                                           len(valid) / 100.,
+                                           decimal=0)
+        assert test_set not in train.datasets
+        assert test_set not in valid.datasets
 
-#     # See if we can load it into a dataset class.
-#     ds = dataset.Dataset(tinyds)
-#     assert ds.validate()
-
-
-# def test_construct_training_valid_df():
-#     def __test_result_df(traindf, validdf, datasets, n_per_inst=None):
-#         if n_per_inst:
-#             assert len(traindf) == 12 * n_per_inst
-#             assert len(validdf)
-#         else:
-#             total_len = len(traindf) + len(validdf)
-#             np.testing.assert_almost_equal((total_len*.8)/100.,
-#                                            len(traindf)/100.,
-#                                            decimal=0)
-#             np.testing.assert_almost_equal((total_len*.2)/100.,
-#                                            len(validdf)/100.,
-#                                            decimal=0)
-#         assert set(datasets) == set(traindf['dataset'])
-#         assert set(datasets) == set(validdf['dataset'])
-
-#     tinyds = dataset.TinyDataset.load()
-
-#     test_set = "rwc"
-#     # on the tinyds, we hope to have one of each in each
-#     # train and validate, because there are only two to begin with.
-#     train_df, valid_df = tinyds.get_train_val_split(
-#         test_set=test_set, train_val_split=1)
-#     # TODO: Come up with a test here.
-#     # yield __test_result_df, train_df, valid_df, datasets
-
-#     test_set = "philharmonia"
-#     train_df, valid_df = tinyds.get_train_val_split(
-#         test_set=test_set, train_val_split=1)
-#     # TODO: Come up with a test here.
-
-#     # TODO: test that some bigger data works.
+    # on the tinyds, we hope to have one of each in each
+    # train and validate, because there are only two to begin with.
+    for test_set in ["rwc", "philharmonia", "uiowa"]:
+        for split in [0., .25, .5]:
+            for n_per_inst in [None, 1, 2]:
+                train, valid = tinydata.train_valid_sets(
+                    test_set=test_set, train_val_split=1, max_files_per_class=n_per_inst)
+                yield __test_result, train, valid, test_set, split, n_per_inst
