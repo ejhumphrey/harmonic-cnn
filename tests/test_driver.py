@@ -60,7 +60,7 @@ def test_train_simple_model(workspace, tiny_feats):
     hold_out = "rwc"
 
     driver = hcnn.driver.Driver(thisconfig, experiment_name,
-                                   load_features=True)
+                                load_features=True)
 
     result = driver.train_model(hold_out)
     assert result is True

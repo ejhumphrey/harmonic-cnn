@@ -1,4 +1,7 @@
-"""A class and utilities for managing the dataset and dataframes.
+"""A class and utilities for managing the datasets.
+
+A 'dataset' in this context will generally exist on disk as a .csv
+file or dataframe.
 """
 
 import copy
@@ -6,10 +9,11 @@ import json
 import jsonschema
 import logging
 import os
-import pandas
+import pandas as pd
 import requests
 from sklearn.cross_validation import train_test_split
 import sys
+import warnings
 
 
 import hcnn.common.config as C
@@ -58,16 +62,22 @@ class Observation(object):
 
     @classmethod
     def from_record(cls, record):
-        return cls(index=record.index[0][0],
-                   dataset=record['dataset'][0],
-                   audio_file=record['audio_file'][0],
-                   instrument=record['instrument'][0],
-                   source_key="",
-                   start_time=0.0,
-                   duration=0.0,
-                   note_number=record['note'][0],
-                   dynamic=record['dynamic'][0],
-                   partition="")
+        """
+        Parameters
+        ----------
+        record : pandas.Series
+        """
+        return cls(index=record.name,
+                   dataset=record.get('dataset', None),
+                   audio_file=record.get('audio_file',
+                                         record.get('note_file', None)),
+                   instrument=record.get('instrument', None),
+                   source_key=record.get('source_key', ""),
+                   start_time=record.get('start_time', 0.0),
+                   duration=record.get('duration', None),
+                   note_number=record.get('note', None),
+                   dynamic=record.get('dynamic', None),
+                   partition=record.get('partition', ""))
 
     def to_dict(self):
         return self.__dict__.copy()
@@ -80,11 +90,11 @@ class Observation(object):
 
         Returns
         -------
-        pandas.Series
+        pd.Series
         """
         flat_dict = self.to_dict()
         flat_dict.update(**flat_dict.pop("features"))
-        return pandas.Series(flat_dict)
+        return pd.Series(flat_dict)
 
     def validate(self, schema=None):
         schema = self.SCHEMA if schema is None else schema
@@ -101,48 +111,145 @@ class Observation(object):
         return success
 
 
+# class Dataset(object):
+#     """A class wrapper for loading the dataset
+#     from various inputs, and writing to various
+#     outputs, with utilities for providing
+#     views over datasets and generating train/val
+#     sets.
+
+#     A dataset contains the following columns
+#      - audio_file
+#      - target [normalized target names]
+#      - [some provenance information]
+#     """
+
+#     def __init__(self, observations, data_root=None):
+#         """
+#         Parameters
+#         ----------
+#         observations : list
+#             List of Observations (as dicts or Observations.)
+#             If they're dicts, this will convert them to Observations.
+
+#         data_root : str or None
+#             Path to look for an observation, if not None
+#         """
+#         def safe_obs(obs, data_root=None):
+#             "Get dict from an Observation if an observation, else just dict"
+#             if not os.path.exists(obs['audio_file']) and data_root:
+#                 if not os.path.exists(data_root):
+#                     raise MissingDataException(
+#                         "Input data {} missing; have you extracted the zip?")
+#                 new_audio = os.path.join(data_root, obs['audio_file'])
+#                 if os.path.exists(new_audio):
+#                     obs['audio_file'] = new_audio
+#             if isinstance(obs, Observation):
+#                 return obs.to_dict()
+#             else:
+#                 return obs
+#         self.observations = [Observation(**safe_obs(x, data_root))
+#                              for x in observations]
+
+#     def validate(self):
+#         if len(self.observations > 0):
+#             return all([x.validate for x in self.observations])
+#         else:
+#             logger.warning("No observations to validate.")
+#             return False
+
+#     def copy(self, deep=True):
+#         return Dataset(copy.deepcopy(self.observations))
+
+#     def view(self, dataset_filter):
+#         """Returns a copy of the analyzer pointing to the desired dataset.
+#         Parameters
+#         ----------
+#         dataset_filter : str
+#             String in ["rwc", "uiowa", "philharmonia"] which is
+#             the items in the dataset to return.
+
+#         Returns
+#         -------
+#         """
+#         thecopy = copy.copy(self.to_df())
+#         ds_view = thecopy[thecopy["dataset"] == dataset_filter]
+#         return ds_view
+
+#     def get_train_val_split(self, test_set, train_val_split=0.2,
+#                             max_files_per_class=None):
+#         """Returns Datasets for train and validation constructed
+#         from the datasets not in the test_set, and split with
+#         the ratio train_val_split.
+
+#          * First selects from only the datasets given in datasets.
+#          * Then **for each instrument** (so the distribution from
+#              each instrument doesn't change)
+#             * train_test_split to generate training and validation sets.
+#             * if max_files_per_class, also then restrict the training set to
+#                 a maximum of that number of files for each train and test
+
+#         Parameters
+#         ----------
+#         test_set : str
+#             String in ["rwc", "uiowa", "philharmonia"] which selects
+#             the hold-out-set to be used for testing.
+
+#         Returns
+#         -------
+#         train_df, valid_df : pd.DataFrame
+#             DataFrames referencing the files for train and validation.
+#         """
+#         df = self.to_df()
+#         datasets = set(df["dataset"].unique()) - set([test_set])
+#         search_df = df[df["dataset"].isin(datasets)]
+
+#         selected_instruments_train = []
+#         selected_instruments_valid = []
+#         for instrument in search_df["instrument"].unique():
+#             instrument_df = search_df[search_df["instrument"] == instrument]
+
+#             if len(instrument_df) < 2:
+#                 logger.warning("Instrument {} doesn't haven enough samples "
+#                                "to split.".format(instrument))
+#                 continue
+
+#             traindf, validdf = train_test_split(
+#                 instrument_df, test_size=train_val_split)
+
+#             if max_files_per_class:
+#                 replace = False if len(traindf) > max_files_per_class else True
+#                 traindf = traindf.sample(n=max_files_per_class,
+#                                          replace=replace)
+
+#             selected_instruments_train.append(traindf)
+#             selected_instruments_valid.append(validdf)
+
+#         return pd.concat(selected_instruments_train), \
+#             pd.concat(selected_instruments_valid)
+
+def expand_audio_paths(df, data_root):
+    # Update the paths to full paths, and make sure it's
+    # saved in 'audio_file'
+    new_df = df.copy()
+    for idx, item in new_df.iterrows():
+        if 'note_file' in item:
+            new_df.loc[idx, 'audio_file'] = os.path.join(
+                data_root, item['note_file'])
+    return new_df
+
+
 class Dataset(object):
-    """A class wrapper for loading the dataset
-    from various inputs, and writing to various
-    outputs, with utilities for providing
-    views over datasets and generating train/val
-    sets.
-
-    A dataset contains the following columns
-     - audio_file
-     - target [normalized target names]
-     - [some provenance information]
-    """
-
-    def __init__(self, observations, data_root=None):
-        """
-        Parameters
-        ----------
-        observations : list
-            List of Observations (as dicts or Observations.)
-            If they're dicts, this will convert them to Observations.
-
-        data_root : str or None
-            Path to look for an observation, if not None
-        """
-        def safe_obs(obs, data_root=None):
-            "Get dict from an Observation if an observation, else just dict"
-            if not os.path.exists(obs['audio_file']) and data_root:
-                if not os.path.exists(data_root):
-                    raise MissingDataException(
-                        "Input data {} missing; have you extracted the zip?")
-                new_audio = os.path.join(data_root, obs['audio_file'])
-                if os.path.exists(new_audio):
-                    obs['audio_file'] = new_audio
-            if isinstance(obs, Observation):
-                return obs.to_dict()
-            else:
-                return obs
-        self.observations = [Observation(**safe_obs(x, data_root))
-                             for x in observations]
+    def __init__(self, df):
+        self.df = df
 
     @classmethod
-    def load(cls, path, data_root=None):
+    def from_observations(cls, observations):
+        obs_series = [x.to_series() for x in observations]
+        return cls(pd.DataFrame(obs_series))
+
+    @classmethod
+    def load(cls, path, data_root):
         _, ext = os.path.splitext(path)
         if ext == '.json':
             return cls.read_json(path, data_root)
@@ -152,123 +259,56 @@ class Dataset(object):
             raise NotImplementedError()
 
     @classmethod
-    def read_json(cls, json_path, data_root=None):
+    def read_json(cls, json_path, data_root):
         if os.path.exists(json_path):
-            with open(json_path, 'r') as fh:
-                return cls(json.load(fh), data_root=data_root)
+            df = pd.read_json(json_path)
+            df = expand_audio_paths(df, data_root)
+            return cls(df)
         else:
             logger.error("No dataset available at {}".format(json_path))
             return None
 
     @classmethod
     def read_csv(cls, csv_path, data_root=None):
-        data = pandas.read_csv(csv_path, index_col=0).to_dict(
-            orient='records')
-
-        # Update the paths to full paths.
-        for item in data:
-            if 'note_file' in item:
-                item['audio_file'] = os.path.join(
-                    data_root, item.pop('note_file'))
-        return cls(data, data_root=data_root)
+        df = pd.read_csv(csv_path, index_col=0)
+        if data_root:
+            df = expand_audio_paths(df, data_root)
+        return cls(df)
 
     def save_json(self, json_path):
         with open(json_path, 'w') as fh:
             json.dump(self.to_builtin(), fh)
 
+    def save_csv(self, csv_path):
+        self.df.to_csv(csv_path)
+        return os.path.exists(csv_path)
+
     def to_df(self):
         """Returns the dataset as a dataframe."""
-        return pandas.DataFrame([x.to_series() for x in self.observations])
+        return self.df
 
     def to_builtin(self):
-        return [x.to_dict() for x in self.observations]
+        """Returns a list of dicts, where the dict
+        is functionally equivalent to an observation.
+        """
+        index_dict = self.df.to_dict(orient='index')
+        df_as_list = []
+        for k, v in index_dict.items():
+            v['index'] = k
+            df_as_list.append(v)
+        return df_as_list
 
-    @property
-    def items(self):
-        return self.observations
+    def as_observations(self):
+        obs = []
+        for idx, item in self.df.iterrows():
+            obs.append(Observation.from_record(item))
+        return obs
 
     def __len__(self):
-        return len(self.observations)
+        return len(self.df)
 
     def __getitem__(self, index):
-        return self.observations[index]
-
-    def validate(self):
-        if len(self.observations > 0):
-            return all([x.validate for x in self.observations])
-        else:
-            logger.warning("No observations to validate.")
-            return False
-
-    def copy(self, deep=True):
-        return Dataset(copy.deepcopy(self.observations))
-
-    def view(self, dataset_filter):
-        """Returns a copy of the analyzer pointing to the desired dataset.
-        Parameters
-        ----------
-        dataset_filter : str
-            String in ["rwc", "uiowa", "philharmonia"] which is
-            the items in the dataset to return.
-
-        Returns
-        -------
-        """
-        thecopy = copy.copy(self.to_df())
-        ds_view = thecopy[thecopy["dataset"] == dataset_filter]
-        return ds_view
-
-    def get_train_val_split(self, test_set, train_val_split=0.2,
-                            max_files_per_class=None):
-        """Returns Datasets for train and validation constructed
-        from the datasets not in the test_set, and split with
-        the ratio train_val_split.
-
-         * First selects from only the datasets given in datasets.
-         * Then **for each instrument** (so the distribution from
-             each instrument doesn't change)
-            * train_test_split to generate training and validation sets.
-            * if max_files_per_class, also then restrict the training set to
-                a maximum of that number of files for each train and test
-
-        Parameters
-        ----------
-        test_set : str
-            String in ["rwc", "uiowa", "philharmonia"] which selects
-            the hold-out-set to be used for testing.
-
-        Returns
-        -------
-        train_df, valid_df : pandas.DataFrame
-            DataFrames referencing the files for train and validation.
-        """
-        df = self.to_df()
-        datasets = set(df["dataset"].unique()) - set([test_set])
-        search_df = df[df["dataset"].isin(datasets)]
-
-        selected_instruments_train = []
-        selected_instruments_valid = []
-        for instrument in search_df["instrument"].unique():
-            instrument_df = search_df[search_df["instrument"] == instrument]
-
-            if len(instrument_df) < 2:
-                logger.warning("Instrument {} doesn't haven enough samples "
-                               "to split.".format(instrument))
-                continue
-
-            traindf, validdf = train_test_split(
-                instrument_df, test_size=train_val_split)
-
-            if max_files_per_class:
-                replace = False if len(traindf) > max_files_per_class else True
-                traindf = traindf.sample(n=max_files_per_class,
-                                         replace=replace)
-
-            selected_instruments_train.append(traindf)
-            selected_instruments_valid.append(validdf)
-
-        return pandas.concat(selected_instruments_train), \
-            pandas.concat(selected_instruments_valid)
+        return Observation(**self.df.iloc[index].to_dict())
 
 
 class TinyDataset(Dataset):
@@ -283,6 +323,8 @@ class TinyDataset(Dataset):
 
 
 def build_tiny_dataset_from_old_dataframe(config):
+    warings.warn("This function has been deprecated. Remove it ASAP")
+
     def sample_record(df, dataset, instrument):
         query_records = df.loc[(df["dataset"] == dataset) &
                                (df["instrument"] == instrument)]
@@ -308,7 +350,7 @@ def build_tiny_dataset_from_old_dataframe(config):
 
     df_path = os.path.expanduser(config['paths/extract_dir'])
     notes_df_path = os.path.join(df_path, config['dataframes/notes'])
-    notes_df = pandas.read_pickle(notes_df_path)
+    notes_df = pd.read_pickle(notes_df_path)
 
     tiny_dataset = []
     # Get one file for each instrument for each dataset.
