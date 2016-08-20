@@ -4,7 +4,6 @@ A 'dataset' in this context will generally exist on disk as a .csv
 file or dataframe.
 """
 
-import copy
 import json
 import jsonschema
 import logging
@@ -111,72 +110,6 @@ class Observation(object):
         return success
 
 
-# class Dataset(object):
-#     """A class wrapper for loading the dataset
-#     from various inputs, and writing to various
-#     outputs, with utilities for providing
-#     views over datasets and generating train/val
-#     sets.
-
-#     A dataset contains the following columns
-#      - audio_file
-#      - target [normalized target names]
-#      - [some provenance information]
-#     """
-
-#     def __init__(self, observations, data_root=None):
-#         """
-#         Parameters
-#         ----------
-#         observations : list
-#             List of Observations (as dicts or Observations.)
-#             If they're dicts, this will convert them to Observations.
-
-#         data_root : str or None
-#             Path to look for an observation, if not None
-#         """
-#         def safe_obs(obs, data_root=None):
-#             "Get dict from an Observation if an observation, else just dict"
-#             if not os.path.exists(obs['audio_file']) and data_root:
-#                 if not os.path.exists(data_root):
-#                     raise MissingDataException(
-#                         "Input data {} missing; have you extracted the zip?")
-#                 new_audio = os.path.join(data_root, obs['audio_file'])
-#                 if os.path.exists(new_audio):
-#                     obs['audio_file'] = new_audio
-#             if isinstance(obs, Observation):
-#                 return obs.to_dict()
-#             else:
-#                 return obs
-#         self.observations = [Observation(**safe_obs(x, data_root))
-#                              for x in observations]
-
-#     def validate(self):
-#         if len(self.observations > 0):
-#             return all([x.validate for x in self.observations])
-#         else:
-#             logger.warning("No observations to validate.")
-#             return False
-
-#     def copy(self, deep=True):
-#         return Dataset(copy.deepcopy(self.observations))
-
-#     def view(self, dataset_filter):
-#         """Returns a copy of the analyzer pointing to the desired dataset.
-#         Parameters
-#         ----------
-#         dataset_filter : str
-#             String in ["rwc", "uiowa", "philharmonia"] which is
-#             the items in the dataset to return.
-
-#         Returns
-#         -------
-#         """
-#         thecopy = copy.copy(self.to_df())
-#         ds_view = thecopy[thecopy["dataset"] == dataset_filter]
-#         return ds_view
-
-
 def expand_audio_paths(df, data_root):
     # Update the paths to full paths, and make sure it's
     # saved in 'audio_file'
@@ -199,7 +132,7 @@ class Dataset(object):
         return cls(pd.DataFrame(obs_series))
 
     @classmethod
-    def load(cls, path, data_root):
+    def load(cls, path, data_root=None):
         _, ext = os.path.splitext(path)
         if ext == '.json':
             return cls.read_json(path, data_root)
@@ -209,10 +142,11 @@ class Dataset(object):
             raise NotImplementedError()
 
     @classmethod
-    def read_json(cls, json_path, data_root):
+    def read_json(cls, json_path, data_root=None):
         if os.path.exists(json_path):
             df = pd.read_json(json_path)
-            df = expand_audio_paths(df, data_root)
+            if data_root:
+                df = expand_audio_paths(df, data_root)
             return cls(df)
         else:
             logger.error("No dataset available at {}".format(json_path))
@@ -225,6 +159,9 @@ class Dataset(object):
             df = expand_audio_paths(df, data_root)
         return cls(df)
 
+    def copy(self):
+        return Dataset(self.df.copy(), self.split)
+
     def save_json(self, json_path):
         with open(json_path, 'w') as fh:
             json.dump(self.to_builtin(), fh)
@@ -232,6 +169,15 @@ class Dataset(object):
     def save_csv(self, csv_path):
         self.df.to_csv(csv_path)
         return os.path.exists(csv_path)
+
+    def save(self, path):
+        _, ext = os.path.splitext(path)
+        if ext == '.csv':
+            self.save_csv(path)
+        elif ext == '.json':
+            self.save_json(path)
+        else:
+            raise NotImplementedError()
 
     def to_df(self):
         """Returns the dataset as a dataframe."""
@@ -341,19 +287,22 @@ class Dataset(object):
 
             if len(instrument_df) < 2:
                 logger.warning("Instrument {} doesn't haven enough samples "
-                               "to split.".format(instrument))
-                continue
+                               "to split, so putting it in both [bad practice, but what ya gonna do?]".format(instrument))
+                selected_instruments_train.append(instrument_df)
+                selected_instruments_valid.append(instrument_df)
+            else:
 
-            traindf, validdf = train_test_split(
-                instrument_df, test_size=train_val_split)
+                traindf, validdf = train_test_split(
+                    instrument_df, test_size=train_val_split)
 
-            if max_files_per_class:
-                replace = False if len(traindf) > max_files_per_class else True
-                traindf = traindf.sample(n=max_files_per_class,
-                                         replace=replace)
+                if max_files_per_class:
+                    replace = (False if len(traindf) > max_files_per_class
+                               else True)
+                    traindf = traindf.sample(n=max_files_per_class,
+                                             replace=replace)
 
-            selected_instruments_train.append(traindf)
-            selected_instruments_valid.append(validdf)
+                selected_instruments_train.append(traindf)
+                selected_instruments_valid.append(validdf)
 
         return Dataset(pd.concat(selected_instruments_train), 'train'), \
             Dataset(pd.concat(selected_instruments_valid), 'valid')

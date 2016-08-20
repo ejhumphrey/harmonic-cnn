@@ -6,7 +6,9 @@ paths:
 
 data:
   selected: "tiny"
-  tiny: "data/tinyset/notes_index.csv"
+  tiny:
+    notes_index: "data/tinyset/notes_index.csv"
+    root: "data/tinyset/"
   canonical: "data/data.json"
 
 datasets: ["rwc", "uiowa", "philharmonia"]
@@ -34,7 +36,7 @@ experiment:
   config_path: "config.yaml"
   training_loss: "training_loss.pkl"
   validation_loss: "validation_loss.pkl"
-  data_split_format: "{}_df_{}.pkl"
+  data_split_format: "{}_{}.csv"
   predictions_format: "model_{}_predictions.pkl"
   analysis_format: "model_{}_analysis.pkl"
 

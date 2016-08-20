@@ -23,10 +23,12 @@ import librosa
 import logging
 import numpy as np
 import os
+import pandas as pd
 import sys
 import time
 
 import hcnn.common.utils as utils
+import hcnn.data.dataset as DS
 
 logger = logging.getLogger(__name__)
 
@@ -250,15 +252,16 @@ def cqt_from_dataset(dataset, write_dir,
                             harmonic_params, num_cpus, verbose, skip_existing)
     logger.warning("{} files failed to extract.".format(len(failed_files)))
 
-    feats_ds = dataset.copy()
+    feats_df = dataset.to_df()
+    feats_df['cqt'] = pd.Series([None] * len(feats_df), index=feats_df.index)
     # Update the features field if the file was successfully created.
     for i, path in enumerate(cqt_paths):
         if os.path.exists(path):
-            feats_ds[i].features["cqt"] = path
+            feats_df.loc[feats_df.index[i], "cqt"] = path
         else:
             logger.warning("CQT Not successfully created: {}".format(path))
 
-    return feats_ds
+    return DS.Dataset(feats_df, dataset.split)
 
 
 if __name__ == "__main__":

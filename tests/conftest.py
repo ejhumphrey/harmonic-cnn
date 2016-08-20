@@ -46,6 +46,13 @@ def tinyds():
 
 @pytest.fixture(scope="module")
 def tiny_feats(module_workspace, tinyds):
-    limited_ds = DS.Dataset(tinyds.observations[0:2])
+    limited_ds = tinyds.sample(12)
     return hcnn.data.cqt.cqt_from_dataset(
         limited_ds, module_workspace, skip_existing=True)
+
+
+@pytest.fixture(scope="module")
+def tiny_feats_csv(module_workspace, tiny_feats):
+    file_path = os.path.join(module_workspace, "feats_index.csv")
+    tiny_feats.save_csv(file_path)
+    return file_path

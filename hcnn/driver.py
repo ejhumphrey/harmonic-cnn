@@ -55,7 +55,8 @@ def get_slicer_from_network_def(network_def_name):
 class Driver(object):
     "Controller class for handling state."
 
-    def __init__(self, config, experiment_name=None, load_features=True):
+    def __init__(self, config, experiment_name=None,
+                 dataset=None, load_features=True):
         """
         Parameters
         ----------
@@ -67,6 +68,9 @@ class Driver(object):
             name the files/parameters saved.
 
             It is required for many but not all functions.
+
+        load_features : bool
+            L
         """
         self.config = config
         self.experiment_name = experiment_name
@@ -74,14 +78,35 @@ class Driver(object):
         # Initialize common paths 'n variables.
         self._init()
 
-        self.load_dataset(load_features=load_features)
+        self.load_dataset(dataset=dataset, load_features=load_features)
 
-    def _init(self):
-        self._selected_ds = self.config['data/selected']
-        self._dataset_file = self.config['data/{}'.format(self._selected_ds)]
-        self._feature_dir = os.path.expanduser(
+    @property
+    def selected_dataset(self):
+        return self.config['data/selected']
+
+    @property
+    def dataset_config(self):
+        return self.config['data/{}'.format(self.selected_dataset)]
+
+    @property
+    def dataset_index(self):
+        return self.dataset_config['notes_index']
+
+    @property
+    def data_root(self):
+        return self.dataset_config['root']
+
+    @property
+    def feature_dir(self):
+        return os.path.expanduser(
             self.config['paths/feature_dir'])
 
+    @property
+    def features_path(self):
+        dataset_fn = os.path.basename(self.dataset_index)
+        return os.path.join(self.feature_dir, dataset_fn)
+
+    def _init(self):
         self.model_definition = self.config["model"]
         self.max_files_per_class = self.config.get(
             "training/max_files_per_class", None)
@@ -100,16 +125,16 @@ class Driver(object):
     def _init_cross_validation(self, test_set):
         self._cv_model_dir = os.path.join(self._model_dir, test_set)
         self._params_dir = os.path.join(
-                self._cv_model_dir,
-                self.config["experiment/params_dir"])
+            self._cv_model_dir,
+            self.config["experiment/params_dir"])
         self._training_loss_path = os.path.join(
             self._cv_model_dir, self.config['experiment/training_loss'])
 
-        self._training_df_save_path = os.path.join(
+        self._train_set_save_path = os.path.join(
             self._cv_model_dir,
             self.config['experiment/data_split_format'].format(
                 "train", test_set))
-        self._valid_df_save_path = os.path.join(
+        self._valid_set_save_path = os.path.join(
             self._cv_model_dir,
             self.config['experiment/data_split_format'].format(
                 "valid", test_set))
@@ -156,7 +181,7 @@ class Driver(object):
             return False
         return True
 
-    def load_dataset(self, load_features=True):
+    def load_dataset(self, dataset=None, load_features=True):
         """Load the selected dataset in specified in the config file.
 
         Parameters
@@ -165,27 +190,21 @@ class Driver(object):
             If true, tries to load the features version of the dataset,
             else just loads the original specified version.
         """
-        if not load_features:
-            self.dataset = hcnn.data.dataset.Dataset.read_json(
-                self._dataset_file, data_root=self.config['paths/data_dir'])
+        # Always start by loading the dataset.
+        if dataset:
+            # If it's a str, it's a path.
+            if isinstance(dataset, str):
+                self.dataset = hcnn.data.dataset.Dataset.load(
+                    dataset, data_root=self.data_root)
+            elif isinstance(dataset, hcnn.data.dataset.Dataset):
+                self.dataset = dataset
         else:
-            dataset_fn = os.path.basename(self._dataset_file)
-            feature_ds_path = os.path.join(self._feature_dir, dataset_fn)
+            self.dataset = hcnn.data.dataset.Dataset.load(
+                self.dataset_index, data_root=self.data_root)
 
-            if os.path.exists(feature_ds_path):
-                if os.path.getmtime(feature_ds_path) < \
-                        os.path.getmtime(self._dataset_file):
-                    logger.error(utils.colored(
-                        "Your features file is out of date; "
-                        "please re-run 'extract_features'.", "red"))
-                    raise StaleFeaturesError("Features file out of date.")
-
-                self.dataset = hcnn.data.dataset.Dataset.read_json(
-                    feature_ds_path, data_root=self.config['paths/data_dir'])
-            else:
-                logger.error("Features dataset does not exist; "
-                             "please run extract_features")
-                raise NoFeaturesException("Features file doesn't exist.")
+        # If we want the features, additionally add it to the dataset.
+        if load_features:
+            self.dataset = self.extract_features()
 
     def print_stats(self):
         dataset_df = self.dataset.to_df()
@@ -220,55 +239,51 @@ class Driver(object):
     def extract_features(self):
         """Extract CQTs from all files collected in collect."""
         updated_ds = hcnn.data.cqt.cqt_from_dataset(
-            self.dataset, self._feature_dir, **self.config["features/cqt"])
+            self.dataset, self.feature_dir, **self.config["features/cqt"])
 
-        success = False
         if updated_ds is not None and \
                 len(updated_ds) == len(self.dataset):
             write_path = os.path.join(
-                self._feature_dir, os.path.basename(self._dataset_file))
-            updated_ds.save_json(write_path)
-            success = os.path.exists(write_path)
-        return success
+                self.feature_dir, os.path.basename(self.dataset_index))
+            updated_ds.save(write_path)
 
-    def _get_validation_splits(self, training_df, test_set):
+        return updated_ds
+
+    def _get_validation_splits(self, test_set):
         logger.info("[{}] Constructing training df".format(
             self.experiment_name))
-        training_df, valid_df = self.dataset.get_train_val_split(
+        train_set, valid_set = self.dataset.train_valid_sets(
             test_set, max_files_per_class=self.max_files_per_class)
         logger.debug("[{}] training_df : {} rows".format(
-            self.experiment_name, len(training_df)))
+            self.experiment_name, len(train_set)))
         # Save the dfs to disk so we can use them for validation later.
-        training_df.to_pickle(self._training_df_save_path)
-        valid_df.to_pickle(self._valid_df_save_path)
+        train_set.save(self._train_set_save_path)
+        valid_set.save(self._valid_set_save_path)
 
-        return training_df, valid_df
+        return train_set, valid_set
 
-    def train_model(self, test_set):
-        """
-        Train a model, writing intermediate params
-        to disk.
-
-        Trains for max_iterations or max_time, whichever is fewer.
-        [Specified in the config.]
-
-        test_set : str
-            Which dataset to leave out in training.
-
-        """
-        logger.info("Starting training for experiment: {}".format(
-            self.experiment_name))
-
+    def setup_data_splits(self, test_set):
         # Important paths & things to load.
         self._init_cross_validation(test_set)
         if not self.check_features_input():
             logger.error("train_model setup state invalid.")
             return False
 
-        dataset_df = self.dataset.to_df()
         # Set up the dataframes we're going to train with.
-        training_df, valid_df = self._get_validation_splits(
-            dataset_df, test_set)
+        self.train_set, self.valid_set = self._get_validation_splits(test_set)
+
+    def train_model(self):
+        """
+        Train a model, writing intermediate params
+        to disk.
+
+        Trains for max_iterations or max_time, whichever is fewer.
+        [Specified in the config.]
+        """
+        assert hasattr(self, 'train_set') and hasattr(self, 'valid_set')
+
+        logger.info("Starting training for experiment: {}".format(
+            self.experiment_name))
 
         # Save the config we used in the model directory, just in case.
         self.config.save(self._experiment_config_path)
@@ -291,7 +306,7 @@ class Driver(object):
         # Set up our streamer
         logger.info("[{}] Setting up streamer".format(self.experiment_name))
         streamer = streams.InstrumentStreamer(
-            training_df, slicer, t_len=t_len, batch_size=batch_size)
+            self.train_set.to_df(), slicer, t_len=t_len, batch_size=batch_size)
 
         # create our model
         logger.info("[{}] Setting up model: {}".format(self.experiment_name,
@@ -334,8 +349,7 @@ class Driver(object):
                              "stream: {} | train: {}".format(
                                 iter_count, loss,
                                 timers.get(("stream", iter_count)),
-                                timers.get(("batch_train", iter_count))
-                                ))
+                                timers.get(("batch_train", iter_count))))
                 # Print status
                 if iter_print_freq and (iter_count % iter_print_freq == 0):
                     mean_train_loss = \
@@ -347,15 +361,15 @@ class Driver(object):
                     min_train_loss = min(mean_train_loss, min_train_loss)
                     # Print the mean times for the last n frames
                     logger.debug("Mean stream time: {}, Mean train time: {}"
-                                .format(
-                                    timers.mean(
-                                        "stream",
-                                        iter_count - iter_print_freq,
-                                        iter_count),
-                                    timers.mean(
-                                        "batch_train",
-                                        iter_count - iter_print_freq,
-                                        iter_count)))
+                                 .format(
+                                     timers.mean(
+                                         "stream",
+                                         iter_count - iter_print_freq,
+                                         iter_count),
+                                     timers.mean(
+                                         "batch_train",
+                                         iter_count - iter_print_freq,
+                                         iter_count)))
 
                 # save model, maybe
                 if iter_write_freq and (iter_count % iter_write_freq == 0):
@@ -393,8 +407,7 @@ class Driver(object):
 
         # Make sure to save the final iteration's model.
         save_path = os.path.join(
-                        self._params_dir,
-                        self.param_format_str.format(iter_count))
+            self._params_dir, self.param_format_str.format(iter_count))
         model.save(save_path)
         logger.info("Completed training for experiment: {}".format(
             self.experiment_name))
@@ -409,7 +422,7 @@ class Driver(object):
         return all([os.path.exists(self._training_loss_path),
                     os.path.exists(self._training_loss_path)])
 
-    def find_best_model(self, validation_df):
+    def find_best_model(self):
         """Perform model selection on the validation set with a binary search
         for minimum validation loss.
 
@@ -431,7 +444,7 @@ class Driver(object):
             logger.error("find_best_model features missing invalid.")
             return False
 
-        validation_df = pandas.read_pickle(self._valid_df_save_path)
+        validation_df = pandas.read_pickle(self._valid_set_save_path)
 
         # load all necessary config parameters from the ORIGINAL config
         original_config = C.Config.from_yaml(self._experiment_config_path)
@@ -560,12 +573,15 @@ class Driver(object):
         logger.info("Beginning fit_and_predict_one:{}".format(test_set))
         result = False
 
+        # Step 0: initialize the data for the current splits.
+        self.setup_data_splits(test_set)
+
         # Step 1: train
-        result = self.train_model(test_set)
+        result = self.train_model()
 
         # Step 2: model selection
         if result:
-            results_df = self.find_best_model(test_set)
+            results_df = self.find_best_model()
             best_iter = self.select_best_iteration(results_df)
 
             # Step 3: predictions
