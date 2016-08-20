@@ -264,6 +264,10 @@ class Dataset(object):
     def datasets(self):
         return list(self.df['dataset'].unique())
 
+    def sample(self, *args, **kwargs):
+        """Thin wrapper on DataFrame.sample, but returns a Dataset."""
+        return Dataset(self.df.sample(*args, **kwargs))
+
     def filter(self, dataset_name=None, instrument=None, invert=False):
         """Return a copy of the dataset, filtering on dataset name
         or instrument

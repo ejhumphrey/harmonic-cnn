@@ -5,7 +5,7 @@ import tempfile
 
 import hcnn.common.labels
 import hcnn.data.cqt
-import hcnn.data.dataset
+import hcnn.data.dataset as DS
 
 
 @pytest.fixture()
@@ -41,11 +41,11 @@ def classmap():
 
 @pytest.fixture(scope="module")
 def tinyds():
-    return hcnn.data.dataset.TinyDataset.load()
+    return DS.TinyDataset.load()
 
 
 @pytest.fixture(scope="module")
 def tiny_feats(module_workspace, tinyds):
-    limited_ds = hcnn.data.dataset.Dataset(tinyds.observations[0:2])
+    limited_ds = DS.Dataset(tinyds.observations[0:2])
     return hcnn.data.cqt.cqt_from_dataset(
         limited_ds, module_workspace, skip_existing=True)

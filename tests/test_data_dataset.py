@@ -124,6 +124,12 @@ def test_get_test_set(tinydata):
     assert testset.split == 'test'
 
 
+def test_dataset_sample(tinydata):
+    for n_samples in [5]:
+        sampleset = tinydata.sample(n_samples)
+        assert len(sampleset) == n_samples
+
+
 def test_training_valid_sets():
     tinydata = dataset.TinyDataset.load()
 
