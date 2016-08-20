@@ -3,6 +3,7 @@ sudo: false
 addons:
   apt:
     packages:
+    - libsox-fmt-mp3
     - sox
 
 cache:
@@ -26,17 +27,17 @@ before_install:
 
 # command to install dependencies
 install:
-  # install your own package
   - pip install -e .
   - pip install -r requirements.txt
-  # - pip install coveralls
+  - pip install coveralls
 
 script:
-  - py.test -vs
+  - py.test -vs --cov=wcqtlib .
   - python manage.py test
 
 after_success:
-    # - coveralls
+  - coveralls
+  - pip uninstall -y wcqtlib
 
 after_failure:
-  
+  - pip uninstall -y wcqtlib
