@@ -28,7 +28,7 @@ extract:
 features:
   cqt:
     num_cpus: -1
-    skip_existing: false
+    skip_existing: True
 
 model: "cqt_iX_c2f2_oY"
 

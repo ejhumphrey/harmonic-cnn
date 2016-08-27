@@ -71,7 +71,7 @@ def run(master_config, experiment_name):
     logger.debug("Running with experiment_name={} at {}"
                  .format(experiment_name, timer.get_start("run")))
     driver = hcnn.driver.Driver(config, experiment_name,
-                                   load_features=True)
+                                load_features=True)
     result = driver.fit_and_predict_cross_validation()
     print("Experiment {} in duration {}".format(
         utils.result_colored(result), timer.end("run")))
@@ -93,9 +93,9 @@ def fit_and_predict(master_config, experiment_name, test_set):
     timer = utils.TimerHolder()
     timer.start(run_name)
     logger.debug("Running with experiment_name={} at {}"
-                 .format(experiment_name, timer.get_start("run")))
+                 .format(experiment_name, timer.get_start(run_name)))
     driver = hcnn.driver.Driver(config, experiment_name,
-                                   load_features=True)
+                                load_features=True)
     result = driver.fit_and_predict_one(test_set)
     print("{} - {} complted in duration {}".format(
         run_name, utils.result_colored(result), timer.end(run_name)))
@@ -123,40 +123,10 @@ def train(master_config,
     logger.info("Training with test set {}".format(test_set))
     config = C.Config.load(master_config)
     driver = hcnn.driver.Driver(config, experiment_name,
-                                   load_features=True)
+                                load_features=True)
 
-    return driver.train_model(test_set)
-
-
-def model_selection(master_config,
-                    experiment_name,
-                    test_set,
-                    plot_loss=False):
-    """Perform model selection on the validation set.
-
-    Parameters
-    ----------
-    master_config : str
-        Full path
-
-    experiment_name : str
-        Name of the experiment. Files are saved in a folder of this name.
-
-    test_set : str
-        String in ["rwc", "uiowa", "philharmonia"] specifying which
-        dataset to use as the test set.
-
-    plot_loss : bool
-        If true, uses matplotlib to non-blocking plot the loss
-        at each validation.
-    """
-    print(utils.colored("Model Selection"))
-    config = C.Config.load(master_config)
-
-    return driver.find_best_model(config,
-                                  experiment_name=experiment_name,
-                                  validation_df=valid_df,
-                                  plot_loss=plot_loss)
+    driver.setup_data_splits(test_set)
+    return driver.train_model()
 
 
 def predict(master_config,
@@ -180,16 +150,9 @@ def predict(master_config,
     print(utils.colored("Evaluating"))
     config = C.Config.load(master_config)
 
-    max_iterations = config['training/max_iterations']
-    params_zero_pad = int(np.ceil(np.log10(max_iterations)))
-    param_format_str = config['experiment/params_format']
-    param_format_str = param_format_str.format(params_zero_pad)
-    selected_model_file = param_format_str.format(select_epoch) \
-        if str(select_epoch).isdigit() else "{}.npz".format(
-            select_epoch)
-
-    results = driver.predict(
-        config, experiment_name, selected_model_file)
+    driver = hcnn.driver.Driver(config, experiment_name,
+                                load_features=True)
+    results = driver.predict(select_epoch)
     logger.info("Generated results for {} files.".format(len(results)))
 
 
@@ -223,47 +186,8 @@ def analyze(master_config,
 
 
 def datatest(master_config, show_full=False):
-    """Check your generated data."""
-    config = C.Config.load(master_config)
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-
-    # Regenerate the datasets_df to make sure it's not stale.
-    if not collect(master_config, clean_data=False):
-        logger.error("Failed to regenerate datasets_df.")
-
-    datasets_df = pandas.read_json(datasets_path)
-    logger.info("Your datasets_df has {} records".format(len(datasets_df)))
-
-    canonical_df = parse.load_canonical_files()
-    logger.info("Cannonical dataset has {} records".format(len(canonical_df)))
-
-    diff_df = parse.diff_datasets_files(canonical_df, datasets_df)
-    if len(diff_df) and show_full:
-        print(utils.colored(
-            "The following files are missing from your machine", "red"))
-
-        print("Filename\tdirname\tdataset")
-        for index, row in diff_df.iterrows():
-            print("{:<40}\t{:<20}\t{:<15}".format(
-                index, row['dirnamecan'], row['datasetcan']))
-    else:
-        print(utils.colored("You're all set; your dataset matches.", "green"))
-
-    print(utils.colored("Now checking all files for validity."))
-
-    classmap = hcnn.data.parse.InstrumentClassMap()
-    filtered_df = datasets_df[datasets_df["instrument"].isin(
-        classmap.allnames)]
-    bad_files = E.check_valid_audio_files(filtered_df,
-                                          write_path="bad_file_reads.txt")
-    print(utils.colored("{} files could not be opened".format(
-                        len(bad_files)), "red"))
-    if bad_files:
-        logger.error("Unable to open the following audio files:")
-        for filepath in bad_files:
-            logger.error(filepath)
+    # TODO
+    pass
 
 
 def datastats(master_config):

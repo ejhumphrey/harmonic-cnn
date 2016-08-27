@@ -447,7 +447,7 @@ class Driver(object):
         validation_df = pandas.read_pickle(self._valid_set_save_path)
 
         # load all necessary config parameters from the ORIGINAL config
-        original_config = C.Config.from_yaml(self._experiment_config_path)
+        original_config = C.Config.load(self._experiment_config_path)
         validation_error_file = os.path.join(
             self._cv_model_dir, original_config['experiment/validation_loss'])
 
@@ -513,7 +513,7 @@ class Driver(object):
             utils.colored(model_iter, "cyan")))
         selected_param_file = self._format_params_fn(model_iter)
 
-        original_config = C.Config.from_yaml(self._experiment_config_path)
+        original_config = C.Config.load(self._experiment_config_path)
         params_file = os.path.join(self._params_dir,
                                    selected_param_file)
         slicer = get_slicer_from_network_def(original_config['model'])
@@ -536,7 +536,7 @@ class Driver(object):
 
     def analyze_from_predictions(self, model_iter, test_set):
         """Loads predictions from a file before calling analyze."""
-        original_config = C.Config.from_yaml(self._experiment_config_path)
+        original_config = C.Config.load(self._experiment_config_path)
         analyzer = hcnn.evaluate.analyze.PredictionAnalyzer.from_config(
             original_config, self.experiment_name, model_iter, test_set)
 
