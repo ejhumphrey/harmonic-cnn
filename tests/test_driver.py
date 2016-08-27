@@ -99,7 +99,7 @@ def test_find_best_model(workspace):
             "valid", hold_out))
 
     driver = hcnn.driver.Driver(thisconfig, experiment_name,
-                                   load_features=True)
+                                load_features=True)
     result = driver.train_model(hold_out)
     assert result is True
 

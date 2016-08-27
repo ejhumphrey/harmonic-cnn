@@ -1,17 +1,20 @@
 paths:
-  data_dir: "~/data"
-  extract_dir: "~/data/ismir2016-wcqt-data"
-  feature_dir: "~/data/ismir2016-wcqt-data/cqt"
-  model_dir: "~/data/ismir2016-wcqt-models"
+  extract_dir: "~/data/hcnn_data"
+  feature_dir: "~/data/hcnn_data/cqt"
+  model_dir: "~/data/hcnn_data/models"
 
 data:
   selected: "tiny"
   tiny:
     notes_index: "data/tinyset/notes_index.csv"
     root: "data/tinyset/"
-  canonical: "data/data.json"
-
-datasets: ["rwc", "uiowa", "philharmonia"]
+  canonical: 
+    root: "~/data/minst/note_files"
+    notes_index: "~/data/minst/master_index.csv"
+    partitions:
+      rwc: "~/data/minst/rwc_index.csv"
+      philharmonia: "~/data/minst/philharmonia_index.csv"
+      uiowa: "~/data/minst/uiowa_index.csv"
 
 extract:
   max_duration: 2.0

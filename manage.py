@@ -6,13 +6,11 @@ import pandas
 import shutil
 import sys
 
-import wcqtlib.common.config as C
-import wcqtlib.common.utils as utils
-import wcqtlib.data.dataset
-import wcqtlib.data.parse as parse
-import wcqtlib.data.extract as E
-import wcqtlib.data.cqt
-import wcqtlib.driver
+import hcnn.common.config as C
+import hcnn.common.utils as utils
+import hcnn.data.dataset
+import hcnn.data.cqt
+import hcnn.driver
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
@@ -32,23 +30,9 @@ def run_process_if_not_exists(process, filepath, **kwargs):
         return True
 
 
-def save_canonical_files(master_config):
-    """Create the canonical_files.json file."""
-    config = C.Config.from_yaml(master_config)
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-    datasets_df = pandas.read_json(datasets_path)
-    logger.info("Generating canonical datasets file from {} records".format(
-        len(datasets_df)))
-    success = parse.generate_canonical_files(datasets_df)
-    logger.info("Success: {}".format(success))
-    return success
-
-
 def clean(master_config):
     """Clean dataframes and extracted audio/features."""
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
 
     data_path = os.path.expanduser(config['paths/extract_dir'])
     # Clean data
@@ -66,10 +50,10 @@ def clean(master_config):
 
 def extract_features(master_config):
     """Extract CQTs from all files collected in collect."""
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
 
-    driver = wcqtlib.driver.Driver(config, load_features=False)
+    driver = hcnn.driver.Driver(config, load_features=False)
     result = driver.extract_features()
     print("Extraction {}".format(utils.result_colored(result)))
     return result
@@ -79,14 +63,14 @@ def run(master_config, experiment_name):
     """Run an experiment end-to-end with cross validation.
     Note: requires extracted features.
     """
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     print(utils.colored("Running experiment end-to-end."))
 
     timer = utils.TimerHolder()
     timer.start("run")
     logger.debug("Running with experiment_name={} at {}"
                  .format(experiment_name, timer.get_start("run")))
-    driver = wcqtlib.driver.Driver(config, experiment_name,
+    driver = hcnn.driver.Driver(config, experiment_name,
                                    load_features=True)
     result = driver.fit_and_predict_cross_validation()
     print("Experiment {} in duration {}".format(
@@ -103,14 +87,14 @@ def fit_and_predict(master_config, experiment_name, test_set):
     """
     run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
 
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     print(utils.colored("Running {} end-to-end.".format(run_name)))
 
     timer = utils.TimerHolder()
     timer.start(run_name)
     logger.debug("Running with experiment_name={} at {}"
                  .format(experiment_name, timer.get_start("run")))
-    driver = wcqtlib.driver.Driver(config, experiment_name,
+    driver = hcnn.driver.Driver(config, experiment_name,
                                    load_features=True)
     result = driver.fit_and_predict_one(test_set)
     print("{} - {} complted in duration {}".format(
@@ -137,8 +121,8 @@ def train(master_config,
     """
     print(utils.colored("Training experiment: {}".format(experiment_name)))
     logger.info("Training with test set {}".format(test_set))
-    config = C.Config.from_yaml(master_config)
-    driver = wcqtlib.driver.Driver(config, experiment_name,
+    config = C.Config.load(master_config)
+    driver = hcnn.driver.Driver(config, experiment_name,
                                    load_features=True)
 
     return driver.train_model(test_set)
@@ -167,7 +151,7 @@ def model_selection(master_config,
         at each validation.
     """
     print(utils.colored("Model Selection"))
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
 
     return driver.find_best_model(config,
                                   experiment_name=experiment_name,
@@ -194,7 +178,7 @@ def predict(master_config,
         If None, uses "final.npz"
     """
     print(utils.colored("Evaluating"))
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
 
     max_iterations = config['training/max_iterations']
     params_zero_pad = int(np.ceil(np.log10(max_iterations)))
@@ -230,7 +214,7 @@ def analyze(master_config,
         If None, uses "final.npz"
     """
     print(utils.colored("Analyzing"))
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
 
     hold_out_set = config["experiment/hold_out_set"]
 
@@ -240,7 +224,7 @@ def analyze(master_config,
 
 def datatest(master_config, show_full=False):
     """Check your generated data."""
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     datasets_path = os.path.join(
         os.path.expanduser(config['paths/extract_dir']),
         config['dataframes/datasets'])
@@ -269,7 +253,7 @@ def datatest(master_config, show_full=False):
 
     print(utils.colored("Now checking all files for validity."))
 
-    classmap = wcqtlib.data.parse.InstrumentClassMap()
+    classmap = hcnn.data.parse.InstrumentClassMap()
     filtered_df = datasets_df[datasets_df["instrument"].isin(
         classmap.allnames)]
     bad_files = E.check_valid_audio_files(filtered_df,
@@ -283,10 +267,10 @@ def datatest(master_config, show_full=False):
 
 
 def datastats(master_config):
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     print(utils.colored("Printing Stats."))
 
-    driver = wcqtlib.driver.Driver(config, load_features=False)
+    driver = hcnn.driver.Driver(config, load_features=False)
     driver.print_stats()
     return True
 
@@ -326,9 +310,6 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
     subparsers = parser.add_subparsers()
-    save_canonical_parser = subparsers.add_parser('save_canonical_files')
-    save_canonical_parser.set_defaults(func=save_canonical_files)
-
     extract_features_parser = subparsers.add_parser('extract_features')
     extract_features_parser.set_defaults(func=extract_features)
 
