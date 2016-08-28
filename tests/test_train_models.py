@@ -5,13 +5,13 @@ import numpy as np
 import os
 import pandas
 import pytest
-import sys
 
 import hcnn.train.streams as streams
 import hcnn.train.models as models
+import hcnn.logger
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+hcnn.logger.init('DEBUG')
 
 
 @pytest.fixture
