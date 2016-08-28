@@ -4,55 +4,51 @@ Usage:
  manage.py run
  manage.py run [<cqt> | <wcqt> | <hcqt>]
  manage.py extract_features
- manage.py fit_and_predict <experiment_name> <test_set>
- manage.py train <experiment_name> <test_set>
- manage.py predict <experiment_name> <test_set>
- manage.py test
- manage.py data_test
- manage.py model_test
- manage.py unit_test
+ manage.py experiment (train|predict|fit_and_predict) <experiment_name> <test_set> <model>
+ manage.py test [(data|model|unit)]
 
 Arguments:
  run           Run all of the the experiments end-to-end.
- cqt           Run only the cqt experiment.
- wcqt          Run only the wcqt experiment.
- hcqt          Run only the hcqt experiment.
+               'cqt' runs only on cqt features.
+               'wcqt' runs only on wcqt features.
+               'hcqt' runs only on hcqt features.
  extract_features  Manually extract features from the dataset audio files.
                (This will happen automatically in a full 'run'.)
  fit_and_predict  Train over a specified partition, and immediately runs
                the predictions over the test set.
  train         Run only the training compoment for a specified partition.
  predict       Run only the prediction component over a specified partition.
- test          Run all tests.
- data_test     Run data tests to make make sure the experiment can run.
- model_test    Trains and predicts every model using a tiny dataset to
-               make sure that all the models are working correctly.
- unit_test     Run all unit tests.
+ test          Run tests.
+               'data' tests to make sure the data is setup to run.
+               'model' runs simple train and predict on a small subset of data.
+               'unit' runs unit tests.
 
 Options:
  -v --verbose  Increase verbosity.
 """
 
-import argparse
+from docopt import docopt
 import logging
 import numpy as np
 import os
 import pandas
 import shutil
 import sys
+import theano
 
 import hcnn.common.config as C
 import hcnn.common.utils as utils
 import hcnn.data.dataset
 import hcnn.data.cqt
 import hcnn.driver
+import hcnn.logger
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
 
 logger = logging.getLogger(__name__)
+hcnn.logger.init()
 
-import theano
 # theano debug values. probably remove these later.
 theano.config.exception_verbosity = 'high'
 theano.config.optimizer = 'fast_compile'
@@ -264,63 +260,126 @@ def test(master_config):
     return result
 
 
+def run_all_experiments(config):
+    for features in ['cqt', 'wcqt', 'hcqt']:
+        run_experiment(features, config)
+
+
+def run_experiment(input_feature, config):
+    """Run an experiment using the specified input feature
+
+    Parameters
+    ----------
+    input_feature : ['cqt', 'wcqt', 'hcqt']
+    """
+    logger.info("run_experiment(input_feature='{}')".format(input_feature))
+
+
+def handle_arguments(arguments):
+    config = CONFIG_PATH
+    # print(arguments)
+    # Run modes
+    if arguments['run']:
+        feature = None
+        if arguments['<cqt>']:
+            feature = 'cqt'
+        elif arguments['<wcqt>']:
+            feature = 'wcqt'
+        elif arguments['<hcqt>']:
+            feature = 'hcqt'
+
+        logger.info("Run Mode; features={}".format(
+            feature if feature else "all"))
+        if feature:
+            run_experiment(feature, config)
+        else:
+            run_all_experiments(config)
+
+    elif arguments['extract_features']:
+        logger.info('Extracting features.')
+        extract_features(config)
+
+    # Basic Experiment modes
+    elif arguments['experiment']:
+        experiment_name = arguments['<experiment_name>']
+        test_set = arguments['<test_set>']
+        model = arguments['<model>']
+
+        logger.info("Running experiment '{}' with test_set '{}' using model '{}'".format(experiment_name, test_set, model))
+    # Test modes
+    elif arguments['test']:
+        test_type = None
+        if arguments['data']:
+            test_type = 'data'
+        elif arguments['model']:
+            test_type = 'model'
+        elif arguments['unit']:
+            test_type = 'unit'
+
+        logger.info('Running {} tests'.format(
+            test_type if test_type else 'all'))
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
+    # parser = argparse.ArgumentParser(description=__doc__)
+    # parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
-    subparsers = parser.add_subparsers()
-    extract_features_parser = subparsers.add_parser('extract_features')
-    extract_features_parser.set_defaults(func=extract_features)
+    # subparsers = parser.add_subparsers()
+    # extract_features_parser = subparsers.add_parser('extract_features')
+    # extract_features_parser.set_defaults(func=extract_features)
 
-    fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
-    fit_and_predict_parser.add_argument('experiment_name',
-                                        help="Name of the experiment. "
-                                        "Files go in a directory of "
-                                        "this name.")
-    fit_and_predict_parser.add_argument('test_set',
-                                        help="Dataset to use for hold-out.")
-    fit_and_predict_parser.set_defaults(func=fit_and_predict)
+    # fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
+    # fit_and_predict_parser.add_argument('experiment_name',
+    #                                     help="Name of the experiment. "
+    #                                     "Files go in a directory of "
+    #                                     "this name.")
+    # fit_and_predict_parser.add_argument('test_set',
+    #                                     help="Dataset to use for hold-out.")
+    # fit_and_predict_parser.set_defaults(func=fit_and_predict)
 
-    train_parser = subparsers.add_parser('train')
-    train_parser.add_argument('experiment_name',
-                              help="Name of the experiment. "
-                                   "Files go in a directory of this name.")
-    train_parser.add_argument('test_set',
-                              help="Dataset to use for hold-out.")
-    train_parser.set_defaults(func=train)
-    predict_parser = subparsers.add_parser('predict')
-    predict_parser.add_argument('experiment_name',
-                                help="Name of the experiment. "
-                                     "Files go in a directory of this name.")
-    predict_parser.add_argument('test_set',
-                                help="Dataset to use for hold-out.")
-    predict_parser.add_argument('-s', '--select_epoch',
-                                default=None, type=int)
-    predict_parser.set_defaults(func=predict)
-    analyze_parser = subparsers.add_parser('analyze')
-    analyze_parser.add_argument('experiment_name',
-                                help="Name of the experiment. "
-                                     "Files go in a directory of this name.")
-    analyze_parser.add_argument('-s', '--select_epoch',
-                                default=None)
-    analyze_parser.set_defaults(func=analyze)
+    # train_parser = subparsers.add_parser('train')
+    # train_parser.add_argument('experiment_name',
+    #                           help="Name of the experiment. "
+    #                                "Files go in a directory of this name.")
+    # train_parser.add_argument('test_set',
+    #                           help="Dataset to use for hold-out.")
+    # train_parser.set_defaults(func=train)
+    # predict_parser = subparsers.add_parser('predict')
+    # predict_parser.add_argument('experiment_name',
+    #                             help="Name of the experiment. "
+    #                                  "Files go in a directory of this name.")
+    # predict_parser.add_argument('test_set',
+    #                             help="Dataset to use for hold-out.")
+    # predict_parser.add_argument('-s', '--select_epoch',
+    #                             default=None, type=int)
+    # predict_parser.set_defaults(func=predict)
+    # analyze_parser = subparsers.add_parser('analyze')
+    # analyze_parser.add_argument('experiment_name',
+    #                             help="Name of the experiment. "
+    #                                  "Files go in a directory of this name.")
+    # analyze_parser.add_argument('-s', '--select_epoch',
+    #                             default=None)
+    # analyze_parser.set_defaults(func=analyze)
 
-    # Tests
-    datatest_parser = subparsers.add_parser('datatest')
-    datatest_parser.add_argument('-p', '--show_full', action="store_true",
-                                 help="Print the full diff to screen.")
-    datatest_parser.set_defaults(func=datatest)
-    datastats_parser = subparsers.add_parser('datastats')
-    datastats_parser.set_defaults(func=datastats)
-    test_parser = subparsers.add_parser('test')
-    test_parser.set_defaults(func=test)
+    # # Tests
+    # datatest_parser = subparsers.add_parser('datatest')
+    # datatest_parser.add_argument('-p', '--show_full', action="store_true",
+    #                              help="Print the full diff to screen.")
+    # datatest_parser.set_defaults(func=datatest)
+    # datastats_parser = subparsers.add_parser('datastats')
+    # datastats_parser.set_defaults(func=datastats)
+    # test_parser = subparsers.add_parser('test')
+    # test_parser.set_defaults(func=test)
 
-    utils.setup_logging(logging.INFO)
+    # utils.setup_logging(logging.INFO)
 
-    args = vars(parser.parse_args())
-    fx = args.pop('func', None)
-    if fx:
-        success = fx(**args)
-        sys.exit(0 if success else 1)
-    else:
-        parser.print_help()
+    # args = vars(parser.parse_args())
+    # fx = args.pop('func', None)
+    # if fx:
+    #     success = fx(**args)
+    #     sys.exit(0 if success else 1)
+    # else:
+    #     parser.print_help()
+
+    arguments = docopt(__doc__)
+    handle_arguments(arguments)
