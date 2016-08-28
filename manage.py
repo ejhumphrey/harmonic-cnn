@@ -1,3 +1,38 @@
+"""Master script to run Harmonic-CNN Experiments.
+
+Usage:
+ manage.py run
+ manage.py run [<cqt> | <wcqt> | <hcqt>]
+ manage.py extract_features
+ manage.py fit_and_predict <experiment_name> <test_set>
+ manage.py train <experiment_name> <test_set>
+ manage.py predict <experiment_name> <test_set>
+ manage.py test
+ manage.py data_test
+ manage.py model_test
+ manage.py unit_test
+
+Arguments:
+ run           Run all of the the experiments end-to-end.
+ cqt           Run only the cqt experiment.
+ wcqt          Run only the wcqt experiment.
+ hcqt          Run only the hcqt experiment.
+ extract_features  Manually extract features from the dataset audio files.
+               (This will happen automatically in a full 'run'.)
+ fit_and_predict  Train over a specified partition, and immediately runs
+               the predictions over the test set.
+ train         Run only the training compoment for a specified partition.
+ predict       Run only the prediction component over a specified partition.
+ test          Run all tests.
+ data_test     Run data tests to make make sure the experiment can run.
+ model_test    Trains and predicts every model using a tiny dataset to
+               make sure that all the models are working correctly.
+ unit_test     Run all unit tests.
+
+Options:
+ -v --verbose  Increase verbosity.
+"""
+
 import argparse
 import logging
 import numpy as np
