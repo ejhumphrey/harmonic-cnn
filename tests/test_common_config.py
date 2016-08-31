@@ -1,6 +1,6 @@
 import os
 import pytest
-import wcqtlib.common.config as config
+import hcnn.common.config as config
 
 DEFAULT_PATH = os.path.join(os.path.dirname(__file__),
                             os.pardir, "data", "master_config.yaml")
@@ -12,8 +12,8 @@ def __test_config(obj, key, expected_value):
 
 @pytest.mark.skipif(not all([os.path.exists(DEFAULT_PATH)]),
                     reason="Config doesn't exist")
-def test_from_yaml():
-    primary_config = config.Config.from_yaml(DEFAULT_PATH)
+def test_load():
+    primary_config = config.Config.load(DEFAULT_PATH)
     assert bool(primary_config)
 
 

@@ -1,14 +1,14 @@
 import os
 import pytest
 
-import wcqtlib.common.config as C
-import wcqtlib.data.cqt
-import wcqtlib.data.dataset
-import wcqtlib.train.streams as streams
+import hcnn.common.config as C
+import hcnn.data.cqt
+import hcnn.data.dataset
+import hcnn.train.streams as streams
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
+config = C.Config.load(CONFIG_PATH)
 
 
 def __assert_cqt_slicer(dataset, t_len, *slicer_args):

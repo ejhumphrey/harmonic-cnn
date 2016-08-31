@@ -1,15 +1,13 @@
 import copy
 import logging
 import logging.config
-import numpy as np
 import os
 import pandas
 import pytest
 
-import wcqtlib.common.config as C
-import wcqtlib.data.dataset as dataset
-import wcqtlib.data.cqt
-import wcqtlib.driver
+import hcnn.common.config as C
+import hcnn.data.cqt
+import hcnn.driver
 
 logger = logging.getLogger(__name__)
 logging.config.dictConfig({
@@ -38,38 +36,36 @@ logging.config.dictConfig({
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
-
-
-@pytest.fixture(scope="module")
-def tiny_feats(module_workspace, tinyds):
-    return wcqtlib.data.cqt.cqt_from_dataset(
-        tinyds, module_workspace, num_cpus=1, skip_existing=False)
+config = C.Config.load(CONFIG_PATH)
 
 
 @pytest.mark.slowtest
-@pytest.mark.xfail(reason="baddata")
 def test_extract_features(module_workspace, tiny_feats):
-    for obs in tiny_feats.items:
-        assert "cqt" in obs.features
-        assert os.path.exists(obs.features['cqt'])
+    for idx, obs in tiny_feats.to_df().iterrows():
+        assert "cqt" in obs
+        assert os.path.exists(obs.cqt)
 
 
 @pytest.mark.runme
 @pytest.mark.slowtest
-def test_train_simple_model(workspace, tiny_feats):
+def test_train_simple_model(module_workspace, workspace, tiny_feats_csv):
     thisconfig = copy.deepcopy(config)
+    thisconfig.data['training']['iteration_write_frequency'] = 5
     thisconfig.data['training']['max_iterations'] = 200
     thisconfig.data['training']['batch_size'] = 12
     thisconfig.data['training']['max_files_per_class'] = 1
     thisconfig.data['paths']['model_dir'] = workspace
+    thisconfig.data['paths']['feature_dir'] = module_workspace
+    # The features get loaded by tiny_feats_csv anyway
+    thisconfig.data['features']['cqt']['skip_existing'] = True
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
-                                   load_features=True)
+    driver = hcnn.driver.Driver(thisconfig, experiment_name,
+                                dataset=tiny_feats_csv, load_features=True)
 
-    result = driver.train_model(hold_out)
+    driver.setup_data_splits(hold_out)
+    result = driver.train_model()
     assert result is True
 
     # Expected files this should generate
@@ -80,12 +76,8 @@ def test_train_simple_model(workspace, tiny_feats):
     assert os.path.exists(train_loss_fp)
 
     # Also make sure the training & validation splits got written out
-    train_fp = os.path.join(workspace, experiment_name, hold_out,
-                            "train_df_{}.pkl".format(hold_out))
-    assert os.path.exists(train_fp)
-    valid_fp = os.path.join(workspace, experiment_name, hold_out,
-                            "train_df_{}.pkl".format(hold_out))
-    assert os.path.exists(valid_fp)
+    assert os.path.exists(driver._train_set_save_path)
+    assert os.path.exists(driver._valid_set_save_path)
 
 
 @pytest.mark.slowtest
@@ -106,8 +98,8 @@ def test_find_best_model(workspace):
         thisconfig['experiment/data_split_format'].format(
             "valid", hold_out))
 
-    driver = wcqtlib.driver.Driver(thisconfig, experiment_name,
-                                   load_features=True)
+    driver = hcnn.driver.Driver(thisconfig, experiment_name,
+                                load_features=True)
     result = driver.train_model(hold_out)
     assert result is True
 

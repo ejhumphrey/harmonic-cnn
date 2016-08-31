@@ -12,14 +12,14 @@ This project uses three different solo instrument datasets.
 - [Philharmonia](http://www.philharmonia.co.uk/explore/make_music)
 - [RWC - Instruments](https://staff.aist.go.jp/m.goto/RWC-MDB/rwc-mdb-i.html)
 
-We provide "manifest" files with which one can download the first two collections. For access to the third (RWC), you should contact the kind folks at AIST.
-
-Alternatively, features are provided via the [minst-dataset](https://github.com/ejhumphrey/minst-dataset) project.
+The data is prepared using the [minst-dataset](https://github.com/ejhumphrey/minst-dataset) project.
 
 ## Preparing the data for training
-```bash
-python manage.py collect
+Build the data following the instructions in the [minst repository README](https://github.com/ejhumphrey/minst-dataset/blob/master/README.md). The harmonic-cnn config file by default should point to the same location as the minst config, so if you use the defaults, it should point to the correct data. (`~/data/minst`) (or modify the `data/master_config.yaml` config file to point to the appropriate location).
 
+With the data ready to go, extract the CQT features with the following:
+
+```bash
 # Extract features from note files.
 python manage.py extract_features
 ```

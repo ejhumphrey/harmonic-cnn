@@ -1,6 +1,7 @@
+anyconfig
 git+git://github.com/ejhumphrey/claudio.git
 jsonschema
-pescador
+pescador=0.1.3
 progressbar2
 pyyaml
 colorama

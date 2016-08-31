@@ -1,16 +1,17 @@
 import lasagne
+from lasagne.layers import get_all_layers
 import logging
 import numpy as np
 import os
 import pandas
 import pytest
-import sys
 
-import wcqtlib.train.streams as streams
-import wcqtlib.train.models as models
+import hcnn.train.streams as streams
+import hcnn.train.models as models
+import hcnn.logger
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+hcnn.logger.init('DEBUG')
 
 
 @pytest.fixture
@@ -38,6 +39,12 @@ def simple_network_def():
         "loss": "loss.categorical_crossentropy"
     }
     return network_def
+
+
+@pytest.fixture
+def batch_norm_def(simple_network_def):
+    simple_network_def["batch_norm"] = True
+    return simple_network_def
 
 
 def test_names_to_objects():
@@ -208,6 +215,15 @@ def test_networkmanager_buildnetwork():
         "loss": "loss.categorical_crossentropy"
     }
     yield __test_network, network_def, input_shape
+
+
+def test_batchnorm(batch_norm_def):
+    model = models.NetworkManager(batch_norm_def)
+    assert model is not None
+
+    layer_names = [l.__class__.__name__
+                   for l in get_all_layers(model._network)]
+    assert 'BatchNormLayer' in layer_names
 
 
 @pytest.mark.skip(reason="ToDo")

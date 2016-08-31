@@ -1,15 +1,20 @@
 paths:
-  data_dir: "~/data"
-  extract_dir: "~/data/ismir2016-wcqt-data"
-  feature_dir: "~/data/ismir2016-wcqt-data/cqt"
-  model_dir: "~/data/ismir2016-wcqt-models"
+  extract_dir: "~/data/hcnn_data"
+  feature_dir: "~/data/hcnn_data/cqt"
+  model_dir: "~/data/hcnn_data/models"
 
 data:
   selected: "tiny"
-  tiny: "data/tinydata.json"
-  canonical: "data/data.json"
-
-datasets: ["rwc", "uiowa", "philharmonia"]
+  tiny:
+    notes_index: "data/tinyset/notes_index.csv"
+    root: "data/tinyset/"
+  canonical: 
+    root: "~/data/minst/note_files"
+    notes_index: "~/data/minst/master_index.csv"
+    partitions:
+      rwc: "~/data/minst/rwc_index.csv"
+      philharmonia: "~/data/minst/philharmonia_index.csv"
+      uiowa: "~/data/minst/uiowa_index.csv"
 
 extract:
   max_duration: 2.0
@@ -23,7 +28,7 @@ extract:
 features:
   cqt:
     num_cpus: -1
-    skip_existing: false
+    skip_existing: True
 
 model: "cqt_iX_c2f2_oY"
 
@@ -34,7 +39,7 @@ experiment:
   config_path: "config.yaml"
   training_loss: "training_loss.pkl"
   validation_loss: "validation_loss.pkl"
-  data_split_format: "{}_df_{}.pkl"
+  data_split_format: "{}_{}.csv"
   predictions_format: "model_{}_predictions.pkl"
   analysis_format: "model_{}_analysis.pkl"
 

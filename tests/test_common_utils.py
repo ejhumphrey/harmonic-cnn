@@ -1,7 +1,7 @@
 import os
 import pytest
 
-import wcqtlib.common.utils as utils
+import hcnn.common.utils as utils
 
 
 def __eq(a, b):
