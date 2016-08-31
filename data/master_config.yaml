@@ -4,17 +4,21 @@ paths:
   model_dir: "~/data/hcnn_data/models"
 
 data:
-  selected: "tiny"
+  selected: "canonical"
   tiny:
-    notes_index: "data/tinyset/notes_index.csv"
+    notes_index: "data/tinyset/master_index.csv"
     root: "data/tinyset/"
+    partitions:
+      rwc: "data/tinyset/rwc_partitions.csv"
+      philharmonia: "data/tinyset/philharmonia_partitions.csv"
+      uiowa: "data/tinyset/uiowa_partitions.csv"
   canonical: 
     root: "~/data/minst/note_files"
     notes_index: "~/data/minst/master_index.csv"
     partitions:
-      rwc: "~/data/minst/rwc_index.csv"
-      philharmonia: "~/data/minst/philharmonia_index.csv"
-      uiowa: "~/data/minst/uiowa_index.csv"
+      rwc: "~/data/minst/rwc_partitions.csv"
+      philharmonia: "~/data/minst/philharmonia_partitions.csv"
+      uiowa: "~/data/minst/uiowa_partitions.csv"
 
 extract:
   max_duration: 2.0

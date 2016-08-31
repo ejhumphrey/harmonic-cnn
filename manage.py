@@ -1,11 +1,11 @@
 """Master script to run Harmonic-CNN Experiments.
 
 Usage:
- manage.py run
- manage.py run [<cqt> | <wcqt> | <hcqt>]
- manage.py extract_features
- manage.py experiment (train|predict|fit_and_predict) <experiment_name> <test_set> <model>
- manage.py test [(data|model|unit)]
+ manage.py [options] run
+ manage.py [options] run [<cqt> | <wcqt> | <hcqt>]
+ manage.py [options] extract_features
+ manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
+ manage.py [options] test [(data|model|unit)]
 
 Arguments:
  run           Run all of the the experiments end-to-end.
@@ -14,10 +14,13 @@ Arguments:
                'hcqt' runs only on hcqt features.
  extract_features  Manually extract features from the dataset audio files.
                (This will happen automatically in a full 'run'.)
- fit_and_predict  Train over a specified partition, and immediately runs
-               the predictions over the test set.
- train         Run only the training compoment for a specified partition.
- predict       Run only the prediction component over a specified partition.
+ experiment    fit_and_predict  Train over a specified partition, and
+                      immediately runs the predictions over the test set.
+               train       Run only the training compoment for a specified
+                           partition.
+               predict     Run only the prediction component over a specified
+                           partition.
+               analyze     Create a report on the run for analysis.
  test          Run tests.
                'data' tests to make sure the data is setup to run.
                'model' runs simple train and predict on a small subset of data.
@@ -29,9 +32,7 @@ Options:
 
 from docopt import docopt
 import logging
-import numpy as np
 import os
-import pandas
 import shutil
 import sys
 import theano
@@ -47,7 +48,6 @@ CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
 
 logger = logging.getLogger(__name__)
-hcnn.logger.init()
 
 # theano debug values. probably remove these later.
 theano.config.exception_verbosity = 'high'
@@ -109,7 +109,7 @@ def run(master_config, experiment_name):
     return result
 
 
-def fit_and_predict(master_config, experiment_name, test_set):
+def fit_and_predict(config, experiment_name, test_set, feature_mode):
     """Runs:
     - train
     - model_selection_df
@@ -118,7 +118,7 @@ def fit_and_predict(master_config, experiment_name, test_set):
     """
     run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
 
-    config = C.Config.load(master_config)
+    config = C.Config.load(config)
     print(utils.colored("Running {} end-to-end.".format(run_name)))
 
     timer = utils.TimerHolder()
@@ -133,14 +133,15 @@ def fit_and_predict(master_config, experiment_name, test_set):
     return result
 
 
-def train(master_config,
+def train(config,
           experiment_name,
-          test_set):
+          test_set,
+          feature_mode):
     """Run training loop.
 
     Parameters
     ----------
-    master_config : str
+    config : str
         Full path
 
     experiment_name : str
@@ -149,29 +150,38 @@ def train(master_config,
     test_set : str
         String in ["rwc", "uiowa", "philharmonia"] specifying which
         dataset to use as the test set.
+
+    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
+        What type of features to use (and associated model) in training
+        the network.
     """
     print(utils.colored("Training experiment: {}".format(experiment_name)))
-    logger.info("Training with test set {}".format(test_set))
-    config = C.Config.load(master_config)
-    driver = hcnn.driver.Driver(config, experiment_name,
+    logger.info("Training with test_set '{}', and features '{}'".format(
+        test_set, feature_mode))
+    driver = hcnn.driver.Driver(config, test_set, feature_mode,
+                                experiment_name=experiment_name,
                                 load_features=True)
 
-    driver.setup_data_splits(test_set)
     return driver.train_model()
 
 
-def predict(master_config,
+def predict(config,
             experiment_name,
             test_set,
+            feature_mode,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
     Parameters
     ----------
-    master_config : str
+    config : str
 
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
+
+    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
+        What type of features to use (and associated model) in evaluating
+        the network. Must match the training configuration.
 
     select_epoch : str or None
         Which model params to select. Use the epoch number for this, for
@@ -179,7 +189,7 @@ def predict(master_config,
         If None, uses "final.npz"
     """
     print(utils.colored("Evaluating"))
-    config = C.Config.load(master_config)
+    config = C.Config.load(config)
 
     driver = hcnn.driver.Driver(config, experiment_name,
                                 load_features=True)
@@ -219,15 +229,6 @@ def analyze(master_config,
 def datatest(master_config, show_full=False):
     # TODO
     pass
-
-
-def datastats(master_config):
-    config = C.Config.load(master_config)
-    print(utils.colored("Printing Stats."))
-
-    driver = hcnn.driver.Driver(config, load_features=False)
-    driver.print_stats()
-    return True
 
 
 def test(master_config):
@@ -275,9 +276,14 @@ def run_experiment(input_feature, config):
     logger.info("run_experiment(input_feature='{}')".format(input_feature))
 
 
+def run_tests(config, mode):
+    logger.info("run_tests(mode='{}')".format(mode))
+
+
 def handle_arguments(arguments):
     config = CONFIG_PATH
-    # print(arguments)
+    logger.debug(arguments)
+
     # Run modes
     if arguments['run']:
         feature = None
@@ -291,21 +297,39 @@ def handle_arguments(arguments):
         logger.info("Run Mode; features={}".format(
             feature if feature else "all"))
         if feature:
-            run_experiment(feature, config)
+            result = run_experiment(feature, config)
         else:
-            run_all_experiments(config)
+            result = run_all_experiments(config)
 
     elif arguments['extract_features']:
         logger.info('Extracting features.')
-        extract_features(config)
+        result = extract_features(config)
 
     # Basic Experiment modes
     elif arguments['experiment']:
+        if arguments['fit_and_predict']:
+            mode = 'fit_and_predict'
+        elif arguments['train']:
+            mode = 'train'
+        elif arguments['predict']:
+            mode = 'predict'
+        elif arguments['analyze']:
+            mode = 'analyze'
+        else:
+            # docopt should not allow us to get here.
+            raise ValueError("No valid experiment mode set.")
+
         experiment_name = arguments['<experiment_name>']
         test_set = arguments['<test_set>']
         model = arguments['<model>']
 
-        logger.info("Running experiment '{}' with test_set '{}' using model '{}'".format(experiment_name, test_set, model))
+        logger.info("Running experiment '{}' with test_set '{}' "
+                    "using model '{}'".format(
+                        experiment_name, test_set, model))
+
+        # Use the 'mode' to select the function to call.
+        result = globals().get(mode)(config, experiment_name, test_set, model)
+
     # Test modes
     elif arguments['test']:
         test_type = None
@@ -319,12 +343,12 @@ def handle_arguments(arguments):
         logger.info('Running {} tests'.format(
             test_type if test_type else 'all'))
 
+        result = run_tests(config, test_type)
+
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description=__doc__)
     # parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
-    # subparsers = parser.add_subparsers()
     # extract_features_parser = subparsers.add_parser('extract_features')
     # extract_features_parser.set_defaults(func=extract_features)
 
@@ -371,15 +395,8 @@ if __name__ == "__main__":
     # test_parser = subparsers.add_parser('test')
     # test_parser.set_defaults(func=test)
 
-    # utils.setup_logging(logging.INFO)
-
-    # args = vars(parser.parse_args())
-    # fx = args.pop('func', None)
-    # if fx:
-    #     success = fx(**args)
-    #     sys.exit(0 if success else 1)
-    # else:
-    #     parser.print_help()
-
     arguments = docopt(__doc__)
+    utils.setup_logging(logging.DEBUG if arguments['--verbose']
+                        else logging.INFO)
+
     handle_arguments(arguments)

@@ -14,7 +14,7 @@ import glob
 import logging
 import numpy as np
 import os
-import pandas
+import pandas as pd
 import shutil
 
 import hcnn.common.config as C
@@ -53,15 +53,29 @@ def get_slicer_from_network_def(network_def_name):
 
 
 class Driver(object):
-    "Controller class for handling state."
+    "Controller class for running experiments and holding state."
 
-    def __init__(self, config, experiment_name=None,
+    def __init__(self, config, partitions=None, feature_mode=None,
+                 experiment_name=None,
                  dataset=None, load_features=True):
         """
         Parameters
         ----------
-        config: hcnn.config.Config
-            Instantiated config.
+        config: str OR hcnn.config.Config
+            Path to a config yaml file, or an instantiated config.
+            The later is for testing; typical use case would be to load by
+            string.
+
+        partitions : str in ['rwc', 'philharmonia', 'uiowa']
+            Selects which datsaet will be used as the test set.
+            OR if the dataset given has a 'partitions' section in the config,
+            uses the partition file located at the key given.
+
+            Can only be None when extracting features; otherwise,
+            this value is required.
+
+        feature_mode : one of ['cqt', 'wcqt', 'hcqt']
+            Which features and associated model to use for the experiment.
 
         experiment_name : str or None
             Name of the experiment. This is used to
@@ -69,16 +83,29 @@ class Driver(object):
 
             It is required for many but not all functions.
 
+        dataset : hcnn.data.dataset.Dataset or None
+            If None, tries to use the config to load the default dataset,
+            using the features specified in feature_mode.
+
+            Otherwise, uses the data given. [Intended for testing!
+            Use the config if possible.]
+
         load_features : bool
-            L
+            If true, attempts to load the features files from the dataset.
         """
-        self.config = config
+        if isinstance(config, str):
+            self.config = C.Config.load(config)
+        else:
+            self.config = config
+
         self.experiment_name = experiment_name
 
         # Initialize common paths 'n variables.
-        self._init()
-
+        self._init(feature_mode)
         self.load_dataset(dataset=dataset, load_features=load_features)
+        if partitions:
+            self.setup_partitions(partitions)
+            self._init_cross_validation(partitions)
 
     @property
     def selected_dataset(self):
@@ -106,7 +133,8 @@ class Driver(object):
         dataset_fn = os.path.basename(self.dataset_index)
         return os.path.join(self.feature_dir, dataset_fn)
 
-    def _init(self):
+    def _init(self, feature_mode):
+        self.feature_mode = feature_mode
         self.model_definition = self.config["model"]
         self.max_files_per_class = self.config.get(
             "training/max_files_per_class", None)
@@ -206,6 +234,30 @@ class Driver(object):
         if load_features:
             self.dataset = self.extract_features()
 
+    def setup_partitions(self, test_partition):
+        """Given the partition, setup the sets."""
+        # If the dataset we have selected has partitions
+        if 'partitions' in self.dataset_config:
+            data_df = self.dataset.to_df()
+            partition_file = self.dataset_config['partitions'][test_partition]
+            # Load the parition_file
+            self.partitions_df = pd.read_csv(partition_file, index_col=0)
+
+            # set the train_set, valid_set, test_set from the original dataset
+            # using the indexes from teh partition_file.
+            self.train_set = hcnn.data.dataset.Dataset(
+                data_df.loc[(
+                    self.partitions_df['partition'] == 'train').index])
+            self.valid_set = hcnn.data.dataset.Dataset(
+                data_df.loc[(
+                    self.partitions_df['partition'] == 'valid').index])
+            self.test_set = hcnn.data.dataset.Dataset(
+                data_df.loc[(
+                    self.partitions_df['partition'] == 'valid').index])
+        else:
+            raise ValueError(
+                "partition files must be supplied for this dataset.")
+
     def print_stats(self):
         dataset_df = self.dataset.to_df()
         datasets = ["rwc", "uiowa", "philharmonia"]
@@ -248,29 +300,6 @@ class Driver(object):
             updated_ds.save(write_path)
 
         return updated_ds
-
-    def _get_validation_splits(self, test_set):
-        logger.info("[{}] Constructing training df".format(
-            self.experiment_name))
-        train_set, valid_set = self.dataset.train_valid_sets(
-            test_set, max_files_per_class=self.max_files_per_class)
-        logger.debug("[{}] training_df : {} rows".format(
-            self.experiment_name, len(train_set)))
-        # Save the dfs to disk so we can use them for validation later.
-        train_set.save(self._train_set_save_path)
-        valid_set.save(self._valid_set_save_path)
-
-        return train_set, valid_set
-
-    def setup_data_splits(self, test_set):
-        # Important paths & things to load.
-        self._init_cross_validation(test_set)
-        if not self.check_features_input():
-            logger.error("train_model setup state invalid.")
-            return False
-
-        # Set up the dataframes we're going to train with.
-        self.train_set, self.valid_set = self._get_validation_splits(test_set)
 
     def train_model(self):
         """
@@ -321,9 +350,9 @@ class Driver(object):
 
         timers = utils.TimerHolder()
         iter_count = 0
-        train_stats = pandas.DataFrame(columns=['timestamp',
-                                                'batch_train_dur',
-                                                'iteration', 'loss'])
+        train_stats = pd.DataFrame(columns=['timestamp',
+                                            'batch_train_dur',
+                                            'iteration', 'loss'])
         min_train_loss = np.inf
 
         timers.start("train")
@@ -430,12 +459,12 @@ class Driver(object):
 
         Parameters
         ----------
-        validation_df : pandas.DataFrame
+        validation_df : pd.DataFrame
             Name of the held out dataset (used to specify the valid file)
 
         Returns
         -------
-        results_df : pandas.DataFrame
+        results_df : pd.DataFrame
             DataFrame containing the resulting losses.
         """
         logger.info("Finding best model for {}".format(
@@ -444,7 +473,7 @@ class Driver(object):
             logger.error("find_best_model features missing invalid.")
             return False
 
-        validation_df = pandas.read_pickle(self._valid_set_save_path)
+        validation_df = pd.read_pickle(self._valid_set_save_path)
 
         # load all necessary config parameters from the ORIGINAL config
         original_config = C.Config.load(self._experiment_config_path)
@@ -468,20 +497,11 @@ class Driver(object):
             shutil.copyfile(best_model['model_file'], best_path)
         else:
             logger.info("Model Search already done; printing previous results")
-            result_df = pandas.read_pickle(validation_error_file)
+            result_df = pd.read_pickle(validation_error_file)
             # make sure model_iteration is an int so sorting makes sense.
             result_df["model_iteration"].apply(int)
             logger.info("\n{}".format(
                 result_df.sort_values("model_iteration")))
-
-        # if plot_loss:
-        # Load the training loss
-        # training_loss = pandas.read_pickle(self._training_loss_path)
-        #     fig = plt.figure()
-        #     ax = plt.plot(training_loss["iteration"], training_loss["loss"])
-        #     ax_val = plt.plot(result_df["model_iteration"], result_df["mean_loss"])
-        #     plt.draw()
-        #     plt.show()
 
         return result_df
 
@@ -574,7 +594,7 @@ class Driver(object):
         result = False
 
         # Step 0: initialize the data for the current splits.
-        self.setup_data_splits(test_set)
+        # self.setup_data_splits(test_set)
 
         # Step 1: train
         result = self.train_model()

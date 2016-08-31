@@ -12,7 +12,6 @@ import pandas as pd
 import requests
 from sklearn.cross_validation import train_test_split
 import sys
-import warnings
 
 
 import hcnn.common.config as C
@@ -115,9 +114,9 @@ def expand_audio_paths(df, data_root):
     # saved in 'audio_file'
     new_df = df.copy()
     for idx, item in new_df.iterrows():
-        if 'note_file' in item:
-            new_df.loc[idx, 'audio_file'] = os.path.join(
-                data_root, item['note_file'])
+        assert 'audio_file' in item
+        new_df.loc[idx, 'audio_file'] = os.path.expanduser(
+            os.path.join(data_root, item['audio_file']))
     return new_df
 
 
