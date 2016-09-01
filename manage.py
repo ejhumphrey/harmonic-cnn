@@ -33,6 +33,7 @@ Options:
 from docopt import docopt
 import logging
 import os
+import pytest
 import shutil
 import sys
 import theano
@@ -46,6 +47,8 @@ import hcnn.logger
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
+INT_CONFIG_PATH = os.path.join(os.path.dirname(__file__),
+                               "data", "integration_config.yaml")
 
 logger = logging.getLogger(__name__)
 
@@ -226,47 +229,15 @@ def analyze(master_config,
     return 0
 
 
-def datatest(master_config, show_full=False):
-    # TODO
-    pass
-
-
-def test(master_config):
-    """Runs integration test.
-    This is equivalent to running
-    python manage.py -c data/integrationtest_config.yaml run
-    """
-    # Load integrationtest config
+def run_all_experiments(config, experiment_root=None):
     results = []
-
-    INT_CONFIG_PATHS = [
-        ("./data/integrationtest_config_cqt.yaml", "integration_test_cqt"),
-        ("./data/integrationtest_config_wcqt.yaml", "integration_test_wcqt"),
-        ("./data/integrationtest_config_hcqt.yaml", "integration_test_hcqt")
-    ]
-
-    print(utils.colored("Extracting features from tinydata set."))
-    results.append(extract_features(INT_CONFIG_PATHS[0][0]))
-
-    if results[-1]:
-        for config, experiment_name in INT_CONFIG_PATHS:
-            print(utils.colored(
-                "Running regression test on tinydata set : {}."
-                .format(config)))
-            results.append(
-                run(config, experiment_name=experiment_name))
-
-    result = all(results)
-    print("IntegrationTest {}".format(utils.result_colored(result)))
-    return result
-
-
-def run_all_experiments(config):
     for features in ['cqt', 'wcqt', 'hcqt']:
-        run_experiment(features, config)
+        results.append(run_experiment(features, config, experiment_root))
+
+    return all(results)
 
 
-def run_experiment(input_feature, config):
+def run_experiment(input_feature, config, experiment_root=None):
     """Run an experiment using the specified input feature
 
     Parameters
@@ -274,10 +245,61 @@ def run_experiment(input_feature, config):
     input_feature : ['cqt', 'wcqt', 'hcqt']
     """
     logger.info("run_experiment(input_feature='{}')".format(input_feature))
+    config = C.Config.load(config)
+    experiment_name = "{}{}".format(
+        "{}_".format(experiment_root) if experiment_root else "",
+        input_feature)
+    logger.info("Running Experiment: {}".format(
+        utils.colored(experiment_name, 'magenta')))
+
+    driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+                                load_features=True)
+    result = driver.fit_and_predict_cross_validation()
+
+    return result
 
 
-def run_tests(config, mode):
+def run_tests(mode):
     logger.info("run_tests(mode='{}')".format(mode))
+
+    config = INT_CONFIG_PATH
+
+    results = []
+    if mode in ['all', 'unit']:
+        run_unit_tests()
+    if mode in ['data']:
+        results.append(test_data(config))
+    if mode in ['all', 'model']:
+        results.append(integration_test(config))
+
+    return all(results)
+
+
+def run_unit_tests():
+    return 0 == pytest.main('.')
+
+
+def test_data(config, show_full=False):
+    driver = hcnn.driver.Driver(config, "data_test", load_features=False)
+    return driver.validate_data()
+
+
+def integration_test(config):
+    """AKA "model" test.
+    This is equivalent to running
+    python manage.py -c data/integrationtest_config.yaml run_all_experiments
+    """
+    # Load integrationtest config
+    experiment_name = "integrationtest"
+
+    print(utils.colored("Extracting features from tinydata set."))
+    print(utils.colored(
+        "Running integration test on tinydata set : {}."
+        .format(config)))
+    result = run_all_experiments(config, experiment_root=experiment_name)
+
+    print("IntegrationTest Result: {}".format(utils.result_colored(result)))
+    return result
 
 
 def handle_arguments(arguments):
@@ -332,7 +354,7 @@ def handle_arguments(arguments):
 
     # Test modes
     elif arguments['test']:
-        test_type = None
+        test_type = 'all'
         if arguments['data']:
             test_type = 'data'
         elif arguments['model']:
@@ -340,10 +362,11 @@ def handle_arguments(arguments):
         elif arguments['unit']:
             test_type = 'unit'
 
-        logger.info('Running {} tests'.format(
-            test_type if test_type else 'all'))
+        logger.info('Running {} tests'.format(test_type))
 
-        result = run_tests(config, test_type)
+        result = run_tests(test_type)
+
+    return result
 
 
 if __name__ == "__main__":

@@ -105,7 +105,6 @@ class Driver(object):
         self.load_dataset(dataset=dataset, load_features=load_features)
         if partitions:
             self.setup_partitions(partitions)
-            self._init_cross_validation(partitions)
 
     @property
     def selected_dataset(self):
@@ -149,26 +148,6 @@ class Driver(object):
                 self._model_dir, self.config['experiment/config_path'])
 
             utils.create_directory(self._model_dir)
-
-    def _init_cross_validation(self, test_set):
-        self._cv_model_dir = os.path.join(self._model_dir, test_set)
-        self._params_dir = os.path.join(
-            self._cv_model_dir,
-            self.config["experiment/params_dir"])
-        self._training_loss_path = os.path.join(
-            self._cv_model_dir, self.config['experiment/training_loss'])
-
-        self._train_set_save_path = os.path.join(
-            self._cv_model_dir,
-            self.config['experiment/data_split_format'].format(
-                "train", test_set))
-        self._valid_set_save_path = os.path.join(
-            self._cv_model_dir,
-            self.config['experiment/data_split_format'].format(
-                "valid", test_set))
-
-        utils.create_directory(self._cv_model_dir)
-        utils.create_directory(self._params_dir)
 
     @property
     def param_format_str(self):
@@ -257,6 +236,28 @@ class Driver(object):
         else:
             raise ValueError(
                 "partition files must be supplied for this dataset.")
+
+        self._init_cross_validation(test_partition)
+
+    def _init_cross_validation(self, test_set):
+        self._cv_model_dir = os.path.join(self._model_dir, test_set)
+        self._params_dir = os.path.join(
+            self._cv_model_dir,
+            self.config["experiment/params_dir"])
+        self._training_loss_path = os.path.join(
+            self._cv_model_dir, self.config['experiment/training_loss'])
+
+        self._train_set_save_path = os.path.join(
+            self._cv_model_dir,
+            self.config['experiment/data_split_format'].format(
+                "train", test_set))
+        self._valid_set_save_path = os.path.join(
+            self._cv_model_dir,
+            self.config['experiment/data_split_format'].format(
+                "valid", test_set))
+
+        utils.create_directory(self._cv_model_dir)
+        utils.create_directory(self._params_dir)
 
     def print_stats(self):
         dataset_df = self.dataset.to_df()
@@ -590,6 +591,7 @@ class Driver(object):
         -------
         success : true if succeeded.
         """
+        self.setup_partitions(test_set)
         logger.info("Beginning fit_and_predict_one:{}".format(test_set))
         result = False
 
@@ -636,3 +638,6 @@ class Driver(object):
         logger.info("Completed fit_and_predict_cross_validation. Result={}"
                     .format(final_result))
         return final_result
+
+    def validate_data(self):
+        return True
