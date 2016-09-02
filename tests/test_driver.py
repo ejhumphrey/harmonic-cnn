@@ -81,7 +81,7 @@ def test_find_best_model(workspace):
     thisconfig = copy.deepcopy(config)
     thisconfig.data['training']['iteration_write_frequency'] = 5
     thisconfig.data['training']['iteration_print_frequency'] = 10
-    thisconfig.data['training']['max_iterations'] = 200
+    thisconfig.data['training']['max_iterations'] = 50
     thisconfig.data['training']['batch_size'] = 12
     thisconfig.data['training']['max_files_per_class'] = 3
     thisconfig.data['paths']['model_dir'] = workspace
