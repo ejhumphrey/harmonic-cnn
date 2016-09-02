@@ -89,26 +89,21 @@ def test_find_best_model(workspace):
     experiment_name = "testexperiment"
     hold_out = thisconfig['experiment/hold_out_set']
 
-    valid_df_path = os.path.join(
-        workspace, experiment_name, hold_out,
-        thisconfig['experiment/data_split_format'].format(
-            "valid", hold_out))
-
     driver = hcnn.driver.Driver(thisconfig, experiment_name=experiment_name,
                                 load_features=True)
-    result = driver.train_model(hold_out)
+    driver.setup_partitions(hold_out)
+    result = driver.train_model()
     assert result is True
-
-    # This should have been created by the training process.
-    assert os.path.exists(valid_df_path)
 
     # Create a vastly reduced validation dataframe so it'll take less long.
     validation_size = 3
-    valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size,
-                                                        replace=True)
-    assert len(valid_df) == validation_size
+    driver.valid_set.df = driver.valid_set.df.sample(n=validation_size,
+                                                     replace=True)
+    assert len(driver.valid_set.df) == validation_size
+    driver.test_set.df = driver.test_set.df.sample(n=validation_size,
+                                                   replace=True)
 
-    results_df = driver.find_best_model(valid_df)
+    results_df = driver.find_best_model()
     # check that the results_df is ordered by iteration.
     assert all(results_df["model_iteration"] ==
                sorted(results_df["model_iteration"]))
@@ -119,9 +114,11 @@ def test_find_best_model(workspace):
 
     # load it again to test the reloading thing.
     #  Just making sure this runs through
-    results_df2 = driver.find_best_model(valid_df)
+    results_df2 = driver.find_best_model()
     assert all(results_df == results_df2)
 
+    # Shrink the dataset so this doesn't take forever.
+    driver.dataset.df = driver.dataset.df.sample(n=10, replace=True)
     predictions_df = driver.predict(param_iter)
     assert not predictions_df.empty
     predictions_df_path = os.path.join(
