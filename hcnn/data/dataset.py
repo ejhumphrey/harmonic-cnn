@@ -311,7 +311,7 @@ class TinyDataset(Dataset):
     ROOT_PATH = os.path.abspath(
         os.path.join(os.path.dirname(__file__),
                      os.pardir, os.pardir, "data", "tinyset"))
-    DS_FILE = os.path.join(ROOT_PATH, "notes_index.csv")
+    DS_FILE = os.path.join(ROOT_PATH, "master_index.csv")
 
     @classmethod
     def load(cls, data_path=DS_FILE, data_root=ROOT_PATH):

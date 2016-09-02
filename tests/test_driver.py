@@ -61,10 +61,10 @@ def test_train_simple_model(module_workspace, workspace, tiny_feats_csv):
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver = hcnn.driver.Driver(thisconfig, experiment_name,
+    driver = hcnn.driver.Driver(thisconfig, experiment_name=experiment_name,
                                 dataset=tiny_feats_csv, load_features=True)
 
-    driver.setup_data_splits(hold_out)
+    driver.setup_partitions(hold_out)
     result = driver.train_model()
     assert result is True
 
@@ -74,10 +74,6 @@ def test_train_simple_model(module_workspace, workspace, tiny_feats_csv):
                                  "training_loss.pkl")
     assert os.path.exists(new_config)
     assert os.path.exists(train_loss_fp)
-
-    # Also make sure the training & validation splits got written out
-    assert os.path.exists(driver._train_set_save_path)
-    assert os.path.exists(driver._valid_set_save_path)
 
 
 @pytest.mark.slowtest
@@ -98,7 +94,7 @@ def test_find_best_model(workspace):
         thisconfig['experiment/data_split_format'].format(
             "valid", hold_out))
 
-    driver = hcnn.driver.Driver(thisconfig, experiment_name,
+    driver = hcnn.driver.Driver(thisconfig, experiment_name=experiment_name,
                                 load_features=True)
     result = driver.train_model(hold_out)
     assert result is True
@@ -107,7 +103,7 @@ def test_find_best_model(workspace):
     assert os.path.exists(valid_df_path)
 
     # Create a vastly reduced validation dataframe so it'll take less long.
-    validation_size = 20
+    validation_size = 3
     valid_df = pandas.read_pickle(valid_df_path).sample(n=validation_size,
                                                         replace=True)
     assert len(valid_df) == validation_size
