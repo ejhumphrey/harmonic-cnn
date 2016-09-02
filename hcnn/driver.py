@@ -209,6 +209,8 @@ class Driver(object):
             self.dataset = hcnn.data.dataset.Dataset.load(
                 self.dataset_index, data_root=self.data_root)
 
+        assert len(self.dataset) > 0
+
         # If we want the features, additionally add it to the dataset.
         if load_features:
             self.dataset = self.extract_features()
@@ -226,13 +228,16 @@ class Driver(object):
             # using the indexes from teh partition_file.
             self.train_set = hcnn.data.dataset.Dataset(
                 data_df.loc[(
-                    self.partitions_df['partition'] == 'train').index])
+                    self.partitions_df['partition'] == 'train')])
             self.valid_set = hcnn.data.dataset.Dataset(
                 data_df.loc[(
-                    self.partitions_df['partition'] == 'valid').index])
+                    self.partitions_df['partition'] == 'valid')])
             self.test_set = hcnn.data.dataset.Dataset(
                 data_df.loc[(
-                    self.partitions_df['partition'] == 'valid').index])
+                    self.partitions_df['partition'] == 'test')])
+
+            assert (len(self.train_set) + len(self.valid_set) +
+                    len(self.test_set)) == len(self.dataset)
         else:
             raise ValueError(
                 "partition files must be supplied for this dataset.")
@@ -474,7 +479,7 @@ class Driver(object):
             logger.error("find_best_model features missing invalid.")
             return False
 
-        validation_df = pd.read_pickle(self._valid_set_save_path)
+        validation_df = self.valid_set.to_df()
 
         # load all necessary config parameters from the ORIGINAL config
         original_config = C.Config.load(self._experiment_config_path)

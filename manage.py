@@ -252,7 +252,9 @@ def run_experiment(input_feature, config, experiment_root=None):
     logger.info("Running Experiment: {}".format(
         utils.colored(experiment_name, 'magenta')))
 
-    driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+    driver = hcnn.driver.Driver(config,
+                                feature_mode=input_feature,
+                                experiment_name=experiment_name,
                                 load_features=True)
     result = driver.fit_and_predict_cross_validation()
 
@@ -280,7 +282,8 @@ def run_unit_tests():
 
 
 def test_data(config, show_full=False):
-    driver = hcnn.driver.Driver(config, "data_test", load_features=False)
+    driver = hcnn.driver.Driver(
+        config, experiment_name="data_test", load_features=False)
     return driver.validate_data()
 
 
