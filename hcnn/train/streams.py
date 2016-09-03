@@ -68,8 +68,12 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
         cqt = np.load(record['cqt'])['cqt']
         target = instrument_map.get_index(record["instrument"])
 
+        cqt = utils.backfill_noise(cqt, t_len + 1)
+
         num_obs = cqt.shape[1] - t_len
+
         # If there aren't enough obs, don't do it.
+        # Technically this can't happen now?
         if num_obs > 0:
             # Get the frame means, and remove the lowest 1/4
             cqt_mu = cqt[0, :num_obs].mean(axis=1)
@@ -96,6 +100,7 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
                         rng.shuffle(idx)
                     counter = 0
         else:
+            import pdb; pdb.set_trace()
             logger.warning("File {} doesn't have enough obs for t_len {}"
                            .format(record['cqt'], t_len))
 
@@ -152,13 +157,15 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
         wcqt = utils.fold_array(cqt[0], length=p_len, stride=p_stride)
         target = instrument_map.get_index(record["instrument"])
 
+        wcqt = utils.backfill_noise(wcqt, t_len + 1)
+
         num_obs = wcqt.shape[1] - t_len
 
         # If there aren't enough obs, don't do it.
         if num_obs > 0:
             # Get the frame means, and remove the lowest 1/4
             cqt_mu = cqt[0, :num_obs].mean(axis=1)
-            threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
+            threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
             idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
             if shuffle:
                 rng.shuffle(idx)
@@ -181,6 +188,7 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
                         rng.shuffle(idx)
                     counter = 0
         else:
+            import pdb; pdb.set_trace()
             logger.warning("File {} doesn't have enough obs for t_len {}"
                            .format(record['cqt'], t_len))
 

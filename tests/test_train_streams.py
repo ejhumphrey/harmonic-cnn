@@ -1,4 +1,6 @@
+import numpy as np
 import os
+import pandas as pd
 import pytest
 
 import hcnn.common.config as C
@@ -54,6 +56,36 @@ def test_slices(slicer_test, tiny_feats):
     slicer_test(tiny_feats, 1)
     slicer_test(tiny_feats, 10)
     slicer_test(tiny_feats, 8, False, False)
+
+
+@pytest.fixture
+def generated_data(workspace):
+    t_len = 8
+    cqt_size = hcnn.data.cqt.CQT_PARAMS['n_bins']
+
+    # make some garbage data
+    vector_size = 2
+    test_vector = np.random.random((1, vector_size, cqt_size))
+    testfile = os.path.join(workspace, "foo.npz")
+    np.savez(testfile, cqt=test_vector)
+    # Also make an example dataframe
+    df = pd.DataFrame({'cqt': testfile, 'instrument': 'trumpet'},
+                      index=[0], columns=['cqt', 'instrument'])
+    return df, t_len
+
+
+def test_cqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.cqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
+
+
+def test_wcqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.wcqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
 
 
 def __test_streamer(streamer, t_len, batch_size):
