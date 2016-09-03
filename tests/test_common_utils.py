@@ -106,3 +106,10 @@ def test_backfill_noise(noise_shape):
         backfilled = utils.backfill_noise(noise, t_len)
         assert backfilled.shape[1] >= t_len
         assert noise.shape[2:] == backfilled.shape[2:]
+
+        if noise.shape[0] > 1:
+            # Ideally we want to check that these
+            # are not all equal, but it should suffice to check
+            # that they're not equal with the first.
+            for i in range(1, noise.shape[0] + 1):
+                assert not np.array_equal(backfilled[0], backfilled[i])
