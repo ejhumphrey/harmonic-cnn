@@ -16,7 +16,8 @@ logger = logging.getLogger(__name__)
 instrument_map = labels.InstrumentClassMap()
 
 
-def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
+def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
+               random_seed=None):
     """Generate slices from a cqt file.
 
     Thresholds the frames by finding the cqt means, and
@@ -47,11 +48,17 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
         If True, yields infinitely.
         If False, only goes through the file once.
 
+    random_seed : int
+        If true, uses this number as the random seed. Otherwise,
+        makes it's own.
+
     Yields
     -------
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
+    rng = np.random.RandomState(random_seed)
+
     if not ('cqt' in record.index and
             isinstance(record['cqt'], str) and
             os.path.exists(record['cqt'])):
@@ -66,10 +73,10 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
         if num_obs > 0:
             # Get the frame means, and remove the lowest 1/4
             cqt_mu = cqt[0, :num_obs].mean(axis=1)
-            threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
+            threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
             idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
             if shuffle:
-                np.random.shuffle(idx)
+                rng.shuffle(idx)
 
             counter = 0
             while True:
@@ -86,7 +93,7 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
                     if not auto_restart:
                         break
                     if shuffle:
-                        np.random.shuffle(idx)
+                        rng.shuffle(idx)
                     counter = 0
         else:
             logger.warning("File {} doesn't have enough obs for t_len {}"
@@ -94,7 +101,8 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True):
 
 
 def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
-                p_len=36, p_stride=24):
+                p_len=36, p_stride=24,
+                random_seed=None):
     """Generate slices of wrapped CQT observations.
 
     To use this for training, use the following parameters:
@@ -124,11 +132,16 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
     p_stride : int
         Number of pitch bins to stride when wrapping.
 
+    random_seed : int or None
+         Override the random seed if given.
+
     Yields
     ------
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
+    rng = np.random.RandomState(random_seed)
+
     if not ('cqt' in record.index and
             isinstance(record['cqt'], str) and
             os.path.exists(record['cqt'])):
@@ -148,7 +161,7 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
             threshold = sorted(cqt_mu)[int(len(cqt_mu)*.25)]
             idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
             if shuffle:
-                np.random.shuffle(idx)
+                rng.shuffle(idx)
 
             counter = 0
             while True:
@@ -165,14 +178,15 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
                     if not auto_restart:
                         break
                     if shuffle:
-                        np.random.shuffle(idx)
+                        rng.shuffle(idx)
                     counter = 0
         else:
             logger.warning("File {} doesn't have enough obs for t_len {}"
                            .format(record['cqt'], t_len))
 
 
-def hcqt_slices(record, t_len, shuffle=True, auto_restart=True):
+def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
+                random_seed=None):
     """Generate slices of pre-generated harmonic cqts from a cqt file.
 
     To use this for training, use the following parameters:
@@ -199,11 +213,16 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True):
         If True, yields infinitely.
         If False, only goes through the file once.
 
+    random_seed : int or None
+         Override the random seed if given.
+
     Yields
     -------
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
+    rng = np.random.RandomState(random_seed)
+
     if not ('cqt' in record.index and
             isinstance(record['cqt'], str) and
             os.path.exists(record['cqt'])):
@@ -226,7 +245,7 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True):
             # idx = (hcqt_mu[:num_obs] >= threshold).nonzero()[0]
             idx = np.arange(num_obs)
             if shuffle:
-                np.random.shuffle(idx)
+                rng.shuffle(idx)
 
             counter = 0
             while True:
@@ -244,7 +263,7 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True):
                     if not auto_restart:
                         break
                     if shuffle:
-                        np.random.shuffle(idx)
+                        rng.shuffle(idx)
                     counter = 0
         else:
             logger.warning("File {} doesn't have enough obs for t_len {}"

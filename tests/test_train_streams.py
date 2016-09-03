@@ -9,11 +9,13 @@ import hcnn.train.streams as streams
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.load(CONFIG_PATH)
+RANDOM_SEED = 42
 
 
 def __assert_cqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
-                                *slicer_args)
+                                *slicer_args, random_seed=RANDOM_SEED)
+
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
@@ -23,7 +25,7 @@ def __assert_cqt_slicer(dataset, t_len, *slicer_args):
 
 def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
-                                 *slicer_args)
+                                 *slicer_args, random_seed=RANDOM_SEED)
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
@@ -33,7 +35,7 @@ def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
 
 def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
-                                 *slicer_args)
+                                 *slicer_args, random_seed=RANDOM_SEED)
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
