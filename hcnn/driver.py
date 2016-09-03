@@ -42,10 +42,10 @@ class NoFeaturesException(Exception):
     pass
 
 
-def get_slicer_from_network_def(network_def_name):
-    if 'wcqt' in network_def_name:
+def get_slicer_from_feature(feature_mode):
+    if 'wcqt' == feature_mode:
         slicer = streams.wcqt_slices
-    elif 'hcqt' in network_def_name:
+    elif 'hcqt' == feature_mode:
         slicer = streams.hcqt_slices
     else:
         slicer = streams.cqt_slices
@@ -134,7 +134,7 @@ class Driver(object):
 
     def _init(self, feature_mode):
         self.feature_mode = feature_mode
-        self.model_definition = self.config["model"]
+        self.model_definition = self.config["model"][feature_mode]
         self.max_files_per_class = self.config.get(
             "training/max_files_per_class", None)
 
@@ -336,7 +336,7 @@ class Driver(object):
                      .format(t_len, batch_size, n_targets, max_iterations,
                              max_time, (max_time / 60. / 60.)))
 
-        slicer = get_slicer_from_network_def(self.model_definition)
+        slicer = get_slicer_from_feature(self.feature_mode)
 
         # Set up our streamer
         logger.info("[{}] Setting up streamer".format(self.experiment_name))
@@ -486,7 +486,7 @@ class Driver(object):
         validation_error_file = os.path.join(
             self._cv_model_dir, original_config['experiment/validation_loss'])
 
-        slicer = get_slicer_from_network_def(original_config['model'])
+        slicer = get_slicer_from_feature(self.feature_mode)
         t_len = original_config['training/t_len']
 
         if not os.path.exists(validation_error_file):
@@ -542,7 +542,7 @@ class Driver(object):
         original_config = C.Config.load(self._experiment_config_path)
         params_file = os.path.join(self._params_dir,
                                    selected_param_file)
-        slicer = get_slicer_from_network_def(original_config['model'])
+        slicer = get_slicer_from_feature(self.feature_mode)
 
         logger.info("Deserializing Network & Params...")
         model = models.NetworkManager.deserialize_npz(params_file)
