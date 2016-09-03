@@ -115,6 +115,8 @@ def test_predict_dataframe(slicer_and_model, feats_df):
     #  and make sure you get a dataframe back
     eval_df = hcnn.evaluate.predict.predict_many(
         test_df, model, slicer, t_len)
+    eval_df = eval_df.dropna()
+
     assert isinstance(eval_df, pandas.DataFrame)
     assert len(eval_df) == len(test_df)
 
