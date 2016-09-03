@@ -92,8 +92,8 @@ def test_filter_df(tinyds):
 
 
 @pytest.fixture(scope="module", params=[
-    (1, 1, 10), (1, 2, 10),
-    (1, 4, 10), (1, 8, 10),
+    (1, 1, 10, 100), (1, 2, 10),
+    (1, 4, 10, 100, 5), (1, 8, 10),
     (1, 100, 10)])
 def noise_shape(request):
     param = request.param
@@ -105,3 +105,4 @@ def test_backfill_noise(noise_shape):
     for t_len in [1, 2, 3, 8, 10]:
         backfilled = utils.backfill_noise(noise, t_len)
         assert backfilled.shape[1] >= t_len
+        assert noise.shape[2:] == backfilled.shape[2:]
