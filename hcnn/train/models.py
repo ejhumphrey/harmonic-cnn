@@ -17,9 +17,9 @@ import theano.tensor as T
 
 logger = logging.getLogger(__name__)
 
-CQT_DIMS = 204
-WCQT_DIMS = (8, 36)
-HCQT_DIMS = (6, 144)
+CQT_DIMS = 216
+WCQT_DIMS = (7, 54)
+HCQT_DIMS = (3, 252)
 
 
 __all__ = ['NetworkManager']
@@ -412,7 +412,7 @@ def wcqt_iX_c2f2_oY(n_in, n_out):
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
         }, {
-            "type": "layers.MaxPool2DLayer",
+            "type":  "layers.MaxPool2DLayer",
             "pool_size": (2, 2)
         }, {
             "type": "layers.Conv2DLayer",
@@ -507,3 +507,140 @@ def hcqt_iX_c2f2_oY(n_in, n_out):
         "loss": "loss.categorical_crossentropy"
     }
     return network_def
+
+
+def cqt_exp1(n_in, n_out, n_basefilt):
+    """experiment definition for experiment 1.
+    """
+    # All parameter Math is for base case of 8 filters
+    network_def = {
+        # (n=8, 216)
+        "input_shape": (None, 1, n_in, CQT_DIMS),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt,
+            "filter_size": (3, 7 * 3),  # 3 bins per semitone, 7=a fifth
+            # => (6, 231)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (3 * 21 * 1) * 8 => 504
+        }, {
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt * 2,
+            "filter_size": (3, 7),
+            # => (4, 225)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (3 * 7 * 16) * 8 => 2688
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (4, 3)
+            # => (16, 1, 75) = 1200
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": 128,
+            "nonlinearity": "nonlin.rectify"
+            # 1200 * 128 => 153,600
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+            # 128 * 12 [n_out] = 1,536
+        }],
+        "loss": "loss.categorical_crossentropy"
+        # Total = 504 + 2688 + 153,600 + 1,536 = 158,328 total params.
+    }
+    return network_def
+
+
+def cqt_exp1_n8(n_in, n_out):
+    return cqt_exp1(n_in, n_out, 8)
+
+
+def cqt_exp1_n16(n_in, n_out):
+    return cqt_exp1(n_in, n_out, 16)
+
+
+def cqt_exp1_n32(n_in, n_out):
+    return cqt_exp1(n_in, n_out, 32)
+
+
+def cqt_exp1_n64(n_in, n_out):
+    return cqt_exp1(n_in, n_out, 64)
+
+
+def wcqt_exp1(n_in, n_out, n_basefilt):
+    """experiment definition for experiment 1.
+    """
+    network_def = {
+        # (7, 8, 54) at input
+        "input_shape": (None, WCQT_DIMS[0], n_in, WCQT_DIMS[1]),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt,
+            "filter_size": (3, 7 * 3),  # 3 bins per semitone, 7=a fifth
+            # => (6, 34)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (3 * 21 * 7) * 8 => 3,528
+        }, {
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt * 2,
+            "filter_size": (3, 7),
+            # => (4, 28)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (3 * 7 * 16) * 8 => 2688
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": (4, 1)
+            # => (16, 1, 28) = 448
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": 332,
+            "nonlinearity": "nonlin.rectify"
+            # 153,600 is the total used in CQT
+            # to get approximately the same:
+            # 153,600 / 448 => 343 (rounded)
+            # So we choose 332, because we have extra parameters in L1 and
+            #  the dense layer following, so we need to shrink the
+            # 448 * 332 => 148,736
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+            # 332 * 12 [n_out] = 3984
+        }],
+        "loss": "loss.categorical_crossentropy"
+        # Total = 3,528 + 2688 + 148,736 + 3984 = 158,936 total params.
+        #  (Within 1000 of the CQT)
+    }
+    return network_def
+
+
+def wcqt_exp1_n8(n_in, n_out):
+    return wcqt_exp1(n_in, n_out, 8)
+
+
+def wcqt_exp1_n16(n_in, n_out):
+    return wcqt_exp1(n_in, n_out, 16)
+
+
+def wcqt_exp1_n32(n_in, n_out):
+    return wcqt_exp1(n_in, n_out, 32)
+
+
+def wcqt_exp1_n64(n_in, n_out):
+    return wcqt_exp1(n_in, n_out, 64)
