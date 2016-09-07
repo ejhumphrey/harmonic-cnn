@@ -314,3 +314,32 @@ def result_colored(result):
         return colored("Success", "green")
     else:
         return colored("Failed", "red")
+
+
+def backfill_noise(array, required_t_len, mu=1e-5, sigma=1e-5):
+    """Given an cqt frame with shape (1, n_frames, cqt_bins)
+    and a minimum number of required frames, backfill the
+    time with gaussian noise such that the final shape is at least:
+    required_t_len in length.
+
+    Parameters
+    ----------
+    array : np.ndarray
+
+    required_t_len : int
+
+    mean : float
+        mean of the gaussian noise to apply.
+    """
+    current_len = array.shape[1]
+    if current_len >= required_t_len:
+        return array
+
+    additional_samples = required_t_len - current_len
+
+    noise_shape = (array.shape[0], additional_samples,) + array.shape[2:]
+    backfill = np.random.normal(mu, sigma, noise_shape)
+    # Concatenate them:
+    new_data = np.concatenate([array, backfill], axis=1)
+
+    return new_data

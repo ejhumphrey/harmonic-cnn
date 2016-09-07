@@ -1,4 +1,6 @@
+import numpy as np
 import os
+import pandas as pd
 import pytest
 
 import hcnn.common.config as C
@@ -9,11 +11,13 @@ import hcnn.train.streams as streams
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
 config = C.Config.load(CONFIG_PATH)
+RANDOM_SEED = 42
 
 
 def __assert_cqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
-                                *slicer_args)
+                                *slicer_args, random_seed=RANDOM_SEED)
+
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
@@ -23,7 +27,7 @@ def __assert_cqt_slicer(dataset, t_len, *slicer_args):
 
 def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
-                                 *slicer_args)
+                                 *slicer_args, random_seed=RANDOM_SEED)
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
@@ -33,7 +37,7 @@ def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
 
 def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
-                                 *slicer_args)
+                                 *slicer_args, random_seed=RANDOM_SEED)
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
@@ -52,6 +56,36 @@ def test_slices(slicer_test, tiny_feats):
     slicer_test(tiny_feats, 1)
     slicer_test(tiny_feats, 10)
     slicer_test(tiny_feats, 8, False, False)
+
+
+@pytest.fixture
+def generated_data(workspace):
+    t_len = 8
+    cqt_size = hcnn.data.cqt.CQT_PARAMS['n_bins']
+
+    # make some garbage data
+    vector_size = 2
+    test_vector = np.random.random((1, vector_size, cqt_size))
+    testfile = os.path.join(workspace, "foo.npz")
+    np.savez(testfile, cqt=test_vector)
+    # Also make an example dataframe
+    df = pd.DataFrame({'cqt': testfile, 'instrument': 'trumpet'},
+                      index=[0], columns=['cqt', 'instrument'])
+    return df, t_len
+
+
+def test_cqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.cqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
+
+
+def test_wcqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.wcqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
 
 
 def __test_streamer(streamer, t_len, batch_size):

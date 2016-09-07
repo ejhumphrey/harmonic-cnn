@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import pytest
 
@@ -88,3 +89,27 @@ def test_filter_df(tinyds):
         datasets_df, datasets=["philharmonia", "rwc"])
     assert set(filtered_df["dataset"].unique()) == \
            set(["philharmonia", "rwc"])
+
+
+@pytest.fixture(scope="module", params=[
+    (1, 1, 10, 100), (1, 2, 10),
+    (1, 4, 10, 100, 5), (1, 8, 10),
+    (1, 100, 10)])
+def noise_shape(request):
+    param = request.param
+    return param
+
+
+def test_backfill_noise(noise_shape):
+    noise = np.random.random(noise_shape)
+    for t_len in [1, 2, 3, 8, 10]:
+        backfilled = utils.backfill_noise(noise, t_len)
+        assert backfilled.shape[1] >= t_len
+        assert noise.shape[2:] == backfilled.shape[2:]
+
+        if noise.shape[0] > 1:
+            # Ideally we want to check that these
+            # are not all equal, but it should suffice to check
+            # that they're not equal with the first.
+            for i in range(1, noise.shape[0] + 1):
+                assert not np.array_equal(backfilled[0], backfilled[i])

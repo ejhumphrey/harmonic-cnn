@@ -1,17 +1,17 @@
 paths:
   extract_dir: "~/data/hcnn_data"
-  feature_dir: "~/data/hcnn_data/cqt"
+  feature_dir: "~/data/hcnn_data/tinydata_cqt"
   model_dir: "~/data/hcnn_data/models"
 
 data:
-  selected: "canonical"
+  selected: "tiny"
   tiny:
     notes_index: "data/tinyset/master_index.csv"
     root: "data/tinyset/"
     partitions:
-      rwc: "data/tinyset/rwc_partitions.csv"
-      philharmonia: "data/tinyset/philharmonia_partitions.csv"
-      uiowa: "data/tinyset/uiowa_partitions.csv"
+      rwc: "data/tinyset/rwc_test_partition.csv"
+      philharmonia: "data/tinyset/philharmonia_test_partition.csv"
+      uiowa: "data/tinyset/uiowa_test_partition.csv"
   canonical: 
     root: "~/data/minst/note_files"
     notes_index: "~/data/minst/master_index.csv"
@@ -52,12 +52,12 @@ experiment:
 
 training:
   t_len: 8
-  max_iterations: 100000
-  max_time: 8000
+  max_iterations: 100
+  max_time: 10
   batch_size: 60
   n_targets: 12
-  iteration_print_frequency: 100
-  iteration_write_frequency: 500
+  iteration_print_frequency: 5
+  iteration_write_frequency: 10
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9

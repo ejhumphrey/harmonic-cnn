@@ -2,10 +2,10 @@ from setuptools import setup, find_packages
 
 import imp
 
-version = imp.load_source('wcqtlib.version', 'wcqtlib/version.py')
+version = imp.load_source('hcnn.version', 'hcnn/version.py')
 
 setup(
-    name='wcqtlib',
+    name='hcnn',
     version=version.version,
     description="ISMIR2016 Library for Proving the worth of WCQTs",
     author='Christopher Jacoby, Eric J. Humphrey, Brian McFee',

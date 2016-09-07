@@ -11,7 +11,7 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), os.pardir, "data")
 
 @pytest.fixture(scope="module")
 def tinydata_csv():
-    return os.path.join(DATA_PATH, "tinyset", "notes_index.csv")
+    return os.path.join(DATA_PATH, "tinyset", "master_index.csv")
 
 
 @pytest.fixture
@@ -110,17 +110,17 @@ def test_load_save_dataset_as_csv(tinydata_csv, workspace):
 
 def test_filter_dataset(tinydata):
     # Filter dataset
-    assert len(tinydata.filter(dataset_name="rwc")) == 52
+    assert len(tinydata.filter(dataset_name="rwc")) == 120
     # Filter instrument
-    assert len(tinydata.filter(instrument="guitar")) == 16
+    assert len(tinydata.filter(instrument="guitar")) == 30
     # Filter both
-    assert len(tinydata.filter(dataset_name="rwc", instrument="guitar")) == 8
+    assert len(tinydata.filter(dataset_name="rwc", instrument="guitar")) == 10
 
 
 def test_get_test_set(tinydata):
     testset = tinydata.test_set("rwc")
     assert isinstance(testset, dataset.Dataset)
-    assert len(testset) == 52
+    assert len(testset) == 120
     assert testset.split == 'test'
 
 
@@ -130,29 +130,29 @@ def test_dataset_sample(tinydata):
         assert len(sampleset) == n_samples
 
 
-def test_training_valid_sets():
-    tinydata = dataset.TinyDataset.load()
+# def test_training_valid_sets():
+#     tiny = dataset.TinyDataset.load()
 
-    def __test_result(train, valid, test_set, split, n_per_inst):
-        if n_per_inst:
-            assert len(train) == 12 * n_per_inst
-            assert len(valid)
-        else:
-            total_len = len(train) + len(valid)
-            np.testing.assert_almost_equal((total_len * (1 - split)) / 100.,
-                                           len(train) / 100.,
-                                           decimal=0)
-            np.testing.assert_almost_equal((total_len * split) / 100.,
-                                           len(valid) / 100.,
-                                           decimal=0)
-        assert test_set not in train.datasets
-        assert test_set not in valid.datasets
+#     def __test_result(train, valid, test_set, split, n_per_inst):
+#         if n_per_inst:
+#             assert len(train) == 12 * n_per_inst
+#             assert len(valid)
+#         else:
+#             total_len = len(train) + len(valid)
+#             np.testing.assert_almost_equal((total_len * (1 - split)) / 100.,
+#                                            len(train) / 100.,
+#                                            decimal=0)
+#             np.testing.assert_almost_equal((total_len * split) / 100.,
+#                                            len(valid) / 100.,
+#                                            decimal=0)
+#         assert test_set not in train.datasets
+#         assert test_set not in valid.datasets
 
-    # on the tinyds, we hope to have one of each in each
-    # train and validate, because there are only two to begin with.
-    for test_set in ["rwc", "philharmonia", "uiowa"]:
-        for split in [0., .25, .5]:
-            for n_per_inst in [None, 1, 2]:
-                train, valid = tinydata.train_valid_sets(
-                    test_set=test_set, train_val_split=1, max_files_per_class=n_per_inst)
-                yield __test_result, train, valid, test_set, split, n_per_inst
+#     # on the tinyds, we hope to have one of each in each
+#     # train and validate, because there are only two to begin with.
+#     for test_set in ["rwc", "philharmonia", "uiowa"]:
+#         for split in [0., .25, .5]:
+#             for n_per_inst in [None, 1, 2]:
+#                 train, valid = tiny.train_valid_sets(
+#                     test_set=test_set, train_val_split=1, max_files_per_class=n_per_inst)
+#                 yield __test_result, train, valid, test_set, split, n_per_inst
