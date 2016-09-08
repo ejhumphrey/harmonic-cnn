@@ -371,56 +371,56 @@ def test_overfit_two_samples_cqt(tiny_feats):
         np.isfinite(accuracy)
 
 
-@pytest.mark.wcqt
-@pytest.mark.slowtest
-def test_overfit_two_samples_wcqt(tiny_feats):
-    """Prove that our network works by training it with two random files
-    from our dataset, intentionally overfitting it.
+# @pytest.mark.wcqt
+# @pytest.mark.slowtest
+# def test_overfit_two_samples_wcqt(tiny_feats):
+#     """Prove that our network works by training it with two random files
+#     from our dataset, intentionally overfitting it.
 
-    Warning: not deterministic, but you could make it.
-    """
-    features_df = tiny_feats.to_df()
+#     Warning: not deterministic, but you could make it.
+#     """
+#     features_df = tiny_feats.to_df()
 
-    # Get list of instruments
-    instruments = sorted(features_df["instrument"].unique())
-    selected_instruments = instruments[:2]
+#     # Get list of instruments
+#     instruments = sorted(features_df["instrument"].unique())
+#     selected_instruments = instruments[:2]
 
-    # Create a dataframe from our dataframe with only two files in it
-    test_df = pandas.concat([
-        features_df[features_df["instrument"] ==
-                    selected_instruments[0]].sample(),
-        features_df[features_df["instrument"] ==
-                    selected_instruments[1]].sample()])
+#     # Create a dataframe from our dataframe with only two files in it
+#     test_df = pandas.concat([
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[0]].sample(),
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[1]].sample()])
 
-    t_len = 8
-    batch_size = 8
-    n_targets = 2
-    # Create a streamer that samples just those two files.
-    streamer = streams.InstrumentStreamer(
-        test_df, streams.wcqt_slices,
-        t_len=t_len, batch_size=batch_size)
-    input_shape = next(streamer)['x_in'].shape
-    print(input_shape)
+#     t_len = 8
+#     batch_size = 8
+#     n_targets = 2
+#     # Create a streamer that samples just those two files.
+#     streamer = streams.InstrumentStreamer(
+#         test_df, streams.wcqt_slices,
+#         t_len=t_len, batch_size=batch_size)
+#     input_shape = next(streamer)['x_in'].shape
+#     print(input_shape)
 
-    # Create a new model
-    network_def = models.wcqt_iX_c1f1_oY(t_len, n_targets)
-    model = models.NetworkManager(network_def)
+#     # Create a new model
+#     network_def = models.wcqt_iX_c1f1_oY(t_len, n_targets)
+#     model = models.NetworkManager(network_def)
 
-    # Train the model for N epochs, till it fits the damn thing
-    max_batches = 10
-    i = 0
-    for batch in streamer:
-        train_loss = model.train(batch)
+#     # Train the model for N epochs, till it fits the damn thing
+#     max_batches = 10
+#     i = 0
+#     for batch in streamer:
+#         train_loss = model.train(batch)
 
-        i += 1
-        print("Batch: ", i, "Loss: ", train_loss)
-        if i >= max_batches:
-            break
+#         i += 1
+#         print("Batch: ", i, "Loss: ", train_loss)
+#         if i >= max_batches:
+#             break
 
-    # Evaluate it. On the original files. Should do well.
-    eval_batch = next(streamer)
-    eval_probs = model.predict(eval_batch)
-    eval_loss, accuracy = model.evaluate(eval_batch)
-    print("Eval predictions:", eval_probs)
-    print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
-    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
+#     # Evaluate it. On the original files. Should do well.
+#     eval_batch = next(streamer)
+#     eval_probs = model.predict(eval_batch)
+#     eval_loss, accuracy = model.evaluate(eval_batch)
+#     print("Eval predictions:", eval_probs)
+#     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
+#     assert np.isfinite(eval_loss) and np.isfinite(accuracy)
