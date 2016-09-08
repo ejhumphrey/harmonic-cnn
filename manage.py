@@ -2,7 +2,7 @@
 
 Usage:
  manage.py [options] run
- manage.py [options] run [<cqt> | <wcqt> | <hcqt>]
+ manage.py [options] run <model>
  manage.py [options] extract_features
  manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
  manage.py [options] test [(data|model|unit)]
@@ -112,23 +112,27 @@ def run(master_config, experiment_name):
     return result
 
 
-def fit_and_predict(config, experiment_name, test_set, feature_mode):
+def fit_and_predict(config, experiment_name, test_set, model_name):
     """Runs:
     - train
     - model_selection_df
     - predict
     - analyze
     """
-    run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
+    run_name = "fit_and_predict:{}:{}:{}".format(
+        experiment_name, test_set, model_name)
 
     config = C.Config.load(config)
     print(utils.colored("Running {} end-to-end.".format(run_name)))
 
     timer = utils.TimerHolder()
     timer.start(run_name)
-    logger.debug("Running with experiment_name={} at {}"
-                 .format(experiment_name, timer.get_start(run_name)))
-    driver = hcnn.driver.Driver(config, experiment_name,
+    logger.debug("Running model={} with experiment_name={} at {}"
+                 .format(model_name, experiment_name,
+                         timer.get_start(run_name)))
+    driver = hcnn.driver.Driver(config,
+                                model_name=model_name,
+                                experiment_name=experiment_name,
                                 load_features=True)
     result = driver.fit_and_predict_one(test_set)
     print("{} - {} complted in duration {}".format(
@@ -139,7 +143,7 @@ def fit_and_predict(config, experiment_name, test_set, feature_mode):
 def train(config,
           experiment_name,
           test_set,
-          feature_mode):
+          model_name):
     """Run training loop.
 
     Parameters
@@ -154,14 +158,14 @@ def train(config,
         String in ["rwc", "uiowa", "philharmonia"] specifying which
         dataset to use as the test set.
 
-    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
-        What type of features to use (and associated model) in training
-        the network.
+    model_name : str
+        Name of the model to use for training.
     """
     print(utils.colored("Training experiment: {}".format(experiment_name)))
-    logger.info("Training with test_set '{}', and features '{}'".format(
-        test_set, feature_mode))
-    driver = hcnn.driver.Driver(config, test_set, feature_mode,
+    logger.info("Training model '{}' with test_set '{}'"
+                .format(model_name, test_set))
+    driver = hcnn.driver.Driver(config, test_set,
+                                model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
 
@@ -171,7 +175,7 @@ def train(config,
 def predict(config,
             experiment_name,
             test_set,
-            feature_mode,
+            model_name,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
@@ -182,9 +186,9 @@ def predict(config,
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
-    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
-        What type of features to use (and associated model) in evaluating
-        the network. Must match the training configuration.
+    model_name : str
+        Name of the model to use for training. Must match the training
+        configuration.
 
     select_epoch : str or None
         Which model params to select. Use the epoch number for this, for
@@ -194,7 +198,8 @@ def predict(config,
     print(utils.colored("Evaluating"))
     config = C.Config.load(config)
 
-    driver = hcnn.driver.Driver(config, experiment_name,
+    driver = hcnn.driver.Driver(config, model_name=model_name,
+                                experiment_name=experiment_name,
                                 load_features=True)
     results = driver.predict(select_epoch)
     logger.info("Generated results for {} files.".format(len(results)))
@@ -225,35 +230,53 @@ def analyze(master_config,
 
     hold_out_set = config["experiment/hold_out_set"]
 
-    driver.analyze(config, experiment_name, select_epoch, hold_out_set)
+    driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+                                load_features=True)
+
+    driver.analyze(select_epoch, hold_out_set)
     return 0
 
 
 def run_all_experiments(config, experiment_root=None):
+    MODELS_TO_RUN = [
+        'cqt_MF_n16',
+        # 'cqt_MF_n32',
+        # 'cqt_MF_n64',
+        'cqt_M2_n8',
+        # 'cqt_M2_n16',
+        # 'cqt_M2_n32',
+        # 'cqt_M2_n64'
+        'hcqt_MH_n8'
+        # 'hcqt_MH_n16',
+        # 'hcqt_MH_n32'
+        # 'hcqt_MH_n64'
+    ]
+
     results = []
-    for features in ['cqt', 'wcqt', 'hcqt']:
-        results.append(run_experiment(features, config, experiment_root))
+    for model_name in MODELS_TO_RUN:
+        results.append(run_experiment(model_name, config, experiment_root))
 
     return all(results)
 
 
-def run_experiment(input_feature, config, experiment_root=None):
+def run_experiment(model_name, config, experiment_root=None):
     """Run an experiment using the specified input feature
 
     Parameters
     ----------
-    input_feature : ['cqt', 'wcqt', 'hcqt']
+    model_name : str
+        Name of the NN model configuration [in models.py].
     """
-    logger.info("run_experiment(input_feature='{}')".format(input_feature))
+    logger.info("run_experiment(model_name='{}')".format(model_name))
     config = C.Config.load(config)
     experiment_name = "{}{}".format(
         "{}_".format(experiment_root) if experiment_root else "",
-        input_feature)
+        model_name)
     logger.info("Running Experiment: {}".format(
         utils.colored(experiment_name, 'magenta')))
 
     driver = hcnn.driver.Driver(config,
-                                feature_mode=input_feature,
+                                model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
     result = driver.fit_and_predict_cross_validation()
@@ -311,18 +334,11 @@ def handle_arguments(arguments):
 
     # Run modes
     if arguments['run']:
-        feature = None
-        if arguments['<cqt>']:
-            feature = 'cqt'
-        elif arguments['<wcqt>']:
-            feature = 'wcqt'
-        elif arguments['<hcqt>']:
-            feature = 'hcqt'
+        model = arguments['<model>']
 
-        logger.info("Run Mode; features={}".format(
-            feature if feature else "all"))
-        if feature:
-            result = run_experiment(feature, config)
+        logger.info("Run Mode; model={}".format(model))
+        if model:
+            result = run_experiment(model, config)
         else:
             result = run_all_experiments(config)
 

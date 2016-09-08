@@ -34,11 +34,6 @@ features:
     num_cpus: -1
     skip_existing: True
 
-model:
-  cqt: "cqt_iX_c2f2_oY"
-  wcqt: "wcqt_iX_c2f2_oY"
-  hcqt: "hcqt_iX_c2f2_oY"
-
 experiment:
   params_dir: "params"
   params_format: "params{{0:0>{}}}.npz"
