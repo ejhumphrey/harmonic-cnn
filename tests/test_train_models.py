@@ -351,7 +351,7 @@ def test_overfit_two_samples_cqt(tiny_feats):
     model = models.NetworkManager(network_def)
 
     # Train the model for N epochs, till it fits the damn thing
-    max_batches = 25
+    max_batches = 10
     i = 0
     for batch in streamer:
         train_loss = model.train(batch)
@@ -407,7 +407,7 @@ def test_overfit_two_samples_wcqt(tiny_feats):
     model = models.NetworkManager(network_def)
 
     # Train the model for N epochs, till it fits the damn thing
-    max_batches = 25
+    max_batches = 10
     i = 0
     for batch in streamer:
         train_loss = model.train(batch)
