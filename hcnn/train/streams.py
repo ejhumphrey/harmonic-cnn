@@ -16,8 +16,113 @@ logger = logging.getLogger(__name__)
 instrument_map = labels.InstrumentClassMap()
 
 
+def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
+                add_noise=True, random_seed=None, npz_data_key='cqt'):
+    """Base slicer function for yielding data from an .npz file
+    which contains the features for streaming.
+
+    Assumptions:
+     * Input file is about 1s in length (43 frames), but might be
+       shorter or longer. t_len should be 43 (~1s), however.
+     * It is possible that this file could get sampled more than
+       once consecutively, so for training, if shuffle is True,
+       and the number of frames in the file > t_len, it will
+       try to sample from frames other than the first t_len frames
+       randomly.
+     * For prediction (shuffle=False), it will always return
+       the first t_len frames.
+
+    To use this for training, use the following parameters:
+        (...shuffle=True, auto_restart=True, add_noise=True)
+    For prediction / eval, use the following parameters:
+        (...shuffle=False, auto_restart=False, add_noise=False)
+
+    Parameters
+    ----------
+    record : pandas.Series
+        Single pandas record containing a 'cqt' record
+        which points to the cqt file in question.
+        Also must contain an "instrument" column
+        which contains the ground truth.
+
+    t_len : int
+        Length of the sliced array [in time/frames]
+
+    obs_slicer : function
+        Function which takes (cqt, idx, counter, t_len), and
+        returns a slice from the data, formatted correctly for
+        the desired data.
+
+    shuffle : bool
+        If True, shuffles the frames every time through the file.
+        If False, returns the first t_len frames.
+
+    auto_restart : bool
+        If True, yields infinitely.
+        If False, only goes through the file once.
+
+    add_noise : bool
+        If True, adds a small amount of noise to every sample.
+        If False, does nothing.
+
+    random_seed : int or None
+        If int, uses this number as the random seed. Otherwise,
+        makes it's own.
+
+    npz_data_key : str
+        The key in the npz file pointed to by record from which to
+        load the data. Choices = ['cqt', 'harmonic_cqt']
+
+    Yields
+    -------
+    sample : dict with fields {x_in, target}
+        The windowed observation.
+    """
+    rng = np.random.RandomState(random_seed)
+
+    if not all([('cqt' in record.index),
+               isinstance(record['cqt'], str),
+               os.path.exists(record['cqt'])]):
+        logger.error('No valid feature file specified for record: {}'.format(
+            record))
+        return
+
+    # Load the npz file with they key specified.
+    cqt = np.load(record['cqt'])[npz_data_key]
+    target = instrument_map.get_index(record['instrument'])
+
+    # Make sure the data is long enough.
+    # In practice this should no longer be necessary.
+    cqt = utils.backfill_noise(cqt, t_len + 1)
+
+    num_possible_obs = cqt.shape[-2] - t_len
+    if shuffle:
+        idx = np.arange(num_possible_obs)
+        rng.shuffle(idx)
+    else:
+        idx = np.arange(1)
+
+    counter = 0
+    while True:
+        obs = obs_slicer(cqt, idx, counter, t_len)
+        if add_noise:
+            obs = obs + utils.same_shape_noise(obs, 30, rng)
+        data = dict(
+            x_in=obs,
+            target=np.atleast_1d((target,)))
+        yield data
+
+        counter += 1
+        if counter >= len(idx):
+            if not auto_restart:
+                break
+            if shuffle:
+                rng.shuffle(idx)
+            counter = 0
+
+
 def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
-               random_seed=None):
+               add_noise=True, random_seed=None):
     """Generate slices from a cqt file.
 
     Thresholds the frames by finding the cqt means, and
@@ -25,9 +130,9 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
     quarter of the means.
 
     To use this for training, use the following parameters:
-        cqt_slices(..., shuffle=True, auto_restart=True)
+        cqt_slices(..., shuffle=True, auto_restart=True, add_noise=True)
     To use this for prediction / eval, use the following parameters:
-        cqt_slices(..., shuffle=False, auto_restart=False)
+        cqt_slices(..., shuffle=False, auto_restart=False, , add_noise=False)
 
     Parameters
     ----------
@@ -52,55 +157,27 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
         If true, uses this number as the random seed. Otherwise,
         makes it's own.
 
+    add_noise : bool
+
     Yields
     -------
-    sample : dict with fields {x_in, label}
+    sample : dict with fields {x_in, target}
         The windowed observation.
     """
-    rng = np.random.RandomState(random_seed)
+    def cqt_slicer(cqt, idx, counter, t_len):
+        obs = utils.slice_ndarray(cqt, idx[counter], length=t_len, axis=1)
+        return obs[np.newaxis, ...]
 
-    if not ('cqt' in record.index and
-            isinstance(record['cqt'], str) and
-            os.path.exists(record['cqt'])):
-        logger.error("No CQT for record.")
-    else:
-        # Load the npz
-        cqt = np.load(record['cqt'])['cqt']
-        target = instrument_map.get_index(record["instrument"])
-
-        cqt = utils.backfill_noise(cqt, t_len + 1)
-
-        num_obs = cqt.shape[1] - t_len
-
-        # Get the frame means, and remove the lowest 1/4
-        cqt_mu = cqt[0, :num_obs].mean(axis=1)
-        threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
-        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-        if shuffle:
-            rng.shuffle(idx)
-
-        counter = 0
-        while True:
-            obs = utils.slice_ndarray(cqt, idx[counter],
-                                      length=t_len, axis=1)
-            data = dict(
-                x_in=obs[np.newaxis, ...],
-                target=np.asarray((target,)))
-            yield data
-
-            # Once we have used all of the frames once, reshuffle.
-            counter += 1
-            if counter >= len(idx):
-                if not auto_restart:
-                    break
-                if shuffle:
-                    rng.shuffle(idx)
-                counter = 0
+    for cqt_slice in base_slicer(
+            record, t_len, cqt_slicer,
+            shuffle=shuffle, auto_restart=auto_restart,
+            add_noise=add_noise, random_seed=random_seed,
+            npz_data_key='cqt'):
+        yield cqt_slice
 
 
-def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
-                p_len=54, p_stride=36,
-                random_seed=None):
+def wcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
+                p_len=54, p_stride=36, random_seed=None):
     """Generate slices of wrapped CQT observations.
 
     To use this for training, use the following parameters:
@@ -124,11 +201,14 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
         If True, yields infinitely.
         If False, only goes through the file once.
 
+    add_noise : bool
+
     p_len : int
         Number of adjacent pitch bins.
 
     p_stride : int
         Number of pitch bins to stride when wrapping.
+
 
     random_seed : int or None
          Override the random seed if given.
@@ -138,56 +218,30 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
-    rng = np.random.RandomState(random_seed)
+    def wcqt_slicer(cqt, idx, counter, t_len):
+        # Grab the obs
+        obs = utils.slice_ndarray(cqt, idx[counter], length=t_len, axis=1)
+        # Convert it to WCQT
+        wcqt = utils.fold_array(obs[0], length=p_len, stride=p_stride)
+        # Fix the shape.s
+        return wcqt[np.newaxis, ...]
 
-    if not ('cqt' in record.index and
-            isinstance(record['cqt'], str) and
-            os.path.exists(record['cqt'])):
-        logger.error("No CQT for record.")
-    else:
-        # Load the npz
-        cqt = np.load(record['cqt'])['cqt']
-        wcqt = utils.fold_array(cqt[0], length=p_len, stride=p_stride)
-        target = instrument_map.get_index(record["instrument"])
-
-        wcqt = utils.backfill_noise(wcqt, t_len + 1)
-
-        num_obs = wcqt.shape[1] - t_len
-
-        # Get the frame means, and remove the lowest 1/4
-        cqt_mu = cqt[0, :num_obs].mean(axis=1)
-        threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
-        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-        if shuffle:
-            rng.shuffle(idx)
-
-        counter = 0
-        while True:
-            obs = utils.slice_ndarray(wcqt, idx[counter],
-                                      length=t_len, axis=1)
-            data = dict(
-                x_in=obs[np.newaxis, ...],
-                target=np.asarray((target,), dtype=np.int32))
-            yield data
-
-            # Once we have used all of the frames once, reshuffle.
-            counter += 1
-            if counter >= len(idx):
-                if not auto_restart:
-                    break
-                if shuffle:
-                    rng.shuffle(idx)
-                counter = 0
+    for wcqt_slice in base_slicer(
+            record, t_len, wcqt_slicer,
+            shuffle=shuffle, auto_restart=auto_restart,
+            add_noise=add_noise, random_seed=random_seed,
+            npz_data_key='cqt'):
+        yield wcqt_slice
 
 
-def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
+def hcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
                 random_seed=None):
     """Generate slices of pre-generated harmonic cqts from a cqt file.
 
     To use this for training, use the following parameters:
-        hcqt_slices(..., shuffle=True, auto_restart=True)
+        hcqt_slices(..., shuffle=True, auto_restart=True, add_noise=True)
     To use this for prediction / eval, use the following parameters:
-        hcqt_slices(..., shuffle=False, auto_restart=False)
+        hcqt_slices(..., shuffle=False, auto_restart=False, add_noise=False)
 
     Parameters
     ----------
@@ -208,6 +262,8 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
         If True, yields infinitely.
         If False, only goes through the file once.
 
+    add_noise : bool
+
     random_seed : int or None
          Override the random seed if given.
 
@@ -216,48 +272,19 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
     sample : dict with fields {x_in, label}
         The windowed observation.
     """
-    rng = np.random.RandomState(random_seed)
+    def hcqt_slicer(cqt, idx, counter, t_len):
+        # hcqt = np.swapaxes(cqt, 1, 2)
+        # Grab the obs
+        obs = utils.slice_ndarray(cqt, idx[counter], length=t_len, axis=-2)
+        # Fix the shape.
+        return obs[np.newaxis, ...] if np.ndim(obs) == 3 else obs
 
-    if not ('cqt' in record.index and
-            isinstance(record['cqt'], str) and
-            os.path.exists(record['cqt'])):
-        logger.error("No CQT for record.")
-    else:
-        # Load the npz
-        hcqt = np.load(record['cqt'])['harmonic_cqt']
-        target = instrument_map.get_index(record["instrument"])
-
-        # Do this so it's easier to operate on time. @ejhumphrey - better way?
-        tmp_hcqt = np.swapaxes(hcqt, 1, 2)
-
-        num_obs = tmp_hcqt.shape[1] - t_len
-        # Get the frame means, and remove the lowest 1/4
-        # TODO: Need to think through whether this should be axis=1/2
-        # hcqt_mu = tmp_hcqt[0, :num_obs].mean(axis=1)
-        # threshold = sorted(hcqt_mu)[int(len(hcqt_mu) * .25)]
-        # idx = (hcqt_mu[:num_obs] >= threshold).nonzero()[0]
-        idx = np.arange(num_obs)
-        if shuffle:
-            rng.shuffle(idx)
-
-        counter = 0
-        while True:
-            # TODO: Need to think through whether this should be axis=1/2
-            obs = utils.slice_ndarray(tmp_hcqt, idx[counter],
-                                      length=t_len, axis=1)
-            data = dict(
-                x_in=np.swapaxes(obs, 1, 2),
-                target=np.asarray((target,)))
-            yield data
-
-            # Once we have used all of the frames once, reshuffle.
-            counter += 1
-            if counter >= len(idx):
-                if not auto_restart:
-                    break
-                if shuffle:
-                    rng.shuffle(idx)
-                counter = 0
+    for hcqt_slice in base_slicer(
+            record, t_len, hcqt_slicer,
+            shuffle=shuffle, auto_restart=auto_restart,
+            add_noise=add_noise, random_seed=random_seed,
+            npz_data_key='harmonic_cqt'):
+        yield hcqt_slice
 
 
 def buffer_stream(stream, batch_size):
