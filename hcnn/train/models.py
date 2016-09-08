@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 BINS_PER_OCTAVE = cqt.CQT_PARAMS['bins_per_octave']
 CQT_DIMS = cqt.CQT_PARAMS['n_bins']
-WCQT_DIMS = (CQT_DIMS / BINS_PER_OCTAVE, BINS_PER_OCTAVE * 1.5)
+WCQT_DIMS = (CQT_DIMS // BINS_PER_OCTAVE, (BINS_PER_OCTAVE * 2) // 3)
 HCQT_DIMS = (cqt.HARMONIC_PARAMS['n_harmonics'], CQT_DIMS)
 
 
