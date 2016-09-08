@@ -72,41 +72,34 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
 
         num_obs = cqt.shape[1] - t_len
 
-        # If there aren't enough obs, don't do it.
-        # Technically this can't happen now?
-        if num_obs > 0:
-            # Get the frame means, and remove the lowest 1/4
-            cqt_mu = cqt[0, :num_obs].mean(axis=1)
-            threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
-            idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-            if shuffle:
-                rng.shuffle(idx)
+        # Get the frame means, and remove the lowest 1/4
+        cqt_mu = cqt[0, :num_obs].mean(axis=1)
+        threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
+        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
+        if shuffle:
+            rng.shuffle(idx)
 
-            counter = 0
-            while True:
-                obs = utils.slice_ndarray(cqt, idx[counter],
-                                          length=t_len, axis=1)
-                data = dict(
-                    x_in=obs[np.newaxis, ...],
-                    target=np.asarray((target,)))
-                yield data
+        counter = 0
+        while True:
+            obs = utils.slice_ndarray(cqt, idx[counter],
+                                      length=t_len, axis=1)
+            data = dict(
+                x_in=obs[np.newaxis, ...],
+                target=np.asarray((target,)))
+            yield data
 
-                # Once we have used all of the frames once, reshuffle.
-                counter += 1
-                if counter >= len(idx):
-                    if not auto_restart:
-                        break
-                    if shuffle:
-                        rng.shuffle(idx)
-                    counter = 0
-        else:
-            import pdb; pdb.set_trace()
-            logger.warning("File {} doesn't have enough obs for t_len {}"
-                           .format(record['cqt'], t_len))
+            # Once we have used all of the frames once, reshuffle.
+            counter += 1
+            if counter >= len(idx):
+                if not auto_restart:
+                    break
+                if shuffle:
+                    rng.shuffle(idx)
+                counter = 0
 
 
 def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
-                p_len=36, p_stride=24,
+                p_len=54, p_stride=36,
                 random_seed=None):
     """Generate slices of wrapped CQT observations.
 
@@ -161,36 +154,30 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True,
 
         num_obs = wcqt.shape[1] - t_len
 
-        # If there aren't enough obs, don't do it.
-        if num_obs > 0:
-            # Get the frame means, and remove the lowest 1/4
-            cqt_mu = cqt[0, :num_obs].mean(axis=1)
-            threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
-            idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
-            if shuffle:
-                rng.shuffle(idx)
+        # Get the frame means, and remove the lowest 1/4
+        cqt_mu = cqt[0, :num_obs].mean(axis=1)
+        threshold = sorted(cqt_mu)[int(len(cqt_mu) * .25)]
+        idx = (cqt_mu[:num_obs] >= threshold).nonzero()[0]
+        if shuffle:
+            rng.shuffle(idx)
 
-            counter = 0
-            while True:
-                obs = utils.slice_ndarray(wcqt, idx[counter],
-                                          length=t_len, axis=1)
-                data = dict(
-                    x_in=obs[np.newaxis, ...],
-                    target=np.asarray((target,), dtype=np.int32))
-                yield data
+        counter = 0
+        while True:
+            obs = utils.slice_ndarray(wcqt, idx[counter],
+                                      length=t_len, axis=1)
+            data = dict(
+                x_in=obs[np.newaxis, ...],
+                target=np.asarray((target,), dtype=np.int32))
+            yield data
 
-                # Once we have used all of the frames once, reshuffle.
-                counter += 1
-                if counter >= len(idx):
-                    if not auto_restart:
-                        break
-                    if shuffle:
-                        rng.shuffle(idx)
-                    counter = 0
-        else:
-            import pdb; pdb.set_trace()
-            logger.warning("File {} doesn't have enough obs for t_len {}"
-                           .format(record['cqt'], t_len))
+            # Once we have used all of the frames once, reshuffle.
+            counter += 1
+            if counter >= len(idx):
+                if not auto_restart:
+                    break
+                if shuffle:
+                    rng.shuffle(idx)
+                counter = 0
 
 
 def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
@@ -244,38 +231,33 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True,
         tmp_hcqt = np.swapaxes(hcqt, 1, 2)
 
         num_obs = tmp_hcqt.shape[1] - t_len
-        # If there aren't enough obs, don't do it.
-        if num_obs > 0:
-            # Get the frame means, and remove the lowest 1/4
+        # Get the frame means, and remove the lowest 1/4
+        # TODO: Need to think through whether this should be axis=1/2
+        # hcqt_mu = tmp_hcqt[0, :num_obs].mean(axis=1)
+        # threshold = sorted(hcqt_mu)[int(len(hcqt_mu) * .25)]
+        # idx = (hcqt_mu[:num_obs] >= threshold).nonzero()[0]
+        idx = np.arange(num_obs)
+        if shuffle:
+            rng.shuffle(idx)
+
+        counter = 0
+        while True:
             # TODO: Need to think through whether this should be axis=1/2
-            # hcqt_mu = tmp_hcqt[0, :num_obs].mean(axis=1)
-            # threshold = sorted(hcqt_mu)[int(len(hcqt_mu) * .25)]
-            # idx = (hcqt_mu[:num_obs] >= threshold).nonzero()[0]
-            idx = np.arange(num_obs)
-            if shuffle:
-                rng.shuffle(idx)
+            obs = utils.slice_ndarray(tmp_hcqt, idx[counter],
+                                      length=t_len, axis=1)
+            data = dict(
+                x_in=np.swapaxes(obs, 1, 2),
+                target=np.asarray((target,)))
+            yield data
 
-            counter = 0
-            while True:
-                # TODO: Need to think through whether this should be axis=1/2
-                obs = utils.slice_ndarray(tmp_hcqt, idx[counter],
-                                          length=t_len, axis=1)
-                data = dict(
-                    x_in=np.swapaxes(obs, 1, 2),
-                    target=np.asarray((target,)))
-                yield data
-
-                # Once we have used all of the frames once, reshuffle.
-                counter += 1
-                if counter >= len(idx):
-                    if not auto_restart:
-                        break
-                    if shuffle:
-                        rng.shuffle(idx)
-                    counter = 0
-        else:
-            logger.warning("File {} doesn't have enough obs for t_len {}"
-                           .format(record['cqt'], t_len))
+            # Once we have used all of the frames once, reshuffle.
+            counter += 1
+            if counter >= len(idx):
+                if not auto_restart:
+                    break
+                if shuffle:
+                    rng.shuffle(idx)
+                counter = 0
 
 
 def buffer_stream(stream, batch_size):

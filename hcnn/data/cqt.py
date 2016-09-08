@@ -33,16 +33,18 @@ import hcnn.data.dataset as DS
 logger = logging.getLogger(__name__)
 
 CQT_PARAMS = dict(
-    hop_length=1024, fmin=27.5, n_bins=204, bins_per_octave=24, tuning=0.0,
+    hop_length=512, fmin=16.35, n_bins=252, bins_per_octave=36, tuning=0.0,
     filter_scale=1, aggregate=None, norm=1, sparsity=0.0, real=False)
 
-HARMONIC_PARAMS = dict(n_bins=144, n_harmonics=6)
+HARMONIC_PARAMS = dict(n_bins=CQT_PARAMS['n_bins'], n_harmonics=3,
+                       fmin=CQT_PARAMS['fmin'],
+                       bins_per_octave=CQT_PARAMS['bins_per_octave'])
 
 AUDIO_PARAMS = dict(samplerate=22050.0, channels=1, bytedepth=2)
 
 
 def harmonic_cqt(x_in, sr, hop_length=1024, fmin=27.5, n_bins=72,
-                 n_harmonics=5, bins_per_octave=24, tuning=0.0, filter_scale=1,
+                 n_harmonics=5, bins_per_octave=36, tuning=0.0, filter_scale=1,
                  aggregate=None, norm=1, sparsity=0.0, real=False):
     """Harmonically layered CQT.
 
@@ -70,8 +72,8 @@ def harmonic_cqt(x_in, sr, hop_length=1024, fmin=27.5, n_bins=72,
 
     cqt_spectra = []
     min_tdim = np.inf
-    for i in range(1, n_harmonics+1):
-        cqt_spectra += [np.array([librosa.cqt(x_c, fmin=i*fmin, **kwargs).T
+    for i in range(1, n_harmonics + 1):
+        cqt_spectra += [np.array([librosa.cqt(x_c, fmin=i * fmin, **kwargs).T
                                   for x_c in x_in.T])[:, np.newaxis, ...]]
         min_tdim = min([cqt_spectra[-1].shape[2], min_tdim])
     cqt_spectra = [x[:, :, :min_tdim, :] for x in cqt_spectra]
