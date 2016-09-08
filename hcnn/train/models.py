@@ -560,7 +560,8 @@ def cqt_MF(n_in, n_out, n_basefilt):
             "nonlinearity": "nonlin.softmax"
             # 1024 * 12 [n_out] = 12,288
         }],
-        "loss": "loss.categorical_crossentropy"
+        "loss": "loss.categorical_crossentropy",
+        "batch_norm": True
         # Total = 28,224 + 4,608 + 32,768 + 12,288 = 77,888 total params.
     }
     return network_def
@@ -626,7 +627,8 @@ def cqt_M2(n_in, n_out, n_basefilt):
             "nonlinearity": "nonlin.softmax"
             # 128 * 12 [n_out] = 1,536
         }],
-        "loss": "loss.categorical_crossentropy"
+        "loss": "loss.categorical_crossentropy",
+        "batch_norm": True
         # Total = 1,176 + 10,368 + 65,536 + 1,536 = 78,616 total params.
     }
     return network_def
@@ -700,7 +702,8 @@ def hcqt_MH(n_in, n_out, n_basefilt):
             "nonlinearity": "nonlin.softmax"
             # 128 * 12 [n_out] = 1,536
         }],
-        "loss": "loss.categorical_crossentropy"
+        "loss": "loss.categorical_crossentropy",
+        "batch_norm": True
         # Total = 1,176 + 10,368 + 65,280 + 1,536 = 78360 total params.
     }
     return network_def
