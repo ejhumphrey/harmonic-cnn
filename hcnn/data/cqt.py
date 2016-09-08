@@ -137,6 +137,10 @@ def cqt_one(input_file, output_file, cqt_params=None, audio_params=None,
         time.asctime(), input_file))
     try:
         x, fs = claudio.read(input_file, **audio_params)
+        if len(x) <= 0:
+            logger.error("Bad Input signal length={} for audio {}".format(
+                len(x), input_file))
+            return False
         logger.debug("[{0}] Computing features {1}".format(
             time.asctime(), input_file))
         cqt_spectra = np.array([np.abs(librosa.cqt(x_c, sr=fs, **cqt_params).T)
