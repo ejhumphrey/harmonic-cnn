@@ -36,8 +36,9 @@ CQT_PARAMS = dict(
     hop_length=512, fmin=16.35, n_bins=252, bins_per_octave=36, tuning=0.0,
     filter_scale=1, aggregate=None, norm=1, sparsity=0.0, real=False)
 
-HARMONIC_PARAMS = dict(n_bins=252, n_harmonics=3,
-                       fmin=16.35, bins_per_octave=36)
+HARMONIC_PARAMS = dict(n_bins=CQT_PARAMS['n_bins'], n_harmonics=3,
+                       fmin=CQT_PARAMS['fmin'],
+                       bins_per_octave=CQT_PARAMS['bins_per_octave'])
 
 AUDIO_PARAMS = dict(samplerate=22050.0, channels=1, bytedepth=2)
 

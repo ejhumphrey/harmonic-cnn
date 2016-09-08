@@ -14,13 +14,15 @@ import os
 import theano
 import theano.tensor as T
 
+from ..data import cqt
+
 
 logger = logging.getLogger(__name__)
 
-BINS_PER_OCTAVE = 36
-CQT_DIMS = 252
+BINS_PER_OCTAVE = cqt.CQT_PARAMS['bins_per_octave']
+CQT_DIMS = cqt.CQT_PARAMS['n_bins']
 WCQT_DIMS = (CQT_DIMS / BINS_PER_OCTAVE, BINS_PER_OCTAVE * 1.5)
-HCQT_DIMS = (3, CQT_DIMS)
+HCQT_DIMS = (cqt.HARMONIC_PARAMS['n_harmonics'], CQT_DIMS)
 
 
 __all__ = ['NetworkManager']
@@ -582,7 +584,7 @@ def cqt_MF_n64(n_in, n_out):
 def cqt_M2(n_in, n_out, n_basefilt):
     """Model definition for M2: small 2-d CQT filters
     """
-    L1_FILTER = (7, 7 * 3)
+    L1_FILTER = (7, 7 * HCQT_DIMS[0])
     L2_FILTER = (9, 9)
     network_def = {
         # (n=n_in, 252)
