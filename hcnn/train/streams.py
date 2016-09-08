@@ -334,7 +334,9 @@ class InstrumentStreamer(collections.Iterator):
                  record_slicer,
                  slicer_kwargs={},
                  t_len=1,
-                 instrument_mux_params=dict(k=10, lam=20),
+                 # 15 streams open, ~3 samples per stream before opening
+                 #  a new one.
+                 instrument_mux_params=dict(k=20, lam=3),
                  master_mux_params=dict(
                     n_samples=None,  # no maximum number
                     k=12,  # this is the number of classes.
@@ -398,7 +400,7 @@ class InstrumentStreamer(collections.Iterator):
         inst_muxes = [self._instrument_mux(i) for i in instruments]
 
         # Construct the streams for each mux.
-        mux_streams = [pescador.Streamer(x) for x in inst_muxes \
+        mux_streams = [pescador.Streamer(x) for x in inst_muxes
                        if x is not None]
 
         # Construct the master mux
