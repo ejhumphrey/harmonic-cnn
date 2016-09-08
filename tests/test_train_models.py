@@ -41,6 +41,28 @@ def simple_network_def():
     return network_def
 
 
+@pytest.fixture(
+    scope="module",
+    params=[models.cqt_MF_n16,
+            models.cqt_MF_n32,
+            models.cqt_MF_n64,
+            models.cqt_M2_n8,
+            models.cqt_M2_n16,
+            models.cqt_M2_n32,
+            models.cqt_M2_n64  #,
+            # models.hcqt_MH_n8,
+            # models.hcqt_MH_n16,
+            # models.hcqt_MH_n32,
+            # models.hcqt_MH_n64
+            ],
+    ids=['MF_16', 'MF_32', 'MF_64',
+         'M2_8', 'M2_16', 'M2_32', 'M2_64'  #,
+         # 'MH_8', 'MH_16', 'MH_32', 'MH_64'
+         ])
+def network_def_fn(request):
+    return request.param
+
+
 @pytest.fixture
 def batch_norm_def(simple_network_def):
     simple_network_def["batch_norm"] = True
@@ -271,6 +293,30 @@ def test_networkmanager_train_and_predict(simple_network_def):
     assert np.isfinite(loss) and np.isfinite(acc)
 
 
+def test_networkmanager_t_and_p_experiments(network_def_fn):
+    input_shape = (None, 1, 43, 252)
+    n_classes = 3
+
+    network_def = network_def_fn(input_shape[2], n_classes)
+    model = models.NetworkManager(network_def)
+    assert model is not None
+
+    batch_size = 8
+    input_shape = (batch_size,) + input_shape[1:]
+
+    batch = dict(
+        x_in=np.random.random(input_shape),
+        target=np.random.randint(n_classes, size=batch_size))
+    loss = model.train(batch)
+    assert np.isfinite(loss)
+
+    probs = model.predict(batch)
+    assert np.all(np.isfinite(probs))
+
+    loss, acc = model.evaluate(batch)
+    assert np.isfinite(loss) and np.isfinite(acc)
+
+
 @pytest.mark.cqt
 @pytest.mark.slowtest
 def test_overfit_two_samples_cqt(tiny_feats):
@@ -305,7 +351,7 @@ def test_overfit_two_samples_cqt(tiny_feats):
     model = models.NetworkManager(network_def)
 
     # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
+    max_batches = 25
     i = 0
     for batch in streamer:
         train_loss = model.train(batch)
@@ -361,7 +407,7 @@ def test_overfit_two_samples_wcqt(tiny_feats):
     model = models.NetworkManager(network_def)
 
     # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
+    max_batches = 25
     i = 0
     for batch in streamer:
         train_loss = model.train(batch)

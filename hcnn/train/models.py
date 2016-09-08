@@ -17,9 +17,10 @@ import theano.tensor as T
 
 logger = logging.getLogger(__name__)
 
-CQT_DIMS = 216
-WCQT_DIMS = (7, 54)
-HCQT_DIMS = (3, 252)
+BINS_PER_OCTAVE = 36
+CQT_DIMS = 252
+WCQT_DIMS = (CQT_DIMS / BINS_PER_OCTAVE, BINS_PER_OCTAVE * 1.5)
+HCQT_DIMS = (3, CQT_DIMS)
 
 
 __all__ = ['NetworkManager']
@@ -509,33 +510,105 @@ def hcqt_iX_c2f2_oY(n_in, n_out):
     return network_def
 
 
-def cqt_exp1(n_in, n_out, n_basefilt):
-    """experiment definition for experiment 1.
+def cqt_MF(n_in, n_out, n_basefilt):
+    """Model definition for "MF"=> Full-height cqt filters.
     """
-    # All parameter Math is for base case of 8 filters
+    L1_FILTER = (7, CQT_DIMS)
+    L2_FILTER = (9, 1)
     network_def = {
-        # (n=8, 216)
+        # (n=n_in, 252)
+        # All parameter Math is for base case of *16 filters
+        # (different than the others)
+        # For 1s, 512 samples @ 22050, there are ~43 windows / sample.
+        # All comment calculations assume 43 for n_in
         "input_shape": (None, 1, n_in, CQT_DIMS),
         "layers": [{
             "type": "layers.Conv2DLayer",
             "num_filters": n_basefilt,
-            "filter_size": (3, 7 * 3),  # 3 bins per semitone, 7=a fifth
-            # => (6, 231)
+            "filter_size": L1_FILTER,
+            # => (n_basefilt, 37, 1)
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-            # parameters: (3 * 21 * 1) * 8 => 504
+            # parameters: (7 * 252 * 1) * 16 => 28,224
         }, {
             "type": "layers.Conv2DLayer",
             "num_filters": n_basefilt * 2,
-            "filter_size": (3, 7),
-            # => (4, 225)
+            "filter_size": L2_FILTER,
+            # => (8, 29, 1)
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-            # parameters: (3 * 7 * 16) * 8 => 2688
+            # parameters: (9 * 1 * 16) * 32 => 4,608
         }, {
             "type": "layers.MaxPool2DLayer",
-            "pool_size": (4, 3)
-            # => (16, 1, 75) = 1200
+            # Pool: (29, 1)
+            "pool_size": ((n_in - L1_FILTER[0] - L2_FILTER[0] + 2), 1)
+            # => (32, 1, 1) = 32
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": 1024,
+            "nonlinearity": "nonlin.rectify"
+            # 32 * 1024 => 32,768
+        }, {
+            "type": "layers.DropoutLayer",
+            "p": 0.5
+        }, {
+            "type": "layers.DenseLayer",
+            "num_units": n_out,
+            "nonlinearity": "nonlin.softmax"
+            # 1024 * 12 [n_out] = 12,288
+        }],
+        "loss": "loss.categorical_crossentropy"
+        # Total = 28,224 + 4,608 + 32,768 + 12,288 = 77,888 total params.
+    }
+    return network_def
+
+
+def cqt_MF_n16(n_in, n_out):
+    return cqt_MF(n_in, n_out, 16)
+
+
+def cqt_MF_n32(n_in, n_out):
+    return cqt_MF(n_in, n_out, 32)
+
+
+def cqt_MF_n64(n_in, n_out):
+    return cqt_MF(n_in, n_out, 64)
+
+
+def cqt_M2(n_in, n_out, n_basefilt):
+    """Model definition for M2: small 2-d CQT filters
+    """
+    L1_FILTER = (7, 7 * 3)
+    L2_FILTER = (9, 9)
+    network_def = {
+        # (n=n_in, 252)
+        # All parameter Math is for base case of 8 filters
+        # For 1s, 512 samples @ 22050, there are ~43 windows / sample.
+        # All comment calculations assume 43 for n_in
+        "input_shape": (None, 1, n_in, CQT_DIMS),
+        "layers": [{
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt,
+            "filter_size": L1_FILTER,
+            # => (n_basefilt, 37, 232)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (7 * 21 * 1) * 8 => 1,176
+        }, {
+            "type": "layers.Conv2DLayer",
+            "num_filters": n_basefilt * 2,
+            "filter_size": L2_FILTER,
+            # => (8, 29, 224)
+            "nonlinearity": "nonlin.rectify",
+            "W": "init.glorot"
+            # parameters: (9 * 9 * 16) * 8 => 10,368
+        }, {
+            "type": "layers.MaxPool2DLayer",
+            "pool_size": ((n_in - L1_FILTER[0] - L2_FILTER[0] + 2), 7)
+            # => (16, 1, 32) = 512
         }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
@@ -543,7 +616,7 @@ def cqt_exp1(n_in, n_out, n_basefilt):
             "type": "layers.DenseLayer",
             "num_units": 128,
             "nonlinearity": "nonlin.rectify"
-            # 1200 * 128 => 153,600
+            # 512 * 128 => 65,536
         }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
@@ -554,66 +627,70 @@ def cqt_exp1(n_in, n_out, n_basefilt):
             # 128 * 12 [n_out] = 1,536
         }],
         "loss": "loss.categorical_crossentropy"
-        # Total = 504 + 2688 + 153,600 + 1,536 = 158,328 total params.
+        # Total = 1,176 + 10,368 + 65,536 + 1,536 = 78,616 total params.
     }
     return network_def
 
 
-def cqt_exp1_n8(n_in, n_out):
-    return cqt_exp1(n_in, n_out, 8)
+def cqt_M2_n8(n_in, n_out):
+    return cqt_M2(n_in, n_out, 8)
 
 
-def cqt_exp1_n16(n_in, n_out):
-    return cqt_exp1(n_in, n_out, 16)
+def cqt_M2_n16(n_in, n_out):
+    return cqt_M2(n_in, n_out, 16)
 
 
-def cqt_exp1_n32(n_in, n_out):
-    return cqt_exp1(n_in, n_out, 32)
+def cqt_M2_n32(n_in, n_out):
+    return cqt_M2(n_in, n_out, 32)
 
 
-def cqt_exp1_n64(n_in, n_out):
-    return cqt_exp1(n_in, n_out, 64)
+def cqt_M2_n64(n_in, n_out):
+    return cqt_M2(n_in, n_out, 64)
 
 
-def wcqt_exp1(n_in, n_out, n_basefilt):
-    """experiment definition for experiment 1.
+def hcqt_MH(n_in, n_out, n_basefilt):
+    """Model definition for MH: small 3-d HCQT filters
     """
+    L1_FILTER = (7, 7)
+    L2_FILTER = (9, 9)
     network_def = {
-        # (7, 8, 54) at input
-        "input_shape": (None, WCQT_DIMS[0], n_in, WCQT_DIMS[1]),
+        # (n=n_in, 252)
+        # All parameter Math is for base case of 8 filters
+        # For 1s, 512 samples @ 22050, there are ~43 windows / sample.
+        # All comment calculations assume 43 for n_in
+        "input_shape": (None, HCQT_DIMS[0], n_in, HCQT_DIMS[1]),
+        #  => (3, 43, 252)
         "layers": [{
             "type": "layers.Conv2DLayer",
             "num_filters": n_basefilt,
-            "filter_size": (3, 7 * 3),  # 3 bins per semitone, 7=a fifth
-            # => (6, 34)
+            "filter_size": L1_FILTER,
+            # => (n_basefilt, 37, 246)
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-            # parameters: (3 * 21 * 7) * 8 => 3,528
+            # parameters: (7 * 7 * 3) * 8 => 1,176
         }, {
             "type": "layers.Conv2DLayer",
             "num_filters": n_basefilt * 2,
-            "filter_size": (3, 7),
-            # => (4, 28)
+            "filter_size": L2_FILTER,
+            # => (8, 29, 238)
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-            # parameters: (3 * 7 * 16) * 8 => 2688
+            # parameters: (9 * 9 * 16) * 8 => 10,368
         }, {
             "type": "layers.MaxPool2DLayer",
-            "pool_size": (4, 1)
-            # => (16, 1, 28) = 448
+            "pool_size": ((n_in - L1_FILTER[0] - L2_FILTER[0] + 2), 7)
+            # => (16, 1, 34) = 544
         }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
         }, {
             "type": "layers.DenseLayer",
-            "num_units": 332,
+            # Adjusted to 120 from 128 to account for more parameters
+            # earlier, to try and match the # parameters more or less
+            # to the M2 model.
+            "num_units": 120,
             "nonlinearity": "nonlin.rectify"
-            # 153,600 is the total used in CQT
-            # to get approximately the same:
-            # 153,600 / 448 => 343 (rounded)
-            # So we choose 332, because we have extra parameters in L1 and
-            #  the dense layer following, so we need to shrink the
-            # 448 * 332 => 148,736
+            # 544 * 120 => 65,280
         }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
@@ -621,26 +698,25 @@ def wcqt_exp1(n_in, n_out, n_basefilt):
             "type": "layers.DenseLayer",
             "num_units": n_out,
             "nonlinearity": "nonlin.softmax"
-            # 332 * 12 [n_out] = 3984
+            # 128 * 12 [n_out] = 1,536
         }],
         "loss": "loss.categorical_crossentropy"
-        # Total = 3,528 + 2688 + 148,736 + 3984 = 158,936 total params.
-        #  (Within 1000 of the CQT)
+        # Total = 1,176 + 10,368 + 65,280 + 1,536 = 78360 total params.
     }
     return network_def
 
 
-def wcqt_exp1_n8(n_in, n_out):
-    return wcqt_exp1(n_in, n_out, 8)
+def hcqt_MH_n8(n_in, n_out):
+    return hcqt_MH(n_in, n_out, 8)
 
 
-def wcqt_exp1_n16(n_in, n_out):
-    return wcqt_exp1(n_in, n_out, 16)
+def hcqt_MH_n16(n_in, n_out):
+    return hcqt_MH(n_in, n_out, 16)
 
 
-def wcqt_exp1_n32(n_in, n_out):
-    return wcqt_exp1(n_in, n_out, 32)
+def hcqt_MH_n32(n_in, n_out):
+    return hcqt_MH(n_in, n_out, 32)
 
 
-def wcqt_exp1_n64(n_in, n_out):
-    return wcqt_exp1(n_in, n_out, 64)
+def hcqt_MH_n64(n_in, n_out):
+    return hcqt_MH(n_in, n_out, 64)
