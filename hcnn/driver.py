@@ -442,8 +442,8 @@ class Driver(object):
         timers.end("train")
 
         # Print final training loss
-        logger.info("Total iterations:".format(iter_count))
-        logger.info("Trained for ".format(timers.get("train")))
+        logger.info("Total iterations: {}".format(iter_count))
+        logger.info("Trained for {}".format(timers.get("train")))
         logger.info("Final training loss: {}".format(
             train_stats["loss"].iloc[-1]))
 
