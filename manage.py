@@ -1,136 +1,179 @@
-import argparse
-import logging
-import logging.config
-import pandas
-import os
-import sys
+"""Master script to run Harmonic-CNN Experiments.
 
-import wcqtlib.config as C
-import wcqtlib.data.parse as parse
-import wcqtlib.data.extract as E
-import wcqtlib.data.cqt
-import wcqtlib.train.driver as driver
-import wcqtlib.common.utils as utils
+Usage:
+ manage.py [options] run
+ manage.py [options] run <model>
+ manage.py [options] extract_features
+ manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
+ manage.py [options] test [(data|model|unit)]
+
+Arguments:
+ run           Run all of the the experiments end-to-end.
+               'cqt' runs only on cqt features.
+               'wcqt' runs only on wcqt features.
+               'hcqt' runs only on hcqt features.
+ extract_features  Manually extract features from the dataset audio files.
+               (This will happen automatically in a full 'run'.)
+ experiment    fit_and_predict  Train over a specified partition, and
+                      immediately runs the predictions over the test set.
+               train       Run only the training compoment for a specified
+                           partition.
+               predict     Run only the prediction component over a specified
+                           partition.
+               analyze     Create a report on the run for analysis.
+ test          Run tests.
+               'data' tests to make sure the data is setup to run.
+               'model' runs simple train and predict on a small subset of data.
+               'unit' runs unit tests.
+
+Options:
+ -v --verbose  Increase verbosity.
+"""
+
+from docopt import docopt
+import logging
+import os
+import pytest
+import shutil
+import sys
+import theano
+
+import hcnn.common.config as C
+import hcnn.common.utils as utils
+import hcnn.data.dataset
+import hcnn.data.cqt
+import hcnn.driver
+import hcnn.logger
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__),
                            "data", "master_config.yaml")
+INT_CONFIG_PATH = os.path.join(os.path.dirname(__file__),
+                               "data", "integration_config.yaml")
 
 logger = logging.getLogger(__name__)
 
-
-def save_canonical_files(master_config):
-    """Create the canonical_files.json file."""
-    config = C.Config.from_yaml(master_config)
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-    datasets_df = pandas.read_json(datasets_path)
-    logger.info("Generating canonical datasets file from {} records".format(
-        len(datasets_df)))
-    success = parse.generate_canonical_files(datasets_df)
-    logger.info("Success: {}".format(success))
-    return success
+# theano debug values. probably remove these later.
+theano.config.exception_verbosity = 'high'
+theano.config.optimizer = 'fast_compile'
 
 
-def collect(master_config, skip_notes=False):
-    """Prepare dataframes of notes for experiments."""
-    config = C.Config.from_yaml(master_config)
+def run_process_if_not_exists(process, filepath, **kwargs):
+    if not os.path.exists(filepath):
+        return process(**kwargs)
+    else:
+        return True
 
-    print(utils.colored("Parsing directories to collect datasets"))
-    parse_result = parse.parse_files_to_dataframe(config)
 
-    extract_result = True
-    if not skip_notes:
-        print(utils.colored("Spliting audio files to notes."))
-        extract_result = E.extract_notes(config)
+def clean(config_path, force=False):
+    """Clean dataframes and extracted audio/features."""
+    config = C.Config.load(config_path)
 
-    return all([parse_result,
-                extract_result])
+    data_path = os.path.expanduser(config['paths/feature_dir'])
+    # Clean data
+    if not force:
+        answer = input("Are you sure you want to delete {} (y|s to skip): "
+                       .format(data_path))
+        if answer in ['y', 'Y']:
+            pass
+        elif answer in ['s', 'S']:
+            return True
+        else:
+            print("Exiting")
+            sys.exit(1)
+
+    shutil.rmtree(data_path)
+    logger.info("clean done.")
+    return True
 
 
 def extract_features(master_config):
     """Extract CQTs from all files collected in collect."""
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
     print(utils.colored("Extracting CQTs from note audio."))
-    success = wcqtlib.data.cqt.cqt_from_df(config, **config["features/cqt"])
-    return success
+
+    driver = hcnn.driver.Driver(config, load_features=False)
+    result = driver.extract_features()
+    print("Extraction {}".format(utils.result_colored(result)))
+    return result
 
 
-def train(master_config,
-          experiment_name):
+def fit_and_predict(config, experiment_name, test_set, model_name):
+    """Runs:
+    - train
+    - model_selection_df
+    - predict
+    - analyze
+    """
+    run_name = "fit_and_predict:{}:{}:{}".format(
+        experiment_name, test_set, model_name)
+
+    config = C.Config.load(config)
+    print(utils.colored("Running {} end-to-end.".format(run_name)))
+
+    timer = utils.TimerHolder()
+    timer.start(run_name)
+    logger.debug("Running model={} with experiment_name={} at {}"
+                 .format(model_name, experiment_name,
+                         timer.get_start(run_name)))
+    driver = hcnn.driver.Driver(config,
+                                model_name=model_name,
+                                experiment_name=experiment_name,
+                                load_features=True)
+    result = driver.fit_and_predict_one(test_set)
+    print("{} - {} complted in duration {}".format(
+        run_name, utils.result_colored(result), timer.end(run_name)))
+    return result
+
+
+def train(config,
+          experiment_name,
+          test_set,
+          model_name):
     """Run training loop.
 
     Parameters
     ----------
-    master_config : str
-        Full path
-
-    experiment_name : str
-        Name of the experiment. Files are saved in a folder of this name.
-    """
-    print(utils.colored("Training"))
-    config = C.Config.from_yaml(master_config)
-
-    model_definition = config["model"]
-    hold_out_set = config["experiment/hold_out_set"]
-    max_files_per_class = config.get(
-        "training/max_files_per_class", None)
-
-    driver.train_model(config,
-                       model_selector=model_definition,
-                       experiment_name=experiment_name,
-                       hold_out_set=hold_out_set,
-                       max_files_per_class=max_files_per_class)
-
-
-def model_selection(master_config,
-                    experiment_name,
-                    plot_loss=False):
-    """Perform model selection on the validation set.
-
-    Parameters
-    ----------
-    master_config : str
+    config : str
         Full path
 
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
-    plot_loss : bool
-        If true, uses matplotlib to non-blocking plot the loss
-        at each validation.
+    test_set : str
+        String in ["rwc", "uiowa", "philharmonia"] specifying which
+        dataset to use as the test set.
+
+    model_name : str
+        Name of the model to use for training.
     """
-    print(utils.colored("Model Selection"))
-    config = C.Config.from_yaml(master_config)
+    print(utils.colored("Training experiment: {}".format(experiment_name)))
+    logger.info("Training model '{}' with test_set '{}'"
+                .format(model_name, test_set))
+    driver = hcnn.driver.Driver(config, test_set,
+                                model_name=model_name,
+                                experiment_name=experiment_name,
+                                load_features=True)
 
-    hold_out_set = config["experiment/hold_out_set"]
-
-    # load the valid_df of files to validate with.
-    model_dir = os.path.join(
-        os.path.expanduser(config["paths/model_dir"]),
-        experiment_name)
-    valid_df_path = os.path.join(
-        model_dir, config['experiment/data_split_format'].format(
-            "valid", hold_out_set))
-    valid_df = pandas.read_pickle(valid_df_path)
-
-    driver.find_best_model(config,
-                           experiment_name=experiment_name,
-                           validation_df=valid_df,
-                           plot_loss=plot_loss)
+    return driver.train_model()
 
 
-def predict(master_config,
+def predict(config,
             experiment_name,
+            test_set,
+            model_name,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
     Parameters
     ----------
-    master_config : str
+    config : str
 
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
+
+    model_name : str
+        Name of the model to use for training. Must match the training
+        configuration.
 
     select_epoch : str or None
         Which model params to select. Use the epoch number for this, for
@@ -138,13 +181,12 @@ def predict(master_config,
         If None, uses "final.npz"
     """
     print(utils.colored("Evaluating"))
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(config)
 
-    selected_model_file = "params{}.npz".format(select_epoch) \
-        if select_epoch else "final.npz"
-
-    results = driver.predict(
-        config, experiment_name, selected_model_file)
+    driver = hcnn.driver.Driver(config, model_name=model_name,
+                                experiment_name=experiment_name,
+                                load_features=True)
+    results = driver.predict(select_epoch)
     logger.info("Generated results for {} files.".format(len(results)))
 
 
@@ -169,140 +211,179 @@ def analyze(master_config,
         If None, uses "final.npz"
     """
     print(utils.colored("Analyzing"))
-    config = C.Config.from_yaml(master_config)
+    config = C.Config.load(master_config)
 
     hold_out_set = config["experiment/hold_out_set"]
 
-    driver.analyze(config, experiment_name, select_epoch, hold_out_set)
+    driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+                                load_features=True)
+
+    driver.analyze(select_epoch, hold_out_set)
     return 0
 
 
-def notebook(master_config):
-    """Launch the associated notebook."""
-    print(utils.colored("Launching notebook."))
-    raise NotImplementedError("notebook not yet implemented")
+def run_all_experiments(config, experiment_root=None):
+    MODELS_TO_RUN = [
+        'cqt_MF_n16',
+        'cqt_M2_n8',
+        'hcqt_MH_n8'
+    ]
+
+    # MODELS_TO_RUN = [
+    #     'cqt_MF_n32',
+    #     'cqt_MF_n64',
+    #     'cqt_M2_n16',
+    #     'cqt_M2_n32',
+    #     'cqt_M2_n64'
+    #     'hcqt_MH_n16',
+    #     'hcqt_MH_n32'
+    #     'hcqt_MH_n64'
+    # ]
+
+    results = []
+    for model_name in MODELS_TO_RUN:
+        results.append(run_experiment(model_name, config, experiment_root))
+
+    return all(results)
 
 
-def datatest(master_config, show_full=False):
-    """Check your generated data."""
-    config = C.Config.from_yaml(master_config)
-    datasets_path = os.path.join(
-        os.path.expanduser(config['paths/extract_dir']),
-        config['dataframes/datasets'])
-    datasets_df = pandas.read_json(datasets_path)
-    logger.info("Your datasets_df has {} records".format(len(datasets_df)))
+def run_experiment(model_name, config, experiment_root=None):
+    """Run an experiment using the specified input feature
 
-    canonical_df = parse.load_canonical_files()
-    logger.info("Cannonical dataset has {} records".format(len(canonical_df)))
+    Parameters
+    ----------
+    model_name : str
+        Name of the NN model configuration [in models.py].
+    """
+    logger.info("run_experiment(model_name='{}')".format(model_name))
+    config = C.Config.load(config)
+    experiment_name = "{}{}".format(
+        "{}_".format(experiment_root) if experiment_root else "",
+        model_name)
+    logger.info("Running Experiment: {}".format(
+        utils.colored(experiment_name, 'magenta')))
 
-    diff_df = parse.diff_datasets_files(canonical_df, datasets_df)
-    if len(diff_df) and show_full:
-        print(utils.colored(
-            "The following files are missing from your machine", "red"))
+    driver = hcnn.driver.Driver(config,
+                                model_name=model_name,
+                                experiment_name=experiment_name,
+                                load_features=True)
+    result = driver.fit_and_predict_cross_validation()
 
-        print("Filename\tdirname\tdataset")
-        for index, row in diff_df.iterrows():
-            print("{:<40}\t{:<20}\t{:<15}".format(
-                index, row['dirnamecan'], row['datasetcan']))
-        return 1
-    else:
-        print(utils.colored("You're all set; your dataset matches.", "green"))
-        return 0
+    return result
 
 
-def datastats(master_config):
-    config = C.Config.from_yaml(master_config)
-    canonical_df = parse.print_stats(config)
+def run_tests(mode):
+    logger.info("run_tests(mode='{}')".format(mode))
+
+    config = INT_CONFIG_PATH
+
+    results = []
+    if mode in ['all', 'unit']:
+        run_unit_tests()
+    if mode in ['data']:
+        results.append(test_data(config))
+    if mode in ['all', 'model']:
+        results.append(integration_test(config))
+
+    return all(results)
 
 
-def test(master_config):
-    """Launch all unit tests."""
-    print(utils.colored("Running unit tests."))
-    raise NotImplementedError("notebook not yet implemented")
+def run_unit_tests():
+    return 0 == pytest.main('.')
+
+
+def test_data(config, show_full=False):
+    driver = hcnn.driver.Driver(
+        config, experiment_name="data_test", load_features=False)
+    return driver.validate_data()
+
+
+def integration_test(config):
+    """AKA "model" test.
+    This is equivalent to running
+    python manage.py -c data/integrationtest_config.yaml run_all_experiments
+    """
+    # Load integrationtest config
+    experiment_name = "integrationtest"
+
+    print(utils.colored("Extracting features from tinydata set."))
+    print(utils.colored(
+        "Running integration test on tinydata set : {}."
+        .format(config)))
+    # Begin by cleaning the feature data
+    result = clean(config, force=True)
+    if result:
+        result = run_all_experiments(config, experiment_root=experiment_name)
+
+    print("IntegrationTest Result: {}".format(utils.result_colored(result)))
+    return result
+
+
+def handle_arguments(arguments):
+    config = CONFIG_PATH
+    logger.debug(arguments)
+
+    # Run modes
+    if arguments['run']:
+        model = arguments['<model>']
+
+        logger.info("Run Mode; model={}".format(model))
+        if model:
+            result = run_experiment(model, config)
+        else:
+            result = run_all_experiments(config)
+
+    elif arguments['extract_features']:
+        logger.info('Extracting features.')
+        result = extract_features(config)
+
+    # Basic Experiment modes
+    elif arguments['experiment']:
+        if arguments['fit_and_predict']:
+            mode = 'fit_and_predict'
+        elif arguments['train']:
+            mode = 'train'
+        elif arguments['predict']:
+            mode = 'predict'
+        elif arguments['analyze']:
+            mode = 'analyze'
+        else:
+            # docopt should not allow us to get here.
+            raise ValueError("No valid experiment mode set.")
+
+        experiment_name = arguments['<experiment_name>']
+        test_set = arguments['<test_set>']
+        model = arguments['<model>']
+
+        logger.info("Running experiment '{}' with test_set '{}' "
+                    "using model '{}'".format(
+                        experiment_name, test_set, model))
+
+        # Use the 'mode' to select the function to call.
+        result = globals().get(mode)(config, experiment_name, test_set, model)
+
+    # Test modes
+    elif arguments['test']:
+        test_type = 'all'
+        if arguments['data']:
+            test_type = 'data'
+        elif arguments['model']:
+            test_type = 'model'
+        elif arguments['unit']:
+            test_type = 'unit'
+
+        logger.info('Running {} tests'.format(test_type))
+
+        result = run_tests(test_type)
+
+    return result
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--master_config", default=CONFIG_PATH)
+    # parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
-    subparsers = parser.add_subparsers()
-    save_canonical_parser = subparsers.add_parser('save_canonical_files')
-    save_canonical_parser.set_defaults(func=save_canonical_files)
+    arguments = docopt(__doc__)
+    utils.setup_logging(logging.DEBUG if arguments['--verbose']
+                        else logging.INFO)
 
-    collect_parser = subparsers.add_parser('collect')
-    collect_parser.add_argument('--skip_notes', action='store_true',
-                                help="Don't extract notes from files.")
-    collect_parser.set_defaults(func=collect)
-    extract_features_parser = subparsers.add_parser('extract_features')
-    extract_features_parser.set_defaults(func=extract_features)
-    train_parser = subparsers.add_parser('train')
-    train_parser.add_argument('experiment_name',
-                              help="Name of the experiment. "
-                                   "Files go in a directory of this name.")
-    train_parser.set_defaults(func=train)
-    modelselect_parser = subparsers.add_parser('model_selection')
-    modelselect_parser.add_argument('experiment_name',
-                                    help="Name of the experiment. "
-                                    "Files go in a directory of this name.")
-    modelselect_parser.add_argument('-p', '--plot_loss', action="store_true")
-    modelselect_parser.set_defaults(func=model_selection)
-    predict_parser = subparsers.add_parser('predict')
-    predict_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
-    predict_parser.add_argument('-s', '--select_epoch',
-                                 default=None, type=int)
-    predict_parser.set_defaults(func=predict)
-    analyze_parser = subparsers.add_parser('analyze')
-    analyze_parser.add_argument('experiment_name',
-                                 help="Name of the experiment. "
-                                      "Files go in a directory of this name.")
-    analyze_parser.add_argument('-s', '--select_epoch',
-                                 default=None)
-    analyze_parser.set_defaults(func=analyze)
-    notebook_parser = subparsers.add_parser('notebook')
-    notebook_parser.set_defaults(func=notebook)
-
-    # Tests
-    datatest_parser = subparsers.add_parser('datatest')
-    datatest_parser.add_argument('-p', '--show_full', action="store_true",
-                                 help="Print the full diff to screen.")
-    datatest_parser.set_defaults(func=datatest)
-    datastats_parser = subparsers.add_parser('datastats')
-    datastats_parser.set_defaults(func=datastats)
-    test_parser = subparsers.add_parser('test')
-    test_parser.set_defaults(func=test)
-
-    # TODO MOve this to a file config.
-    logging.config.dictConfig({
-        'version': 1,
-        'disable_existing_loggers': False,
-        'formatters': {
-            'standard': {
-                'format': '%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-            },
-        },
-        'handlers': {
-            'default': {
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-                'formatter': "standard"
-            },
-        },
-        'loggers': {
-            '': {
-                'handlers': ['default'],
-                'level': 'DEBUG',
-                'propagate': True
-            }
-        }
-    })
-    # logging.basicConfig(level=logging.DEBUG)
-
-    args = vars(parser.parse_args())
-    fx = args.pop('func', None)
-    if fx:
-        success = fx(**args)
-        sys.exit(0 if success else 1)
-    else:
-        parser.print_help()
+    handle_arguments(arguments)

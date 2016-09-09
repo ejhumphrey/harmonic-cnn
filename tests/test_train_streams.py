@@ -1,88 +1,151 @@
 import numpy as np
 import os
-import pandas
+import pandas as pd
 import pytest
 
-import wcqtlib.config as C
-import wcqtlib.train.streams as streams
+import hcnn.common.config as C
+import hcnn.data.cqt
+import hcnn.data.dataset
+import hcnn.train.streams as streams
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
-
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
+config = C.Config.load(CONFIG_PATH)
+RANDOM_SEED = 42
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_cqt_slices():
-    def __test_valid_cqt(cqt_frame, expected_len):
-        assert len(cqt_frame.shape) == 4
-        assert cqt_frame.shape[1] == 1
-        assert cqt_frame.shape[2] == expected_len
+def __assert_cqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
+                                *slicer_args, random_seed=RANDOM_SEED)
 
-    t_len = 5
-    # Sample the first avialble featuer file
-    generator = streams.cqt_slices(features_df.iloc[0], t_len)
-    data = next(generator)
-    yield __test_valid_cqt, data['x_in'], t_len
-
-    t_len = 1
-    generator = streams.cqt_slices(features_df.iloc[1], t_len)
-    data = next(generator)
-    yield __test_valid_cqt, data['x_in'], t_len
-
-    # Now for fun, do it for 100 of them just to make sure
-    # it keeps working after one cycle of frames.
-    t_len = 10
-    generator = streams.cqt_slices(features_df.iloc[2], t_len)
-    for i in range(50):
-        data = next(generator)
-        yield __test_valid_cqt, data['x_in'], t_len
-
-    # Now do it for validate mode
-    t_len = 8
-    generator = streams.cqt_slices(features_df.iloc[3], t_len,
-                                   shuffle=False, auto_restart=False)
-    for frames in generator:
-        yield __test_valid_cqt, frames['x_in'], t_len
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] == 1
+        assert data.shape[2] == t_len
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_wcqt_slices():
-    def __test_valid_wcqt(wcqt_frame, expected_len):
-        assert len(wcqt_frame.shape) == 4
-        assert wcqt_frame.shape[0] == 1
-        assert wcqt_frame.shape[2] == expected_len
+def __assert_cqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
+                                *slicer_args, random_seed=RANDOM_SEED)
 
-    t_len = 5
-    # Sample the first avialble featuer file
-    generator = streams.wcqt_slices(features_df.iloc[0], t_len)
-    data = next(generator)
-    yield __test_valid_wcqt, data['x_in'], t_len
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] == 1
+    assert data.shape[2] == t_len
 
-    t_len = 1
-    generator = streams.wcqt_slices(features_df.iloc[1], t_len)
-    data = next(generator)
-    yield __test_valid_wcqt, data['x_in'], t_len
-
-    # Now for fun, do it for 100 of them just to make sure
-    # it keeps working after one cycle of frames.
-    t_len = 10
-    generator = streams.wcqt_slices(features_df.iloc[2], t_len,
-                                    shuffle=False, auto_restart=False)
-    for frame in generator:
-        yield __test_valid_wcqt, frame['x_in'], t_len
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
 
 
-@pytest.mark.xfail(reason="zmq is always generating batches of only one.")
+def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] > 1 and data.shape[1] < 10
+        assert data.shape[2] == t_len
+
+
+def __assert_wcqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] > 1 and data.shape[1] < 10
+    assert data.shape[2] == t_len
+
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
+
+
+def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
+    slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    for i in range(10):
+        data = next(slicer)['x_in']
+        assert len(data.shape) == 4
+        assert data.shape[1] == 3
+        assert data.shape[2] == t_len
+
+
+def __assert_hcqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] == 3
+    assert data.shape[2] == t_len
+
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
+
+
+@pytest.mark.parametrize(
+    "slicer_test",
+    [__assert_cqt_slicer,
+     __assert_wcqt_slicer,
+     __assert_hcqt_slicer],
+    ids=["cqt", "wcqt", "hcqt"])
+def test_slices_train_mode(slicer_test, tiny_feats):
+    slicer_test(tiny_feats, 5)
+    slicer_test(tiny_feats, 1)
+    slicer_test(tiny_feats, 10)
+    slicer_test(tiny_feats, 43)
+
+
+@pytest.mark.parametrize(
+    "slicer_test",
+    [__assert_cqt_slicer_predict,
+     __assert_wcqt_slicer_predict,
+     __assert_hcqt_slicer_predict],
+    ids=["cqt", "wcqt", "hcqt"])
+def test_slices_predict_mode(slicer_test, tiny_feats):
+    slicer_test(tiny_feats, 5, False, False, False)
+    slicer_test(tiny_feats, 1, False, False, False)
+    slicer_test(tiny_feats, 10, False, False, False)
+    slicer_test(tiny_feats, 43, False, False, False)
+    slicer_test(tiny_feats, 8, False, False, False)
+
+
+@pytest.fixture(params=[30, 43, 50],
+                ids=["30=too_small", "43=just_right", "50=too_big"])
+def generated_data(request, workspace):
+    t_len = 43
+    cqt_size = hcnn.data.cqt.CQT_PARAMS['n_bins']
+
+    # make some garbage data
+    vector_size = request.param
+    test_vector = np.random.random((1, vector_size, cqt_size))
+    testfile = os.path.join(workspace, "foo.npz")
+    np.savez(testfile, cqt=test_vector)
+    # Also make an example dataframe
+    df = pd.DataFrame({'cqt': testfile, 'instrument': 'trumpet'},
+                      index=[0], columns=['cqt', 'instrument'])
+    return df, t_len
+
+
+def test_cqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.cqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
+
+
+def test_wcqt_slicer_with_data_less_tlen(generated_data):
+    df, t_len = generated_data
+    slicer = streams.wcqt_slices(df.iloc[0], t_len)
+    batch = next(slicer)
+    assert batch['x_in'].shape[2] == t_len
+
+
 def __test_streamer(streamer, t_len, batch_size):
     counter = 0
     while counter < 5:
@@ -98,43 +161,27 @@ def __test_streamer(streamer, t_len, batch_size):
         counter += 1
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_cqt():
+@pytest.mark.parametrize("slicer", [streams.cqt_slices,
+                                    streams.wcqt_slices,
+                                    streams.hcqt_slices],
+                         ids=["cqt", "wcqt", "hcqt"])
+def test_instrument_streamer(slicer, tiny_feats):
+    df = tiny_feats.to_df()
     t_len = 10
     batch_size = 12
-    datasets = ["rwc"]
-    streamer = streams.InstrumentStreamer(
-        features_df, datasets, streams.cqt_slices,
-        t_len=t_len, batch_size=batch_size)
-    yield __test_streamer, streamer, t_len, batch_size
+    if not df.empty:
+        streamer = streams.InstrumentStreamer(
+            df, slicer, t_len=t_len, batch_size=batch_size)
+        __test_streamer(streamer, t_len, batch_size)
 
 
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_wcqt():
+@pytest.mark.xfail(reason="zmq is always generating batches of only one.")
+def test_instrument_streamer_with_zmq(tiny_feats):
+    df = tiny_feats.to_df()
     t_len = 10
     batch_size = 12
-    datasets = ["rwc"]
-    streamer = streams.InstrumentStreamer(
-        features_df, datasets, streams.wcqt_slices,
-        t_len=t_len, batch_size=batch_size)
-    yield __test_streamer, streamer, t_len, batch_size
-
-
-@pytest.mark.skipif(not all([os.path.exists(EXTRACT_ROOT),
-                             os.path.exists(features_path),
-                             not features_df.empty]),
-                    reason="Data not found.")
-def test_instrument_streamer_with_zmq():
-    t_len = 10
-    batch_size = 12
-    datasets = ["rwc"]
-    streamer = streams.InstrumentStreamer(
-        features_df, datasets, streams.cqt_slices,
-        t_len=t_len, batch_size=batch_size, use_zmq=True)
-    yield __test_streamer, streamer, t_len, batch_size
+    if not df.empty:
+        streamer = streams.InstrumentStreamer(
+            df, streams.cqt_slices,
+            t_len=t_len, batch_size=batch_size, use_zmq=True)
+        __test_streamer(streamer, t_len, batch_size)

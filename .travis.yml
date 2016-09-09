@@ -1,0 +1,43 @@
+sudo: false
+
+addons:
+  apt:
+    packages:
+    - libsox-fmt-mp3
+    - sox
+
+cache:
+  directories:
+  - $HOME/env
+
+language: python
+python:
+  # - 2.7
+  - 3.4
+  - 3.5
+
+notifications:
+  email: false
+
+before_install:
+  - bash .travis_dependencies.sh
+  - export PATH="$HOME/env/miniconda$TRAVIS_PYTHON_VERSION/bin:$PATH";
+  - hash -r
+  - source activate test-environment
+
+# command to install dependencies
+install:
+  - pip install -e .
+  - pip install -r requirements.txt
+  - pip install coveralls
+
+script:
+  - py.test -vs --cov=hcnn .
+  - python manage.py test
+
+after_success:
+  - coveralls
+  - pip uninstall -y hcnn
+
+after_failure:
+  - pip uninstall -y hcnn

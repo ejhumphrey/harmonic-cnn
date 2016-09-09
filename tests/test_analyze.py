@@ -3,7 +3,7 @@ import os
 import pandas
 import pytest
 
-import wcqtlib.analyze as analyze
+import hcnn.evaluate.analyze as analyze
 
 
 @pytest.fixture

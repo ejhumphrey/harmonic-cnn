@@ -1,0 +1,50 @@
+paths:
+  extract_dir: "~/data/hcnn_data"
+  feature_dir: "~/data/hcnn_data/tinydata_cqt"
+  model_dir: "~/data/hcnn_data/models"
+
+data:
+  selected: "tiny"
+  tiny:
+    notes_index: "data/tinyset/master_index.csv"
+    root: "data/tinyset/"
+    partitions:
+      rwc: "data/tinyset/rwc_test_partition.csv"
+      philharmonia: "data/tinyset/philharmonia_test_partition.csv"
+      uiowa: "data/tinyset/uiowa_test_partition.csv"
+  canonical: 
+    root: "~/data/minst/note_files"
+    notes_index: "~/data/minst/master_index.csv"
+    partitions:
+      rwc: "~/data/minst/rwc_partitions.csv"
+      philharmonia: "~/data/minst/philharmonia_partitions.csv"
+      uiowa: "~/data/minst/uiowa_partitions.csv"
+
+features:
+  cqt:
+    num_cpus: -1
+    skip_existing: True
+
+experiment:
+  params_dir: "params"
+  params_format: "params{{0:0>{}}}.npz"
+  best_params: "best.npz"
+  config_path: "config.yaml"
+  training_loss: "training_loss.pkl"
+  validation_loss: "validation_loss.pkl"
+  data_split_format: "{}_{}.csv"
+  predictions_format: "model_{}_predictions.pkl"
+  analysis_format: "model_{}_analysis.pkl"
+
+training:
+  t_len: 43
+  max_iterations: 50
+  max_time: 60
+  batch_size: 24
+  n_targets: 12
+  iteration_print_frequency: 5
+  iteration_write_frequency: 10
+  hyperparameters:
+    learning_rate: 0.01
+    momentum: 0.9
+  max_files_per_class: null

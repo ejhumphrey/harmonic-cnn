@@ -1,24 +1,29 @@
 paths:
-  data_dir: "~/data"
-  extract_dir: "~/data/ismir2016-wcqt-data"
-  model_dir: "~/data/ismir2016-wcqt-models"
+  extract_dir: "~/data/hcnn_data"
+  feature_dir: "~/data/hcnn_data/cqt"
+  model_dir: "~/data/hcnn_data/models"
 
-datasets: ["rwc", "uiowa", "philharmonia"]
-
-dataframes:
-  datasets: "datasets_df.json"
-  notes: "notes_df.pkl"
-  features: "features_df.pkl"
-
-extract:
-  max_duration: 2.0
+data:
+  selected: "canonical"
+  tiny:
+    notes_index: "data/tinyset/master_index.csv"
+    root: "data/tinyset/"
+    partitions:
+      rwc: "data/tinyset/rwc_partitions.csv"
+      philharmonia: "data/tinyset/philharmonia_partitions.csv"
+      uiowa: "data/tinyset/uiowa_partitions.csv"
+  canonical: 
+    root: "~/data/minst/note_files"
+    notes_index: "~/data/minst/master_index.csv"
+    partitions:
+      rwc: "~/data/minst/rwc_partitions.csv"
+      philharmonia: "~/data/minst/philharmonia_partitions.csv"
+      uiowa: "~/data/minst/uiowa_partitions.csv"
 
 features:
   cqt:
     num_cpus: -1
-    skip_existing: false
-
-model: "cqt_iX_c2f2_oY"
+    skip_existing: True
 
 experiment:
   params_dir: "params"
@@ -27,19 +32,18 @@ experiment:
   config_path: "config.yaml"
   training_loss: "training_loss.pkl"
   validation_loss: "validation_loss.pkl"
-  data_split_format: "{}_df_{}.pkl"
+  data_split_format: "{}_{}.csv"
   predictions_format: "model_{}_predictions.pkl"
   analysis_format: "model_{}_analysis.pkl"
-  hold_out_set: "philharmonia"
 
 training:
-  t_len: 8
+  t_len: 43
   max_iterations: 100000
   max_time: 8000
   batch_size: 60
   n_targets: 12
   iteration_print_frequency: 100
-  iteration_write_frequency: 500
+  iteration_write_frequency: 25
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9

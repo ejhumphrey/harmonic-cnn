@@ -1,10 +1,26 @@
-# ismir2016-wcqt
-Work related to ISMIR2016 - Exploiting Harmonic Correlations in the CQT
+# harmonic-cnn
+Exploiting Harmonic Correlations in Convolutional Neural Networks
 
-TODO: These will be dead until public.
+[![Build Status](https://travis-ci.org/ejhumphrey/harmonic-cnn.svg?branch=master)](https://travis-ci.org/ejhumphrey/harmonic-cnn)
+[![Coverage Status](https://coveralls.io/repos/github/ejhumphrey/harmonic-cnn/badge.svg?branch=master)](https://coveralls.io/github/ejhumphrey/harmonic-cnn?branch=master)
 
-[![Build Status](https://travis-ci.org/ejhumphrey/ismir2016-wcqt.svg?branch=master)](https://travis-ci.org/ejhumphrey/ismir2016-wcqt)
-[![Coverage Status](https://coveralls.io/repos/github/ejhumphrey/ismir2016-wcqt/badge.svg?branch=master)](https://coveralls.io/github/ejhumphrey/ismir2016-wcqt?branch=master)
+
+## Testing your setup to make sure everything is working
+
+1. Run unit-tests
+
+    <sup>Warning: this could take a bit of time.</sup>
+    <sup>Add the -v for verbose mode.</sup>
+    ```bash
+    py.test [-v]
+    ```
+
+2. Run integration-tests.
+
+    <sup>Warning: this could take a bit of time.</sup>
+    ```bash
+    python manage.py test model
+    ```
 
 
 ## Getting the data
@@ -14,22 +30,22 @@ This project uses three different solo instrument datasets.
 - [Philharmonia](http://www.philharmonia.co.uk/explore/make_music)
 - [RWC - Instruments](https://staff.aist.go.jp/m.goto/RWC-MDB/rwc-mdb-i.html)
 
-We provide "manifest" files with which one can download the first two collections. For access to the third (RWC), you should contact the kind folks at AIST.
-
-To download the data, you can invoke the following from your cloned repository:
-
-```
-$ python wcqtlib/tools/download.py data/uiowa.json ~/data/uiowa
-...
-$ python wcqtlib/tools/download.py data/philharmonia.json ~/data/philharmonia
-```
+The data is prepared using the [minst-dataset](https://github.com/ejhumphrey/minst-dataset) project.
 
 ## Preparing the data for training
-```bash
-python manage.py collect
+Build the data following the instructions in the [minst repository README](https://github.com/ejhumphrey/minst-dataset/blob/master/README.md). The harmonic-cnn config file by default should point to the same location as the minst config, so if you use the defaults, it should point to the correct data. (`~/data/minst`) (or modify the `data/master_config.yaml` config file to point to the appropriate location).
 
+With the data ready to go, extract the CQT features with the following:
+
+```bash
 # Extract features from note files.
 python manage.py extract_features
+```
+
+## Run all experiments using default settings.
+This will take about 6 hours per model included. Run at your own risk.
+```bash
+python manage.py run
 ```
 
 ## Run an experiment
@@ -37,7 +53,14 @@ python manage.py extract_features
 To run an experiment using existing configurations, first take a look at 
 wcqtlib/train/models.py, and select a network definition function.
 
-i.e. `cqt_iX_c2f2_oY`
+i.e. `cqt_MF_n16`
+
+Keep note of this; you're going to need it to run the experiment. The following are likely options:
+```
+'cqt_MF_n16', 'cqt_MF_n32', 'cqt_MF_n64',
+'cqt_M2_n8', 'cqt_M2_n16', 'cqt_M2_n32', 'cqt_M2_n64'
+'hcqt_MH_n8', 'hcqt_MH_n16', 'hcqt_MH_n32', 'hcqt_MH_n64'
+```
 
 ### Update your config
 Open data/master_config.yaml, and put your model name in the "model" field.

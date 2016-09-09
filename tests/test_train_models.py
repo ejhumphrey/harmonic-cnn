@@ -1,25 +1,17 @@
 import lasagne
+from lasagne.layers import get_all_layers
 import logging
 import numpy as np
 import os
 import pandas
 import pytest
-import sys
 
-import wcqtlib.config as C
-import wcqtlib.train.streams as streams
-import wcqtlib.train.models as models
+import hcnn.train.streams as streams
+import hcnn.train.models as models
+import hcnn.logger
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
-                           "data", "master_config.yaml")
-config = C.Config.from_yaml(CONFIG_PATH)
-
-EXTRACT_ROOT = os.path.expanduser(config['paths/extract_dir'])
-features_path = os.path.join(EXTRACT_ROOT, config['dataframes/features'])
-features_df = pandas.read_pickle(features_path)
+hcnn.logger.init('DEBUG')
 
 
 @pytest.fixture
@@ -33,16 +25,13 @@ def simple_network_def():
             "filter_size": (2, 2),
             "nonlinearity": "nonlin.rectify",
             "W": "init.glorot"
-        },
-        {
+        }, {
             "type": "layers.MaxPool2DLayer",
             "pool_size": (2, 2)
-        },
-        {
+        }, {
             "type": "layers.DropoutLayer",
             "p": 0.5
-        },
-        {
+        }, {
             "type": "layers.DenseLayer",
             "num_units": 2,
             "nonlinearity": "nonlin.softmax"
@@ -50,6 +39,34 @@ def simple_network_def():
         "loss": "loss.categorical_crossentropy"
     }
     return network_def
+
+
+@pytest.fixture(
+    scope="module",
+    params=[models.cqt_MF_n16,
+            models.cqt_MF_n32,
+            models.cqt_MF_n64,
+            models.cqt_M2_n8,
+            models.cqt_M2_n16,
+            models.cqt_M2_n32,
+            models.cqt_M2_n64  #,
+            # models.hcqt_MH_n8,
+            # models.hcqt_MH_n16,
+            # models.hcqt_MH_n32,
+            # models.hcqt_MH_n64
+            ],
+    ids=['MF_16', 'MF_32', 'MF_64',
+         'M2_8', 'M2_16', 'M2_32', 'M2_64'  #,
+         # 'MH_8', 'MH_16', 'MH_32', 'MH_64'
+         ])
+def network_def_fn(request):
+    return request.param
+
+
+@pytest.fixture
+def batch_norm_def(simple_network_def):
+    simple_network_def["batch_norm"] = True
+    return simple_network_def
 
 
 def test_names_to_objects():
@@ -222,6 +239,15 @@ def test_networkmanager_buildnetwork():
     yield __test_network, network_def, input_shape
 
 
+def test_batchnorm(batch_norm_def):
+    model = models.NetworkManager(batch_norm_def)
+    assert model is not None
+
+    layer_names = [l.__class__.__name__
+                   for l in get_all_layers(model._network)]
+    assert 'BatchNormLayer' in layer_names
+
+
 @pytest.mark.skip(reason="ToDo")
 def test_networkmanager_updatehypers():
     pass
@@ -267,14 +293,39 @@ def test_networkmanager_train_and_predict(simple_network_def):
     assert np.isfinite(loss) and np.isfinite(acc)
 
 
+def test_networkmanager_t_and_p_experiments(network_def_fn):
+    input_shape = (None, 1, 43, 252)
+    n_classes = 3
+
+    network_def = network_def_fn(input_shape[2], n_classes)
+    model = models.NetworkManager(network_def)
+    assert model is not None
+
+    batch_size = 8
+    input_shape = (batch_size,) + input_shape[1:]
+
+    batch = dict(
+        x_in=np.random.random(input_shape),
+        target=np.random.randint(n_classes, size=batch_size))
+    loss = model.train(batch)
+    assert np.isfinite(loss)
+
+    probs = model.predict(batch)
+    assert np.all(np.isfinite(probs))
+
+    loss, acc = model.evaluate(batch)
+    assert np.isfinite(loss) and np.isfinite(acc)
+
+
 @pytest.mark.cqt
 @pytest.mark.slowtest
-def test_overfit_two_samples_cqt():
+def test_overfit_two_samples_cqt(tiny_feats):
     """Prove that our network works by training it with two random files
     from our dataset, intentionally overfitting it.
 
     Warning: not deterministic, but you could make it.
     """
+    features_df = tiny_feats.to_df()
 
     # Get list of instruments
     instruments = sorted(features_df["instrument"].unique())
@@ -289,11 +340,10 @@ def test_overfit_two_samples_cqt():
 
     t_len = 8
     batch_size = 8
-    datasets = ["rwc"]
     n_targets = 2
     # Create a streamer that samples just those two files.
     streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.cqt_slices,
+        test_df, streams.cqt_slices,
         t_len=t_len, batch_size=batch_size)
 
     # Create a new model
@@ -301,7 +351,7 @@ def test_overfit_two_samples_cqt():
     model = models.NetworkManager(network_def)
 
     # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
+    max_batches = 10
     i = 0
     for batch in streamer:
         train_loss = model.train(batch)
@@ -321,56 +371,56 @@ def test_overfit_two_samples_cqt():
         np.isfinite(accuracy)
 
 
-@pytest.mark.wcqt
-@pytest.mark.slowtest
-def test_overfit_two_samples_wcqt():
-    """Prove that our network works by training it with two random files
-    from our dataset, intentionally overfitting it.
+# @pytest.mark.wcqt
+# @pytest.mark.slowtest
+# def test_overfit_two_samples_wcqt(tiny_feats):
+#     """Prove that our network works by training it with two random files
+#     from our dataset, intentionally overfitting it.
 
-    Warning: not deterministic, but you could make it.
-    """
+#     Warning: not deterministic, but you could make it.
+#     """
+#     features_df = tiny_feats.to_df()
 
-    # Get list of instruments
-    instruments = sorted(features_df["instrument"].unique())
-    selected_instruments = instruments[:2]
+#     # Get list of instruments
+#     instruments = sorted(features_df["instrument"].unique())
+#     selected_instruments = instruments[:2]
 
-    # Create a dataframe from our dataframe with only two files in it
-    test_df = pandas.concat([
-        features_df[features_df["instrument"] ==
-                    selected_instruments[0]].sample(),
-        features_df[features_df["instrument"] ==
-                    selected_instruments[1]].sample()])
+#     # Create a dataframe from our dataframe with only two files in it
+#     test_df = pandas.concat([
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[0]].sample(),
+#         features_df[features_df["instrument"] ==
+#                     selected_instruments[1]].sample()])
 
-    t_len = 8
-    batch_size = 8
-    datasets = ["rwc"]
-    n_targets = 2
-    # Create a streamer that samples just those two files.
-    streamer = streams.InstrumentStreamer(
-        test_df, datasets, streams.wcqt_slices,
-        t_len=t_len, batch_size=batch_size)
-    input_shape = next(streamer)['x_in'].shape
-    print(input_shape)
+#     t_len = 8
+#     batch_size = 8
+#     n_targets = 2
+#     # Create a streamer that samples just those two files.
+#     streamer = streams.InstrumentStreamer(
+#         test_df, streams.wcqt_slices,
+#         t_len=t_len, batch_size=batch_size)
+#     input_shape = next(streamer)['x_in'].shape
+#     print(input_shape)
 
-    # Create a new model
-    network_def = models.wcqt_iX_c1f1_oY(t_len, n_targets)
-    model = models.NetworkManager(network_def)
+#     # Create a new model
+#     network_def = models.wcqt_iX_c1f1_oY(t_len, n_targets)
+#     model = models.NetworkManager(network_def)
 
-    # Train the model for N epochs, till it fits the damn thing
-    max_batches = 250
-    i = 0
-    for batch in streamer:
-        train_loss = model.train(batch)
+#     # Train the model for N epochs, till it fits the damn thing
+#     max_batches = 10
+#     i = 0
+#     for batch in streamer:
+#         train_loss = model.train(batch)
 
-        i += 1
-        print("Batch: ", i, "Loss: ", train_loss)
-        if i >= max_batches:
-            break
+#         i += 1
+#         print("Batch: ", i, "Loss: ", train_loss)
+#         if i >= max_batches:
+#             break
 
-    # Evaluate it. On the original files. Should do well.
-    eval_batch = next(streamer)
-    eval_probs = model.predict(eval_batch)
-    eval_loss, accuracy = model.evaluate(eval_batch)
-    print("Eval predictions:", eval_probs)
-    print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
-    assert np.isfinite(eval_loss) and np.isfinite(accuracy)
+#     # Evaluate it. On the original files. Should do well.
+#     eval_batch = next(streamer)
+#     eval_probs = model.predict(eval_batch)
+#     eval_loss, accuracy = model.evaluate(eval_batch)
+#     print("Eval predictions:", eval_probs)
+#     print("Eval Loss:", eval_loss, "Accuracy:", accuracy)
+#     assert np.isfinite(eval_loss) and np.isfinite(accuracy)

@@ -1,7 +1,11 @@
+anyconfig
 git+git://github.com/ejhumphrey/claudio.git
-pescador
+jsonschema
+pescador==0.1.3
 progressbar2
 pyyaml
 colorama
+requests
 https://github.com/Theano/Theano/archive/master.zip
 https://github.com/Lasagne/Lasagne/archive/master.zip
+librosa>=0.4.3
