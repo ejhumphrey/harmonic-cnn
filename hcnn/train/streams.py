@@ -97,6 +97,9 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
         logger.error('This zip file is bad! Sadness :(  -  {}'.format(
             record['cqt']))
 
+    # Take the logmagnitude of the cqt
+    cqt = librosa.logamplitude(cqt ** 2, ref_power=np.max)
+
     target = instrument_map.get_index(record['instrument'])
 
     # Make sure the data is long enough.
@@ -114,7 +117,7 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
     while True:
         obs = obs_slicer(cqt, idx, counter, t_len)
         if add_noise:
-            obs = obs + utils.same_shape_noise(obs, 30, rng)
+            obs = obs + utils.same_shape_noise(obs, 1, rng)
         data = dict(
             x_in=obs,
             target=np.atleast_1d((target,)))
