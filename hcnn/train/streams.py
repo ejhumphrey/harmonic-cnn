@@ -3,10 +3,12 @@ Generators/Streams for generating data.
 """
 
 import collections
+import librosa
 import logging
 import numpy as np
 import os
 import pescador
+import zipfile
 
 import hcnn.common.utils as utils
 import hcnn.common.labels as labels
@@ -89,7 +91,12 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
         return
 
     # Load the npz file with they key specified.
-    cqt = np.load(record['cqt'])[npz_data_key]
+    try:
+        cqt = np.load(record['cqt'])[npz_data_key]
+    except zipfile.BadZipFile:
+        logger.error('This zip file is bad! Sadness :(  -  {}'.format(
+            record['cqt']))
+
     target = instrument_map.get_index(record['instrument'])
 
     # Make sure the data is long enough.
