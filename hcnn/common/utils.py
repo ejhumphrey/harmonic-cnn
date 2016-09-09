@@ -355,14 +355,7 @@ def db_to_signal(value):
     return np.power(10, (value / 20))
 
 
-def same_shape_noise(original_signal, db_less_scale=30, rng=None):
+def same_shape_noise(original_signal, scale=1, rng=None):
     if rng is None:
         rng = np.random.RandomState()
-    org_max = original_signal.max()
-    org_mean = original_signal.mean()
-    signal_mean_ratio = org_mean / org_max
-    signal_max_db = signal_to_db(signal_mean_ratio)
-    # Adding noise at mean signal - 30db
-    scaled_noise_db = signal_max_db - db_less_scale
-    scaled_noise_value = db_to_signal(scaled_noise_db)
-    return rng.normal(scale=scaled_noise_value, size=original_signal.shape)
+    return rng.normal(scale=scale, size=original_signal.shape)
