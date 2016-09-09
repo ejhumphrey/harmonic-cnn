@@ -48,9 +48,15 @@ def test_extract_features(module_workspace, tiny_feats):
 
 @pytest.mark.runme
 @pytest.mark.slowtest
-@pytest.mark.parametrize("feature_type", ["cqt", "wcqt", "hcqt"],
-                         ids=["cqt", "wcqt", "hcqt"])
-def test_train_simple_model(feature_type, module_workspace, workspace,
+@pytest.mark.parametrize("model_name",
+                         ["cqt_MF_n16",
+                          # "wcqt",
+                          "cqt_M2_n8",
+                          "hcqt_MH_n8"],
+                         ids=["cqt_MF_n16",
+                              "cqt_M2_n8",
+                              "hcqt_MH_n8"])
+def test_train_simple_model(model_name, module_workspace, workspace,
                             tiny_feats_csv):
     thisconfig = copy.deepcopy(config)
     thisconfig.data['training']['iteration_write_frequency'] = 2
@@ -64,7 +70,8 @@ def test_train_simple_model(feature_type, module_workspace, workspace,
     experiment_name = "testexperiment"
     hold_out = "rwc"
 
-    driver = hcnn.driver.Driver(thisconfig, feature_mode=feature_type,
+    driver = hcnn.driver.Driver(thisconfig,
+                                model_name=model_name,
                                 experiment_name=experiment_name,
                                 dataset=tiny_feats_csv, load_features=True)
 
@@ -81,9 +88,15 @@ def test_train_simple_model(feature_type, module_workspace, workspace,
 
 
 @pytest.mark.slowtest
-@pytest.mark.parametrize("feature_type", ["cqt", "wcqt", "hcqt"],
-                         ids=["cqt", "wcqt", "hcqt"])
-def test_find_best_model(feature_type, workspace):
+@pytest.mark.parametrize("model_name",
+                         ["cqt_MF_n16",
+                          # "wcqt",
+                          "cqt_M2_n8",
+                          "hcqt_MH_n8"],
+                         ids=["cqt_MF_n16",
+                              "cqt_M2_n8",
+                              "hcqt_MH_n8"])
+def test_find_best_model(model_name, workspace):
     thisconfig = copy.deepcopy(config)
     thisconfig.data['training']['iteration_write_frequency'] = 2
     thisconfig.data['training']['iteration_print_frequency'] = 10
@@ -95,7 +108,7 @@ def test_find_best_model(feature_type, workspace):
     experiment_name = "testexperiment"
     hold_out = thisconfig['experiment/hold_out_set']
 
-    driver = hcnn.driver.Driver(thisconfig, feature_mode=feature_type,
+    driver = hcnn.driver.Driver(thisconfig, model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
     driver.setup_partitions(hold_out)
