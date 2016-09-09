@@ -38,9 +38,9 @@ experiment:
 
 training:
   t_len: 43
-  max_iterations: 100
-  max_time: 10
-  batch_size: 60
+  max_iterations: 50
+  max_time: 60
+  batch_size: 24
   n_targets: 12
   iteration_print_frequency: 5
   iteration_write_frequency: 10
