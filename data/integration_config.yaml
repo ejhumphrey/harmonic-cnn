@@ -23,7 +23,7 @@ data:
 features:
   cqt:
     num_cpus: -1
-    skip_existing: False
+    skip_existing: True
 
 experiment:
   params_dir: "params"

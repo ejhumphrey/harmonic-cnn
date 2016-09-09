@@ -64,22 +64,26 @@ def run_process_if_not_exists(process, filepath, **kwargs):
         return True
 
 
-def clean(master_config):
+def clean(config_path, force=False):
     """Clean dataframes and extracted audio/features."""
-    config = C.Config.load(master_config)
+    config = C.Config.load(config_path)
 
-    data_path = os.path.expanduser(config['paths/extract_dir'])
+    data_path = os.path.expanduser(config['paths/feature_dir'])
     # Clean data
-    answer = input("Are you sure you want to delete {} (y|s to skip): "
-                   .format(data_path))
-    if answer in ['y', 'Y']:
-        shutil.rmtree(data_path)
-        logger.info("clean done.")
-    elif answer in ['s', 'S']:
-        return True
-    else:
-        print("Exiting")
-        sys.exit(1)
+    if not force:
+        answer = input("Are you sure you want to delete {} (y|s to skip): "
+                       .format(data_path))
+        if answer in ['y', 'Y']:
+            pass
+        elif answer in ['s', 'S']:
+            return True
+        else:
+            print("Exiting")
+            sys.exit(1)
+
+    shutil.rmtree(data_path)
+    logger.info("clean done.")
+    return True
 
 
 def extract_features(master_config):
@@ -90,25 +94,6 @@ def extract_features(master_config):
     driver = hcnn.driver.Driver(config, load_features=False)
     result = driver.extract_features()
     print("Extraction {}".format(utils.result_colored(result)))
-    return result
-
-
-def run(master_config, experiment_name):
-    """Run an experiment end-to-end with cross validation.
-    Note: requires extracted features.
-    """
-    config = C.Config.load(master_config)
-    print(utils.colored("Running experiment end-to-end."))
-
-    timer = utils.TimerHolder()
-    timer.start("run")
-    logger.debug("Running with experiment_name={} at {}"
-                 .format(experiment_name, timer.get_start("run")))
-    driver = hcnn.driver.Driver(config, experiment_name,
-                                load_features=True)
-    result = driver.fit_and_predict_cross_validation()
-    print("Experiment {} in duration {}".format(
-        utils.result_colored(result), timer.end("run")))
     return result
 
 
@@ -322,7 +307,10 @@ def integration_test(config):
     print(utils.colored(
         "Running integration test on tinydata set : {}."
         .format(config)))
-    result = run_all_experiments(config, experiment_root=experiment_name)
+    # Begin by cleaning the feature data
+    result = clean(config, force=True)
+    if result:
+        result = run_all_experiments(config, experiment_root=experiment_name)
 
     print("IntegrationTest Result: {}".format(utils.result_colored(result)))
     return result
