@@ -379,52 +379,6 @@ def handle_arguments(arguments):
 if __name__ == "__main__":
     # parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
 
-    # extract_features_parser = subparsers.add_parser('extract_features')
-    # extract_features_parser.set_defaults(func=extract_features)
-
-    # fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
-    # fit_and_predict_parser.add_argument('experiment_name',
-    #                                     help="Name of the experiment. "
-    #                                     "Files go in a directory of "
-    #                                     "this name.")
-    # fit_and_predict_parser.add_argument('test_set',
-    #                                     help="Dataset to use for hold-out.")
-    # fit_and_predict_parser.set_defaults(func=fit_and_predict)
-
-    # train_parser = subparsers.add_parser('train')
-    # train_parser.add_argument('experiment_name',
-    #                           help="Name of the experiment. "
-    #                                "Files go in a directory of this name.")
-    # train_parser.add_argument('test_set',
-    #                           help="Dataset to use for hold-out.")
-    # train_parser.set_defaults(func=train)
-    # predict_parser = subparsers.add_parser('predict')
-    # predict_parser.add_argument('experiment_name',
-    #                             help="Name of the experiment. "
-    #                                  "Files go in a directory of this name.")
-    # predict_parser.add_argument('test_set',
-    #                             help="Dataset to use for hold-out.")
-    # predict_parser.add_argument('-s', '--select_epoch',
-    #                             default=None, type=int)
-    # predict_parser.set_defaults(func=predict)
-    # analyze_parser = subparsers.add_parser('analyze')
-    # analyze_parser.add_argument('experiment_name',
-    #                             help="Name of the experiment. "
-    #                                  "Files go in a directory of this name.")
-    # analyze_parser.add_argument('-s', '--select_epoch',
-    #                             default=None)
-    # analyze_parser.set_defaults(func=analyze)
-
-    # # Tests
-    # datatest_parser = subparsers.add_parser('datatest')
-    # datatest_parser.add_argument('-p', '--show_full', action="store_true",
-    #                              help="Print the full diff to screen.")
-    # datatest_parser.set_defaults(func=datatest)
-    # datastats_parser = subparsers.add_parser('datastats')
-    # datastats_parser.set_defaults(func=datastats)
-    # test_parser = subparsers.add_parser('test')
-    # test_parser.set_defaults(func=test)
-
     arguments = docopt(__doc__)
     utils.setup_logging(logging.DEBUG if arguments['--verbose']
                         else logging.INFO)
