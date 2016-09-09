@@ -80,9 +80,10 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
     """
     rng = np.random.RandomState(random_seed)
 
-    if not all([('cqt' in record.index),
-               isinstance(record['cqt'], str),
-               os.path.exists(record['cqt'])]):
+    if not (('cqt' in record.index) and
+            record['cqt'] is not None and
+            isinstance(record['cqt'], str) and
+            os.path.exists(record['cqt'])):
         logger.error('No valid feature file specified for record: {}'.format(
             record))
         return
