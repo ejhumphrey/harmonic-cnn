@@ -34,7 +34,7 @@
 %  {Second author} {Company \\ Address}
 
 %% To make customize author list in Creative Common license, uncomment and customize the next line
-%  \def\authorname{First Author, Second Author} 
+%  \def\authorname{First Author, Second Author}
 
 
 % Three addresses
@@ -45,7 +45,7 @@
   {Third Author} {Affiliation3 \\ {\tt author3@ismir.edu}}
 
 %% To make customize author list in Creative Common license, uncomment and customize the next line
-%  \def\authorname{First Author, Second Author, Third Author} 
+%  \def\authorname{First Author, Second Author, Third Author}
 
 % Four or more addresses
 % OR alternative format for large number of co-authors
@@ -72,8 +72,8 @@
 % Convnets have rocked MIR
 Convolutional neural networks, originally pioneered in computer vision, have shown great performance in content-based MIR across a variety of tasks.
 % Operate on time-freq reps, which are not images
-In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels. 
-However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images. 
+In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels.
+However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images.
 % Sound is harmonic, and model assumptions may not hold.
 Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies.
 % Make input rep harmonic, does it matter?
@@ -86,72 +86,97 @@ We study these approaches in a large, solo instrument classification task, and e
 % Closeout
 Finally, we provide an open source framework to reproduce both our results and the data used herein.
 
-
 \end{abstract}
-%
+
+
 \section{Introduction}\label{sec:introduction}
 
-This template includes all the information about formatting manuscripts for the ISMIR \conferenceyear\ Conference.
-Please follow these guidelines to give the final proceedings a uniform look.
-Most of the required formatting is achieved automatically by using the supplied
-style file (\LaTeX) or template (Word).
-If you have any questions, please contact the Program Committee
-(\texttt{ismir\conferenceyear-papers@ismir.net}).
-This template can be downloaded from the ISMIR \conferenceyear\ web site (\texttt{http://ismir\conferenceyear.ismir.net}).
-%
-\section{Paper Length \& File Size}
-Instead of the strict limit of six pages (last used in ISMIR 2014), we adopt 
-a ``(6+1)-page policy'' from ISMIR 2015 for ISMIR 2016. This means, the paper may have a 
-maximum of 6 pages for technical content including figures and possible references 
-with one additional optional 7th page containing only references.
-Note that this is a strict requirement. 
-\textcolor{red}{The seventh page (if used at all) must
-not contain any other material except for references.} 
+% Deep learning, so hot right now... deep learning.
+Many classic tasks in MIR aim to develop computational systems for modeling the human perception of music signals to achieve robust content understanding at scale, e.g. tens of millions of tracks.
+In the last several years, a number of research communities have fully embraced feature learning and deep networks, which excel at modeling the kinds of complex, nonlinear behavior found in acoustic signals.
+Convolutional neural networks (CNNs) are now an especially common choice for MIR tasks, finding use in timbre modelling, chord estimation, onset detection, structural segmentation, on so on.
 
-Paper should be submitted as PDFs and the \textcolor{red}{file size is limited to 2MB}. Please compress images and figures as necessary before submitting.
+It is worth noting that convolutional networks draw inspiration from biological vision systems \cite{Hubel1964, LeCun1998}, and common implementations have been architected with computer vision in mind.
+CNNs are characterized by two features:
+one, local receptive fields exploit statistical properties of natural images, i.e. neighboring pixels tend to be more correlated than distant ones;
+and two, weights over these local receptive fields are shared across spatial dimensions, providing translation invariant features.
 
-\section{Page Size}\label{sec:page_size}
+We can visualize why this is a good idea.
+Here, we take the CIFAR dataset, which consists of small (32x32) images.
+We use the training set of 25k images, compute a 2D auto-correlation between each image and a slightly cropped version of itself, and average over the dataset;
+this is defined formally by the following.
+As expected, Figure \ref{fig:image_corr} illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
 
-The proceedings will be printed on
- \underline{portrait A4-size paper} \underline{(21.0cm x 29.7cm)}.
-All material on each page should fit within a rectangle of 17.2cm x 25.2cm,
-centered on the page, beginning 2.0cm
-from the top of the page and ending with 2.5cm from the bottom.
-The left and right margins should be 1.9cm.
-The text should be in two 8.2cm columns with a 0.8cm gutter.
-All text must be in a two-column format.
-Text must be fully justified.
+Intuitively, time-frequency representations are not images, but much previous work overlooks this reality, applying the standard CNN formulation to audio tasks.
+This raises an interesting question: how do these correlations differ from images, and can we similarly leverage this prior knowledge?
+We therefore repeat the same exercise, instead drawing observations from constant-Q representations of audio.
+Using the librosa toolkit, we compute CQT spectra over a number of recordings in the USPop dataset\cite{Ellis2002} and draw 25k windowed observations at random.
+As before, the valid, 2D auto-correlation is performed between each windowed observation and a cropped version of itself.
+Given in Figure \ref{fig:cqt_corr}, there are two notable distinctions.
+First, consistent with intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
+Second, these correlations are not symmetrical in frequency.
 
-\section{Typeset Text}\label{sec:typeset_text}
+In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task of solo music instrument classification, using a newly standardized dataset referred to the Music INSTrument (MINST) dataset.
+The remainder of the paper is organized as follows:
+Section II details our approach to exploiting correlations in convolutional networks;
+Section III describes the experimental method used in this work;
+and Section IV discusses results and conclusions drawn therein.
 
-\subsection{Normal or Body Text}\label{subsec:body}
 
-Please use a 10pt (point) Times font. Sans-serif or non-proportional fonts
-can be used only for special purposes, such as distinguishing source code text.
+\section{Harmonic Convolution Neural Networks}\label{sec:page_size}
 
-The first paragraph in each section should not be indented, but all other paragraphs should be.
+Reference Lostanlen's ISMIR work.
+The facets we consider differently are...
 
-\subsection{Title and Authors}
+Constant-Q inputs are assumed.
 
-The title is 14pt Times, bold, caps, upper case, centered.
-Authors' names are omitted when submitting for double-blind reviewing.
-The following is for making a camera-ready version.
-Authors' names are centered.
-The lead author's name is to be listed first (left-most), and the co-authors' names after.
-If the addresses for all authors are the same, include the address only once, centered.
-If the authors have different addresses, put the addresses, evenly spaced, under each authors' name.
+The width (time) of the filters should match that of MH: above I suggested 5x5, but I think 7x7 might be better since it captures +- 1 semitone from the center bin. In M2, this translates to +- 3 semitones. For MF, layer 1 will be full-height by 7.
 
-\subsection{First Page Copyright Notice}
+For layer 2 in MF, the input will have shape (n[1], 1, T - 7//2); frequency information is collapsed out by valid-mode convolution, and we effectively have two-dimensional data (filter number, time). Layer 2 filters then must have shape like (1, width), and the width may as well match the width of layer 2 in MH/M2 (I suggested 9x9 above).
+
+After that, we max-pool over time and feed into dense layer just as in the other architectures.
+
+
+
+\section{Method}\label{sec:typeset_text}
+
+\subsection{The MINST Dataset}\label{subsec:body}
+
+% Issues with audio datasets
+Training and evaluating supervised machine learning approaches on MIR tasks faces a near-universal issue of data.
+% Not many open-audio datasets that can be shared.
+While many researchers have built or leveraged labeled collections of audio, concerns of copyright undermine the reproducibility of results.
+% Data integrity issues, many MIR tasks are subjective, raising issues of evaluation and the use of ground truth.
+In many instances though, collections that do provide access to audio data suffer from questions of validity and integrity, such as GTZAN \cite{Sturm} or Ballroom \cite{Sturm}, or focus on subjective tasks which raise issues of ``ground truth''.
+% Seldom large in size
+Complementing these issues, large audio datasets are uncommon,
+Combined, these challenges make it difficult to form robust conclusions across experiments and researchers.
+
+Sizeable, open, and objective of datasets like MNIST \cite{}, CIFAR \cite{}, and NORB \cite{}, however, have served the computer vision community well in the last two decades, helping lead to a number of breakthroughs in the field.
+It is hard to imagine, for example, where the community would be without the early role served by MNIST.
+Here, we strive to develop a similarly standardized data by building on top of previous efforts in the MIR community to build collections of solo instrument samples.
+
+Here, we combine a number of open datasets in a common manner to yield the Music Instrument dataset, dubbed MINST\footnote{\url{http://github.com/ejhumphrey/minst-dataset}}, in honor of its handwritten digit counterpart.
+Note onsets are annotated semi-automatically;
+a number of onset detection methods are applied, and subsequently verified or corrected manually, as needed.
+These reference note onsets are then used to segment longer recordings into individual notes.
+Here, each note is trimmed to a constant 1-second duration; where observed notes are shorter than this, a -65dBFS Gaussian noise signal is appended.
+This results in nearly 39k note observations from 13 instrument classes, spanning 3 different corpora:
+UIowa Music Instrument Samples\footnote{}, RWC\footnote{}, and Philharmonia\footnote{}.
+The data used herein is made freely available online\footnote{}.
+
+
+\subsection{Evaluation}
+
+
+
+\subsection{Experimental Design}
 
 Please include the copyright notice exactly as it appears here in the lower left-hand corner of the page.
 It is set in 8pt Times.
 
-\subsection{Page Numbering, Headers and Footers}
 
-Do not include headers, footers or page numbers in your submission.
-These will be added when the publications are assembled.
-
-\section{First Level Headings}
+\section{Discussion}
 
 First level headings are in Times 10pt bold,
 centered with 1 line of space above the section head, and 1/2 space below it.
@@ -171,86 +196,8 @@ The first letter of each significant word is capitalized.
 
 Using more than three levels of headings is highly discouraged.
 
-\section{Footnotes and Figures}
-
-\subsection{Footnotes}
-
-Indicate footnotes with a number in the text.\footnote{This is a footnote.}
-Use 8pt type for footnotes. Place the footnotes at the bottom of the page on which they appear.
-Precede the footnote with a 0.5pt horizontal rule.
-
-\subsection{Figures, Tables and Captions}
-
-All artwork must be centered, neat, clean, and legible.
-All lines should be very dark for purposes of reproduction and art work should not be hand-drawn.
-The proceedings are not in color, and therefore all figures must make sense in black-and-white form.
-Figure and table numbers and captions always appear below the figure.
-Leave 1 line space between the figure or table and the caption.
-Each figure or table is numbered consecutively. Captions should be Times 10pt.
-Place tables/figures in text as close to the reference as possible.
-References to tables and figures should be capitalized, for example:
-see \figref{fig:example} and \tabref{tab:example}.
-Figures and tables may extend across both columns to a maximum width of 17.2cm.
-
-\begin{table}
- \begin{center}
- \begin{tabular}{|l|l|}
-  \hline
-  String value & Numeric value \\
-  \hline
-  Hello ISMIR  & \conferenceyear \\
-  \hline
- \end{tabular}
-\end{center}
- \caption{Table captions should be placed below the table.}
- \label{tab:example}
-\end{table}
-
-\begin{figure}
- \centerline{\framebox{
- \includegraphics[width=\columnwidth]{figure.png}}}
- \caption{Figure captions should be placed below the figure.}
- \label{fig:example}
-\end{figure}
-
-\section{Equations}
-
-Equations should be placed on separate lines and numbered.
-The number should be on the right side, in parentheses, as in \eqnref{relativity}.
-
-\begin{equation}\label{relativity}
-E=mc^{2}
-\end{equation}
-
-\section{Citations}
-
-All bibliographical references should be listed at the end,
-inside a section named ``REFERENCES,'' numbered and in alphabetical order.
-All references listed should be cited in the text.
-When referring to a document, type the number in square brackets
-\cite{Author:00}, or for a range \cite{Author:00,Someone:10,Someone:04}.
 
 % For bibtex users:
 \bibliography{references}
-
-% For non bibtex users:
-%\begin{thebibliography}{citations}
-%
-%\bibitem {Author:00}
-%E. Author.
-%``The Title of the Conference Paper,''
-%{\it Proceedings of the International Symposium
-%on Music Information Retrieval}, pp.~000--111, 2000.
-%
-%\bibitem{Someone:10}
-%A. Someone, B. Someone, and C. Someone.
-%``The Title of the Journal Paper,''
-%{\it Journal of New Music Research},
-%Vol.~A, No.~B, pp.~111--222, 2010.
-%
-%\bibitem{Someone:04} X. Someone and Y. Someone. {\it Title of the Book},
-%    Editorial Acme, Porto, 2012.
-%
-%\end{thebibliography}
 
 \end{document}
