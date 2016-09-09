@@ -2,7 +2,7 @@
 
 Usage:
  manage.py [options] run
- manage.py [options] run [<cqt> | <wcqt> | <hcqt>]
+ manage.py [options] run <model>
  manage.py [options] extract_features
  manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
  manage.py [options] test [(data|model|unit)]
@@ -64,22 +64,26 @@ def run_process_if_not_exists(process, filepath, **kwargs):
         return True
 
 
-def clean(master_config):
+def clean(config_path, force=False):
     """Clean dataframes and extracted audio/features."""
-    config = C.Config.load(master_config)
+    config = C.Config.load(config_path)
 
-    data_path = os.path.expanduser(config['paths/extract_dir'])
+    data_path = os.path.expanduser(config['paths/feature_dir'])
     # Clean data
-    answer = input("Are you sure you want to delete {} (y|s to skip): "
-                   .format(data_path))
-    if answer in ['y', 'Y']:
-        shutil.rmtree(data_path)
-        logger.info("clean done.")
-    elif answer in ['s', 'S']:
-        return True
-    else:
-        print("Exiting")
-        sys.exit(1)
+    if not force:
+        answer = input("Are you sure you want to delete {} (y|s to skip): "
+                       .format(data_path))
+        if answer in ['y', 'Y']:
+            pass
+        elif answer in ['s', 'S']:
+            return True
+        else:
+            print("Exiting")
+            sys.exit(1)
+
+    shutil.rmtree(data_path)
+    logger.info("clean done.")
+    return True
 
 
 def extract_features(master_config):
@@ -93,42 +97,27 @@ def extract_features(master_config):
     return result
 
 
-def run(master_config, experiment_name):
-    """Run an experiment end-to-end with cross validation.
-    Note: requires extracted features.
-    """
-    config = C.Config.load(master_config)
-    print(utils.colored("Running experiment end-to-end."))
-
-    timer = utils.TimerHolder()
-    timer.start("run")
-    logger.debug("Running with experiment_name={} at {}"
-                 .format(experiment_name, timer.get_start("run")))
-    driver = hcnn.driver.Driver(config, experiment_name,
-                                load_features=True)
-    result = driver.fit_and_predict_cross_validation()
-    print("Experiment {} in duration {}".format(
-        utils.result_colored(result), timer.end("run")))
-    return result
-
-
-def fit_and_predict(config, experiment_name, test_set, feature_mode):
+def fit_and_predict(config, experiment_name, test_set, model_name):
     """Runs:
     - train
     - model_selection_df
     - predict
     - analyze
     """
-    run_name = "fit_and_predict:{}:{}".format(experiment_name, test_set)
+    run_name = "fit_and_predict:{}:{}:{}".format(
+        experiment_name, test_set, model_name)
 
     config = C.Config.load(config)
     print(utils.colored("Running {} end-to-end.".format(run_name)))
 
     timer = utils.TimerHolder()
     timer.start(run_name)
-    logger.debug("Running with experiment_name={} at {}"
-                 .format(experiment_name, timer.get_start(run_name)))
-    driver = hcnn.driver.Driver(config, experiment_name,
+    logger.debug("Running model={} with experiment_name={} at {}"
+                 .format(model_name, experiment_name,
+                         timer.get_start(run_name)))
+    driver = hcnn.driver.Driver(config,
+                                model_name=model_name,
+                                experiment_name=experiment_name,
                                 load_features=True)
     result = driver.fit_and_predict_one(test_set)
     print("{} - {} complted in duration {}".format(
@@ -139,7 +128,7 @@ def fit_and_predict(config, experiment_name, test_set, feature_mode):
 def train(config,
           experiment_name,
           test_set,
-          feature_mode):
+          model_name):
     """Run training loop.
 
     Parameters
@@ -154,14 +143,14 @@ def train(config,
         String in ["rwc", "uiowa", "philharmonia"] specifying which
         dataset to use as the test set.
 
-    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
-        What type of features to use (and associated model) in training
-        the network.
+    model_name : str
+        Name of the model to use for training.
     """
     print(utils.colored("Training experiment: {}".format(experiment_name)))
-    logger.info("Training with test_set '{}', and features '{}'".format(
-        test_set, feature_mode))
-    driver = hcnn.driver.Driver(config, test_set, feature_mode,
+    logger.info("Training model '{}' with test_set '{}'"
+                .format(model_name, test_set))
+    driver = hcnn.driver.Driver(config, test_set,
+                                model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
 
@@ -171,7 +160,7 @@ def train(config,
 def predict(config,
             experiment_name,
             test_set,
-            feature_mode,
+            model_name,
             select_epoch=None):
     """Predict results on all datasets and report results.
 
@@ -182,9 +171,9 @@ def predict(config,
     experiment_name : str
         Name of the experiment. Files are saved in a folder of this name.
 
-    feature_mode : str in ['cqt', 'wcqt', 'hcqt']
-        What type of features to use (and associated model) in evaluating
-        the network. Must match the training configuration.
+    model_name : str
+        Name of the model to use for training. Must match the training
+        configuration.
 
     select_epoch : str or None
         Which model params to select. Use the epoch number for this, for
@@ -194,7 +183,8 @@ def predict(config,
     print(utils.colored("Evaluating"))
     config = C.Config.load(config)
 
-    driver = hcnn.driver.Driver(config, experiment_name,
+    driver = hcnn.driver.Driver(config, model_name=model_name,
+                                experiment_name=experiment_name,
                                 load_features=True)
     results = driver.predict(select_epoch)
     logger.info("Generated results for {} files.".format(len(results)))
@@ -225,35 +215,56 @@ def analyze(master_config,
 
     hold_out_set = config["experiment/hold_out_set"]
 
-    driver.analyze(config, experiment_name, select_epoch, hold_out_set)
+    driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+                                load_features=True)
+
+    driver.analyze(select_epoch, hold_out_set)
     return 0
 
 
 def run_all_experiments(config, experiment_root=None):
+    MODELS_TO_RUN = [
+        'cqt_MF_n16',
+        'cqt_M2_n8',
+        'hcqt_MH_n8'
+    ]
+
+    # MODELS_TO_RUN = [
+    #     'cqt_MF_n32',
+    #     'cqt_MF_n64',
+    #     'cqt_M2_n16',
+    #     'cqt_M2_n32',
+    #     'cqt_M2_n64'
+    #     'hcqt_MH_n16',
+    #     'hcqt_MH_n32'
+    #     'hcqt_MH_n64'
+    # ]
+
     results = []
-    for features in ['cqt', 'wcqt', 'hcqt']:
-        results.append(run_experiment(features, config, experiment_root))
+    for model_name in MODELS_TO_RUN:
+        results.append(run_experiment(model_name, config, experiment_root))
 
     return all(results)
 
 
-def run_experiment(input_feature, config, experiment_root=None):
+def run_experiment(model_name, config, experiment_root=None):
     """Run an experiment using the specified input feature
 
     Parameters
     ----------
-    input_feature : ['cqt', 'wcqt', 'hcqt']
+    model_name : str
+        Name of the NN model configuration [in models.py].
     """
-    logger.info("run_experiment(input_feature='{}')".format(input_feature))
+    logger.info("run_experiment(model_name='{}')".format(model_name))
     config = C.Config.load(config)
     experiment_name = "{}{}".format(
         "{}_".format(experiment_root) if experiment_root else "",
-        input_feature)
+        model_name)
     logger.info("Running Experiment: {}".format(
         utils.colored(experiment_name, 'magenta')))
 
     driver = hcnn.driver.Driver(config,
-                                feature_mode=input_feature,
+                                model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
     result = driver.fit_and_predict_cross_validation()
@@ -299,7 +310,10 @@ def integration_test(config):
     print(utils.colored(
         "Running integration test on tinydata set : {}."
         .format(config)))
-    result = run_all_experiments(config, experiment_root=experiment_name)
+    # Begin by cleaning the feature data
+    result = clean(config, force=True)
+    if result:
+        result = run_all_experiments(config, experiment_root=experiment_name)
 
     print("IntegrationTest Result: {}".format(utils.result_colored(result)))
     return result
@@ -311,18 +325,11 @@ def handle_arguments(arguments):
 
     # Run modes
     if arguments['run']:
-        feature = None
-        if arguments['<cqt>']:
-            feature = 'cqt'
-        elif arguments['<wcqt>']:
-            feature = 'wcqt'
-        elif arguments['<hcqt>']:
-            feature = 'hcqt'
+        model = arguments['<model>']
 
-        logger.info("Run Mode; features={}".format(
-            feature if feature else "all"))
-        if feature:
-            result = run_experiment(feature, config)
+        logger.info("Run Mode; model={}".format(model))
+        if model:
+            result = run_experiment(model, config)
         else:
             result = run_all_experiments(config)
 
@@ -374,52 +381,6 @@ def handle_arguments(arguments):
 
 if __name__ == "__main__":
     # parser.add_argument("-c", "--master_config", default=CONFIG_PATH)
-
-    # extract_features_parser = subparsers.add_parser('extract_features')
-    # extract_features_parser.set_defaults(func=extract_features)
-
-    # fit_and_predict_parser = subparsers.add_parser('fit_and_predict')
-    # fit_and_predict_parser.add_argument('experiment_name',
-    #                                     help="Name of the experiment. "
-    #                                     "Files go in a directory of "
-    #                                     "this name.")
-    # fit_and_predict_parser.add_argument('test_set',
-    #                                     help="Dataset to use for hold-out.")
-    # fit_and_predict_parser.set_defaults(func=fit_and_predict)
-
-    # train_parser = subparsers.add_parser('train')
-    # train_parser.add_argument('experiment_name',
-    #                           help="Name of the experiment. "
-    #                                "Files go in a directory of this name.")
-    # train_parser.add_argument('test_set',
-    #                           help="Dataset to use for hold-out.")
-    # train_parser.set_defaults(func=train)
-    # predict_parser = subparsers.add_parser('predict')
-    # predict_parser.add_argument('experiment_name',
-    #                             help="Name of the experiment. "
-    #                                  "Files go in a directory of this name.")
-    # predict_parser.add_argument('test_set',
-    #                             help="Dataset to use for hold-out.")
-    # predict_parser.add_argument('-s', '--select_epoch',
-    #                             default=None, type=int)
-    # predict_parser.set_defaults(func=predict)
-    # analyze_parser = subparsers.add_parser('analyze')
-    # analyze_parser.add_argument('experiment_name',
-    #                             help="Name of the experiment. "
-    #                                  "Files go in a directory of this name.")
-    # analyze_parser.add_argument('-s', '--select_epoch',
-    #                             default=None)
-    # analyze_parser.set_defaults(func=analyze)
-
-    # # Tests
-    # datatest_parser = subparsers.add_parser('datatest')
-    # datatest_parser.add_argument('-p', '--show_full', action="store_true",
-    #                              help="Print the full diff to screen.")
-    # datatest_parser.set_defaults(func=datatest)
-    # datastats_parser = subparsers.add_parser('datastats')
-    # datastats_parser.set_defaults(func=datastats)
-    # test_parser = subparsers.add_parser('test')
-    # test_parser.set_defaults(func=test)
 
     arguments = docopt(__doc__)
     utils.setup_logging(logging.DEBUG if arguments['--verbose']

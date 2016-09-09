@@ -25,6 +25,21 @@ def __assert_cqt_slicer(dataset, t_len, *slicer_args):
         assert data.shape[2] == t_len
 
 
+def __assert_cqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.cqt_slices(dataset.to_df().iloc[0], t_len,
+                                *slicer_args, random_seed=RANDOM_SEED)
+
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] == 1
+    assert data.shape[2] == t_len
+
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
+
+
 def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
                                  *slicer_args, random_seed=RANDOM_SEED)
@@ -35,14 +50,42 @@ def __assert_wcqt_slicer(dataset, t_len, *slicer_args):
         assert data.shape[2] == t_len
 
 
+def __assert_wcqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.wcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] > 1 and data.shape[1] < 10
+    assert data.shape[2] == t_len
+
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
+
+
 def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
     slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
                                  *slicer_args, random_seed=RANDOM_SEED)
     for i in range(10):
         data = next(slicer)['x_in']
         assert len(data.shape) == 4
-        assert data.shape[1] == 6
+        assert data.shape[1] == 3
         assert data.shape[2] == t_len
+
+
+def __assert_hcqt_slicer_predict(dataset, t_len, *slicer_args):
+    slicer = streams.hcqt_slices(dataset.to_df().iloc[0], t_len,
+                                 *slicer_args, random_seed=RANDOM_SEED)
+    # The first one should work
+    data = next(slicer)['x_in']
+    assert len(data.shape) == 4
+    assert data.shape[1] == 3
+    assert data.shape[2] == t_len
+
+    # The second one should raise stopiteration
+    with pytest.raises(StopIteration):
+        data = next(slicer)['x_in']
 
 
 @pytest.mark.parametrize(
@@ -51,20 +94,35 @@ def __assert_hcqt_slicer(dataset, t_len, *slicer_args):
      __assert_wcqt_slicer,
      __assert_hcqt_slicer],
     ids=["cqt", "wcqt", "hcqt"])
-def test_slices(slicer_test, tiny_feats):
+def test_slices_train_mode(slicer_test, tiny_feats):
     slicer_test(tiny_feats, 5)
     slicer_test(tiny_feats, 1)
     slicer_test(tiny_feats, 10)
-    slicer_test(tiny_feats, 8, False, False)
+    slicer_test(tiny_feats, 43)
 
 
-@pytest.fixture
-def generated_data(workspace):
-    t_len = 8
+@pytest.mark.parametrize(
+    "slicer_test",
+    [__assert_cqt_slicer_predict,
+     __assert_wcqt_slicer_predict,
+     __assert_hcqt_slicer_predict],
+    ids=["cqt", "wcqt", "hcqt"])
+def test_slices_predict_mode(slicer_test, tiny_feats):
+    slicer_test(tiny_feats, 5, False, False, False)
+    slicer_test(tiny_feats, 1, False, False, False)
+    slicer_test(tiny_feats, 10, False, False, False)
+    slicer_test(tiny_feats, 43, False, False, False)
+    slicer_test(tiny_feats, 8, False, False, False)
+
+
+@pytest.fixture(params=[30, 43, 50],
+                ids=["30=too_small", "43=just_right", "50=too_big"])
+def generated_data(request, workspace):
+    t_len = 43
     cqt_size = hcnn.data.cqt.CQT_PARAMS['n_bins']
 
     # make some garbage data
-    vector_size = 2
+    vector_size = request.param
     test_vector = np.random.random((1, vector_size, cqt_size))
     testfile = os.path.join(workspace, "foo.npz")
     np.savez(testfile, cqt=test_vector)

@@ -154,7 +154,9 @@ class BinarySearchModelSelector(ModelSelector):
                 ...
         """
         results = {}
-        start_ind = 0
+        # Don't allow the zero index; We should never select an
+        #  untrained model!
+        start_ind = 1 if len(self.param_list) > 0 else 0
         end_ind = len(self.param_list) - 1
         # start_ind = len(self.param_list)/2
         # end_ind = start_ind

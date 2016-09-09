@@ -27,12 +27,12 @@ config = C.Config.load(CONFIG_PATH)
 
 @pytest.fixture(params=[(streams.cqt_slices, models.cqt_iX_c1f1_oY),
                         (streams.cqt_slices, models.cqt_iX_c2f2_oY),
-                        (streams.wcqt_slices, models.wcqt_iX_c1f1_oY),
-                        (streams.wcqt_slices, models.wcqt_iX_c2f2_oY),
+                        # (streams.wcqt_slices, models.wcqt_iX_c1f1_oY),
+                        # (streams.wcqt_slices, models.wcqt_iX_c2f2_oY),
                         (streams.hcqt_slices, models.hcqt_iX_c1f1_oY),
                         (streams.hcqt_slices, models.hcqt_iX_c2f2_oY)],
                 ids=["cqt_c1f1", "cqt_c2f2",
-                     "wcqt_c1f1", "wcqt_c2f2",
+                     # "wcqt_c1f1", "wcqt_c2f2",
                      "hcqt_c1f1", "hcqt_c2f2"])
 def slicer_and_model(request):
     return request.param
