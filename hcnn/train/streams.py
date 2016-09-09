@@ -96,6 +96,7 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
     except zipfile.BadZipFile:
         logger.error('This zip file is bad! Sadness :(  -  {}'.format(
             record['cqt']))
+        return
 
     # Take the logmagnitude of the cqt
     cqt = librosa.logamplitude(cqt ** 2, ref_power=np.max)
