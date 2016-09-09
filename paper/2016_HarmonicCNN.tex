@@ -10,9 +10,10 @@
 % -----------------------------------------------
 
 \documentclass{article}
-\usepackage{ismir,amsmath,cite}
+\usepackage{spconf,amsmath,cite}
 \usepackage{graphicx}
 \usepackage{color}
+\usepackage{hyperref}
 
 % Title.
 % ------
@@ -39,10 +40,10 @@
 
 % Three addresses
 % --------------
-\threeauthors
+\twoauthors
   {First Author} {Affiliation1 \\ {\tt author1@ismir.edu}}
   {Second Author} {\bf Retain these fake authors in\\\bf submission to preserve the formatting}
-  {Third Author} {Affiliation3 \\ {\tt author3@ismir.edu}}
+%  {Third Author} {Affiliation3 \\ {\tt author3@ismir.edu}}
 
 %% To make customize author list in Creative Common license, uncomment and customize the next line
 %  \def\authorname{First Author, Second Author, Third Author}
@@ -60,7 +61,7 @@
 %\def\authorname{First author, Second author, Third author, Fourth author, Fifth author, Sixth author}
 
 
-\sloppy % please retain sloppy command for improved formatting
+%\sloppy % please retain sloppy command for improved formatting
 
 \begin{document}
 
@@ -136,6 +137,21 @@ For layer 2 in MF, the input will have shape (n[1], 1, T - 7//2); frequency info
 
 After that, we max-pool over time and feed into dense layer just as in the other architectures.
 
+\begin{figure}
+    \label{fig:cqt_corr}
+\end{figure}
+\begin{figure}
+    \label{fig:image_corr}
+\end{figure}
+\begin{figure}
+    \includegraphics[width=\columnwidth]{figs/filter-shapes}
+    \caption{A comparison of different sparsity patterns for convolutional networks on spectrogram inputs.
+        \emph{Full} connectivity requires that the filter connect to all frequency bins in a temporal window around the sample frame at time $t$.
+        \emph{Frequency-local} connectivity only connects a filter to near-by frequencies at time-frequency $(t, f)$.
+        \emph{Octave-local} connectivity allows a filter to connect to the same pitch classes across different octaves at time-frequency $(t, f)$: that is, frequencies related to $f$ by integer powers of 2 $f' = f \cdot 2^k$.
+        \emph{Harmonic-local} connectivity allows a filter to connect to harmonically related frequencies: $f' \in \{f, 2f, 3f, \dots\}$.}
+        \label{figs:filter-shapes}
+\end{figure}
 
 
 \section{Method}\label{sec:typeset_text}
