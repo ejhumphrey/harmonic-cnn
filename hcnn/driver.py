@@ -55,7 +55,8 @@ def get_slicer_from_feature(feature_mode):
 class Driver(object):
     "Controller class for running experiments and holding state."
 
-    def __init__(self, config, partitions=None, feature_mode=None,
+    def __init__(self, config, partitions=None,
+                 model_name=None,
                  experiment_name=None,
                  dataset=None, load_features=True):
         """
@@ -74,14 +75,15 @@ class Driver(object):
             Can only be None when extracting features; otherwise,
             this value is required.
 
-        feature_mode : one of ['cqt', 'wcqt', 'hcqt']
-            Which features and associated model to use for the experiment.
-
         experiment_name : str or None
             Name of the experiment. This is used to
             name the files/parameters saved.
 
             It is required for many but not all functions.
+
+        model_name : str or None
+            Use this to specify the model configuration to use.
+            Otherwise, tries to load it from the config.
 
         dataset : hcnn.data.dataset.Dataset or None
             If None, tries to use the config to load the default dataset,
@@ -101,7 +103,7 @@ class Driver(object):
         self.experiment_name = experiment_name
 
         # Initialize common paths 'n variables.
-        self._init(feature_mode)
+        self._init(model_name)
         self.load_dataset(dataset=dataset, load_features=load_features)
         if partitions:
             self.setup_partitions(partitions)
@@ -132,9 +134,14 @@ class Driver(object):
         dataset_fn = os.path.basename(self.dataset_index)
         return os.path.join(self.feature_dir, dataset_fn)
 
-    def _init(self, feature_mode):
-        self.feature_mode = feature_mode
-        self.model_definition = self.config["model"][feature_mode]
+    def _init(self, model_name):
+        if model_name is not None:
+            self.model_definition = model_name
+        else:
+            self.model_definition = self.config["model"]
+
+        self.feature_mode = model_name.split('_')[0]
+
         self.max_files_per_class = self.config.get(
             "training/max_files_per_class", None)
 
@@ -435,8 +442,8 @@ class Driver(object):
         timers.end("train")
 
         # Print final training loss
-        logger.info("Total iterations:".format(iter_count))
-        logger.info("Trained for ".format(timers.get("train")))
+        logger.info("Total iterations: {}".format(iter_count))
+        logger.info("Trained for {}".format(timers.get("train")))
         logger.info("Final training loss: {}".format(
             train_stats["loss"].iloc[-1]))
 

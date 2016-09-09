@@ -42,7 +42,8 @@ def predict_one(dfrecord, model, slicer_fx, t_len):
     target = instrument_map.get_index(dfrecord["instrument"])
 
     for frames in slicer_fx(dfrecord, t_len=t_len,
-                            shuffle=False, auto_restart=False):
+                            shuffle=False, auto_restart=False,
+                            add_noise=False):
         results += [model.predict(frames)]
         loss, acc = model.evaluate(frames)
         losses += [loss]

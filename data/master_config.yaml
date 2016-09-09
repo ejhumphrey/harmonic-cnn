@@ -20,24 +20,10 @@ data:
       philharmonia: "~/data/minst/philharmonia_partitions.csv"
       uiowa: "~/data/minst/uiowa_partitions.csv"
 
-extract:
-  max_duration: 2.0
-  bogus_files: "bogus_audio_files.json"
-  split_params:
-    min_voicing_duration: 0.1
-    min_silence_duration: 0.5
-    sil_pct_thresh: 0.5
-  skip_existing: True
-
 features:
   cqt:
     num_cpus: -1
     skip_existing: True
-
-model:
-  cqt: "cqt_iX_c2f2_oY"
-  wcqt: "wcqt_iX_c2f2_oY"
-  hcqt: "hcqt_iX_c2f2_oY"
 
 experiment:
   params_dir: "params"
@@ -51,13 +37,13 @@ experiment:
   analysis_format: "model_{}_analysis.pkl"
 
 training:
-  t_len: 8
+  t_len: 43
   max_iterations: 100000
   max_time: 8000
   batch_size: 60
   n_targets: 12
   iteration_print_frequency: 100
-  iteration_write_frequency: 500
+  iteration_write_frequency: 25
   hyperparameters:
     learning_rate: 0.01
     momentum: 0.9
