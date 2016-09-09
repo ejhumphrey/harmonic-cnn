@@ -5,6 +5,24 @@ Exploiting Harmonic Correlations in Convolutional Neural Networks
 [![Coverage Status](https://coveralls.io/repos/github/ejhumphrey/harmonic-cnn/badge.svg?branch=master)](https://coveralls.io/github/ejhumphrey/harmonic-cnn?branch=master)
 
 
+## Testing your setup to make sure everything is working
+
+1. Run unit-tests
+
+    <sup>Warning: this could take a bit of time.</sup>
+    <sup>Add the -v for verbose mode.</sup>
+    ```bash
+    py.test [-v]
+    ```
+
+2. Run integration-tests.
+
+    <sup>Warning: this could take a bit of time.</sup>
+    ```bash
+    python manage.py test model
+    ```
+
+
 ## Getting the data
 
 This project uses three different solo instrument datasets.
@@ -24,12 +42,25 @@ With the data ready to go, extract the CQT features with the following:
 python manage.py extract_features
 ```
 
+## Run all experiments using default settings.
+This will take about 6 hours per model included. Run at your own risk.
+```bash
+python manage.py run
+```
+
 ## Run an experiment
 ### Select your model
 To run an experiment using existing configurations, first take a look at 
 wcqtlib/train/models.py, and select a network definition function.
 
-i.e. `cqt_iX_c2f2_oY`
+i.e. `cqt_MF_n16`
+
+Keep note of this; you're going to need it to run the experiment. The following are likely options:
+```
+'cqt_MF_n16', 'cqt_MF_n32', 'cqt_MF_n64',
+'cqt_M2_n8', 'cqt_M2_n16', 'cqt_M2_n32', 'cqt_M2_n64'
+'hcqt_MH_n8', 'hcqt_MH_n16', 'hcqt_MH_n32', 'hcqt_MH_n64'
+```
 
 ### Update your config
 Open data/master_config.yaml, and put your model name in the "model" field.

@@ -225,17 +225,20 @@ def analyze(master_config,
 def run_all_experiments(config, experiment_root=None):
     MODELS_TO_RUN = [
         'cqt_MF_n16',
-        # 'cqt_MF_n32',
-        # 'cqt_MF_n64',
         'cqt_M2_n8',
-        # 'cqt_M2_n16',
-        # 'cqt_M2_n32',
-        # 'cqt_M2_n64'
         'hcqt_MH_n8'
-        # 'hcqt_MH_n16',
-        # 'hcqt_MH_n32'
-        # 'hcqt_MH_n64'
     ]
+
+    # MODELS_TO_RUN = [
+    #     'cqt_MF_n32',
+    #     'cqt_MF_n64',
+    #     'cqt_M2_n16',
+    #     'cqt_M2_n32',
+    #     'cqt_M2_n64'
+    #     'hcqt_MH_n16',
+    #     'hcqt_MH_n32'
+    #     'hcqt_MH_n64'
+    # ]
 
     results = []
     for model_name in MODELS_TO_RUN:
