@@ -146,7 +146,7 @@ In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task 
         \emph{Full} connectivity (blue) requires that the filter connect to all frequency bins in a temporal window around the center frame.
         \emph{Frequency-local} connectivity (green) only connects a filter to near-by frequencies.
         \emph{Octave-local} connectivity (yellow) allows a filter to connect to the same pitch classes across different octaves.
-        \emph{Harmonic-local} connectivity (white) allows a filter to connect to harmoincally related frequencies.}
+        \emph{Harmonic-local} connectivity (red) allows a filter to connect to harmoincally related frequencies.}
 \label{figs:filter-shapes}
 \end{figure}
 Convolutional neural networks (CNNs) derive their expressive power by modeling ``local'' statistical regularities.
@@ -187,30 +187,43 @@ Note that the harmonic-local pattern is able to capture the odd harmonics (third
 
 Formally, we define the HCNN operation as a function parametrized by coefficients $w \in \mathbb{R}^{F \times T \times H}$, where $F$ denotes the number of frequency bins, $T$ denotes the number of time frames, and $H$ denotes the number of harmonics to model:
 \begin{equation}
-    g_w(X)_{t, f} := 
+    g_w(X)_{t, k} := 
     \sum_{\substack{
         h \in \{1, 2, \cdots, H\}\\
         i \in \{-\lfloor T/2\rfloor, \cdots, \lfloor T/2 \rfloor\}\\
         j \in \{-\lfloor F/2\rfloor, \cdots, \lfloor F/2 \rfloor\}}
     }
     \hspace{-3em}%
-    w_{ijh} \cdot X^h\left(t + i,\; f + j\right)\label{eq:hcnn}
+    w_{ijh} \cdot X^h\left(t + i,\; k + j\right)\label{eq:hcnn}
 \end{equation}
-where $X^h(t, f)$ denotes the $h$th harmonic of frequency $f$ at time $t$.
+where $X^h(t, k)$ denotes the $h$th harmonic of frequency at bin $k$ and time $t$.
 
 % Octave-local is easy: just wrap the cqt
-Note the octave-local model can be recovered from \cref{eq:hcnn} by taking only $h=2^k$ for integer $k$.
-In this case, the model can be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (pitch class, time, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
-The octave dimension then plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+Note the octave-local model can be recovered from \cref{eq:hcnn} by taking only $h=2^n$ for integer $n$.
+For a CQT with $B$ bins per octave and minimum basis frequency $f_{\min}$, we have bases frequencies defined by
+\begin{equation}
+    f_k = 2^{k/B} \cdot f_{\min}, \label{eq:cqtfreqs}
+\end{equation}
+and for any $f_k$, its $h$ harmonic will be located at $f_{k + B}$.
+The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (pitch class, time, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
+The octave dimension thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
 
 % Harmonic is trickier, since the spacing is not fixed in CQT space
-The harmonic CNN is somewhat more difficult to implement, since the $h$ harmonic of a frequency $f$ will not generally coincide with an integer bin number.
-Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
+The harmonic CNN is somewhat more difficult to implement, since the $h$th harmonic of a frequency $f_k$ will not generally coincide with an integer bin number, since this would require
+\begin{eqnarray}
+    f_j = 2^{j/B} \cdot f_{\min} &=& h \cdot 2^{k/B} f_{\min} = h \cdot f_k \notag \\
+    % 2^{j/B} = h * 2^{k/B}
+    % j/B = log_2 h + k/B
+    % j = k + B log_2 h
+\Rightarrow \quad j &=& k + B \cdot \log_2 h,
+\end{eqnarray}
+which is not an integer for $h \neq 2^n$.
+%Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
 
 % Solution: use harmonic planes! analogous to color channels
 %           + volumetric filters
 Instead of octave-wrapping, we instead generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
-$X^1$ is defined as a CQT with minimum basis frequency $f^1_{\min}$ and $B$ bins per octave.
+$X^1$ is defined as a CQT with minimum basis frequency $f^1_{\min}$.
 For $h > 1$, we scale the minimum basis frequency to
 \begin{equation}
     f^h_{\min} := h \cdot f^1_{\min}.\label{eq:fmin}
