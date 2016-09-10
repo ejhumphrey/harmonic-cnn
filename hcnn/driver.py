@@ -9,13 +9,16 @@
 * fit_and_predict_cross_validation
 """
 
+import boltons.fileutils
 import datetime
 import glob
+import json
 import logging
 import numpy as np
 import os
 import pandas as pd
 import shutil
+import sklearn.metrics
 
 import hcnn.common.config as C
 import hcnn.common.utils as utils
@@ -273,15 +276,6 @@ class Driver(object):
             self.config["experiment/params_dir"])
         self._training_loss_path = os.path.join(
             self._cv_model_dir, self.config['experiment/training_loss'])
-
-        self._train_set_save_path = os.path.join(
-            self._cv_model_dir,
-            self.config['experiment/data_split_format'].format(
-                "train", test_set))
-        self._valid_set_save_path = os.path.join(
-            self._cv_model_dir,
-            self.config['experiment/data_split_format'].format(
-                "valid", test_set))
 
         utils.create_directory(self._cv_model_dir)
         utils.create_directory(self._params_dir)
@@ -681,4 +675,78 @@ class Driver(object):
         result_dir : str
             The root destination results directory.
         """
-        import ipdb; ipdb.set_trace()
+        if not self.experiment_name:
+            logger.error("No valid experiment_name; can't collect_results.")
+            return False
+
+        # Make sure result_dir/experiment name exists
+        results_output_dir = os.path.join(result_dir, self.experiment_name)
+        boltons.fileutils.mkdir_p(results_output_dir)
+
+        # For each hold_out_set
+        # TODO: find a master place - config file maybe? to make it
+        #  so we stop re-writing these.
+
+        experiment_results = {}
+        for dataset in ['rwc', 'uiowa', 'philharmonia']:
+            source_dir = os.path.join(self._model_dir, dataset)
+            destination_dir = os.path.join(results_output_dir, dataset)
+            boltons.fileutils.mkdir_p(destination_dir)
+
+            training_loss_fn = self.config['experiment/training_loss']
+            training_loss_source = os.path.join(source_dir, training_loss_fn)
+            training_loss_dest = os.path.join(destination_dir,
+                                              training_loss_fn)
+            validation_loss_fn = self.config['experiment/validation_loss']
+            validation_loss_source = os.path.join(source_dir, validation_loss_fn)
+            validation_loss_dest = os.path.join(destination_dir,
+                                                validation_loss_fn)
+
+            # Copy the training and validation loss
+            shutil.copyfile(training_loss_source, training_loss_dest)
+            shutil.copyfile(validation_loss_source, validation_loss_dest)
+
+            # Now, the prediction file. But we have to make sure it
+            # matches the format!
+            prediction_glob = os.path.join(source_dir,
+                                           "model_*_predictions.pkl")
+            prediction_files = glob.glob(prediction_glob)
+            prediction_file = (prediction_files[0]
+                               if len(prediction_files) > 0 else None)
+            if prediction_file:
+                pred_destination = os.path.join(destination_dir,
+                                                os.path.basename(prediction_file))
+                prediction_df = pd.read_pickle(prediction_file)
+
+                y_true = (prediction_df['y_true'] if 'y_true' in prediction_df
+                          else prediction_df['target'])
+                y_pred = (prediction_df['y_pred'] if 'y_pred' in prediction_df
+                          else prediction_df['vote'])
+                new_prediction_df = pd.DataFrame([y_pred, y_true]).T
+                new_prediction_df.to_pickle(pred_destination)
+
+                experiment_results[dataset] = {
+                    'prediction_file': pred_destination,
+                    'mean_accuracy': float(sklearn.metrics.accuracy_score(
+                        y_true, y_pred)),
+                    'mean_precision': float(sklearn.metrics.precision_score(
+                        y_true, y_pred, average='macro')),  # weighted?
+                    'mean_recall': float(sklearn.metrics.recall_score(
+                        y_true, y_pred, average='macro')),  # weighted?
+                    'mean_f1': float(sklearn.metrics.f1_score(
+                        y_true, y_pred, average='macro')),  # weighted?
+                    'class_precision': sklearn.metrics.precision_score(
+                        y_true, y_pred, average=None).tolist(),  # weighted?
+                    'class_recall': sklearn.metrics.recall_score(
+                        y_true, y_pred, average=None).tolist(),  # weighted?
+                    'class_f1': sklearn.metrics.f1_score(
+                        y_true, y_pred, average=None).tolist(),  # weighted?
+                    'sample_weight': np.array(y_true.value_counts()).tolist()
+                }
+
+        experiment_results_file = os.path.join(
+            results_output_dir, "experiment_results.json")
+        with open(experiment_results_file, 'w') as fh:
+            json.dump(experiment_results, fh)
+
+        return True

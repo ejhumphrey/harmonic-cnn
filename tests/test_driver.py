@@ -1,9 +1,13 @@
+import boltons.fileutils
 import copy
+import datetime
 import glob
+import json
 import logging
 import logging.config
+import numpy as np
 import os
-import pandas
+import pandas as pd
 import pytest
 
 import hcnn.common.config as C
@@ -54,15 +58,75 @@ def config_with_workspace(workspace):
     return thisconfig
 
 
+def generate_example_training_loss(config, output_dir, n_iter):
+    def training_loss(n):
+        return pd.Series({
+            'timestamp': datetime.datetime.now(),
+            'batch_train_dur': np.random.random(),
+            'iteration': n_iter,
+            'loss': np.random.random()
+        })
+
+    training_loss_fp = config['experiment']['training_loss']
+    train_loss_path = os.path.join(output_dir, training_loss_fp)
+
+    train_stats = pd.DataFrame([training_loss(n) for n in range(5)])        
+    train_stats.to_pickle(train_loss_path)
+
+
+def generate_example_validation_loss(config, output_dir, n_iter):
+    def validation_series(n):
+        return pd.Series({
+            'mean_acc': np.random.random(),
+            'mean_loss': np.random.random(),
+            'model_file': "foobar.npz",
+            'model_iteration': n
+        })
+    validation_loss_fp = config['experiment']['validation_loss']
+    validation_loss_path = os.path.join(output_dir, validation_loss_fp)
+
+    validation_df = pd.DataFrame([validation_series(n) for n in range(5)])
+    validation_df.to_pickle(validation_loss_path)
+
+
+def generate_example_predictions(config, output_dir, n_iter, n_classes):
+    def a_prediction():
+        return pd.Series({
+            'y_pred': np.random.randint(n_classes),
+            'target': np.random.randint(n_classes)
+        })
+
+    predictions_format = config['experiment']['predictions_format']
+    predictions_fp = predictions_format.format("00010")
+    predictions_path = os.path.join(output_dir, predictions_fp)
+    predictions_df = pd.DataFrame([a_prediction() for n in range(5)])
+    predictions_df.to_pickle(predictions_path)
+
+
 @pytest.fixture
 def available_datasets():
     return ["rwc", 'uiowa', 'philharmonia']
 
 
 @pytest.fixture
-def pre_existing_experiment(config_with_workspace):
+def pre_existing_experiment(config_with_workspace, available_datasets):
     """Create some template existing experiment data."""
-    pass
+    experiment_name = "testexperiment"
+    model_dir = config_with_workspace['paths']['model_dir']
+    experiment_dir = os.path.join(model_dir, experiment_name)
+
+    n_iter = 5
+    n_classes = 12
+    for dataset in available_datasets:
+        dataset_dir = os.path.join(experiment_dir, dataset)
+        boltons.fileutils.mkdir_p(dataset_dir)
+
+        generate_example_training_loss(config, dataset_dir, n_iter)
+        generate_example_validation_loss(config, dataset_dir, n_iter)
+        generate_example_predictions(config, dataset_dir, n_iter, n_classes)
+
+    return experiment_name
+
 
 
 @pytest.mark.slowtest
@@ -185,15 +249,37 @@ def test_collect_results(config_with_workspace, pre_existing_experiment,
 
         training_loss_fp = os.path.join(dataset_results, "training_loss.pkl")
         assert os.path.isfile(training_loss_fp)
+        training_loss_df = pd.read_pickle(training_loss_fp)
+        assert [x in training_loss_df.columns for x in ['iteration', 'loss']]
+
         validation_loss_fp = os.path.join(dataset_results,
                                           "validation_loss.pkl")
         assert os.path.isfile(validation_loss_fp)
+        validation_loss_df = pd.read_pickle(validation_loss_fp)
+        assert [x in validation_loss_df.columns
+                for x in ['mean_acc', 'mean_loss', 'model_file',
+                          'model_iteration']]
 
-        prediction_file = os.path.join(dataset_results, "*predictions.pkl")
-        assert len(glob.glob(prediction_file)) > 0
+        prediction_glob = os.path.join(dataset_results, "*predictions.pkl")
+        assert len(prediction_glob) > 0
+        prediction_file = glob.glob(prediction_glob)[0]
+        prediction_df = pd.read_pickle(prediction_file)
+        assert [x in prediction_df.columns for x in ['y_pred', 'y_true']]
 
     # Finally, collect_results should create an overall analysis of the
     # three-fold validation, and put it in
     overall_results_fp = os.path.join(
         new_experiment_dir, "experiment_results.json")
     assert os.path.isfile(overall_results_fp)
+    with open(overall_results_fp, 'r') as fh:
+        result_data = json.load(fh)
+    for dataset in available_datasets:
+        assert dataset in result_data
+        assert 'mean_accuracy' in result_data[dataset]
+        assert 'mean_precision' in result_data[dataset]
+        assert 'mean_recall' in result_data[dataset]
+        assert 'mean_f1' in result_data[dataset]
+        assert 'class_precision' in result_data[dataset]
+        assert 'class_recall' in result_data[dataset]
+        assert 'class_f1' in result_data[dataset]
+        assert 'sample_weight' in result_data[dataset]
