@@ -225,7 +225,7 @@ The octave dimension, illustrated in \Cref{fig:ocnn}, thus plays a role similar 
 
 % Harmonic is trickier, since the spacing is not fixed in CQT space
 The general harmonic CNN is somewhat more difficult to implement.
-The $h$th harmonic of a frequency $f_k$ will not generally coincide with an integer bin index $j$, since this would require
+The $h$th harmonic of $f_k$ will not generally coincide with an integer bin index $j$, because
 \begin{eqnarray}
     f_j = 2^{j/B} \cdot f_{\min} &=& h \cdot 2^{k/B}\cdot f_{\min} = h \cdot f_k \notag \\
     % 2^{j/B} = h * 2^{k/B}
@@ -233,15 +233,15 @@ The $h$th harmonic of a frequency $f_k$ will not generally coincide with an inte
     % j = k + B log_2 h
 \Rightarrow \quad j &=& k + B \cdot \log_2 h,
 \end{eqnarray}
-which is not an integer for $h \neq 2^n$.
-\Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to some form of approximation (\eg, interpolation between frequency bands).
-Moreover, because the harmonically related bins are not uniformly spaced along the frequency axis, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
+and $B \cdot\log_2 h$ is not an integer for $h \neq 2^n$.
+\Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to approximations (\eg, index rounding or interpolation between frequency bands).
+Moreover, because the harmonically related frequencies are not uniformly separated in log-frequency, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
 % Solution: use harmonic planes! analogous to color channels
 %           + volumetric filters
-Instead of octave-wrapping, we generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
-$X^1$ is defined as a CQT with minimum basis frequency $f^1_{\min}$.
-For $h > 1$, we scale the minimum basis frequency to
+These issues can be avoided by using $H$ constant-Q transforms $X^1, X^2, \dots, X^H$, defined as follows.
+$X^1$ is a CQT with minimum basis frequency $f^1_{\min}$,
+and for $h > 1$, the minimum basis frequency is
 \begin{equation}
     f^h_{\min} := h \cdot f^1_{\min}.\label{eq:fmin}
 \end{equation}
@@ -253,6 +253,7 @@ By the definition of the CQT, the subsequent basis frequencies also scale by a f
 \end{eqnarray}
 This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$, as illustrated in \Cref{fig:hcnn}.
 Collecting all ${(X^h)}_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
+While this representation requires more memory usage than the frequency-local model (by a factor of $H$), we note that the first layer of processing collapses the harmonic channel, and any subsequent layers are unaffected.
 
 
 \begin{figure}
