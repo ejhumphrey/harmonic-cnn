@@ -687,7 +687,9 @@ class Driver(object):
         # TODO: find a master place - config file maybe? to make it
         #  so we stop re-writing these.
 
-        experiment_results = {}
+        experiment_results = {
+            "experiment": experiment_name
+        }
         for dataset in ['rwc', 'uiowa', 'philharmonia']:
             source_dir = os.path.join(self._model_dir, dataset)
             destination_dir = os.path.join(results_output_dir, dataset)
@@ -703,8 +705,10 @@ class Driver(object):
                                                 validation_loss_fn)
 
             # Copy the training and validation loss
-            shutil.copyfile(training_loss_source, training_loss_dest)
-            shutil.copyfile(validation_loss_source, validation_loss_dest)
+            if os.path.isfile(training_loss_source):
+                shutil.copyfile(training_loss_source, training_loss_dest)
+            if os.path.isfile(validation_loss_source):
+                shutil.copyfile(validation_loss_source, validation_loss_dest)
 
             # Now, the prediction file. But we have to make sure it
             # matches the format!
@@ -716,15 +720,21 @@ class Driver(object):
             if prediction_file:
                 pred_destination = os.path.join(destination_dir,
                                                 os.path.basename(prediction_file))
-                prediction_df = pd.read_pickle(prediction_file)
+                prediction_df = pd.read_pickle(prediction_file).dropna()
+                # To make this easy, we drop the nan's here.
+                # Possibly this is going to bit me later.
 
                 y_true = (prediction_df['y_true'] if 'y_true' in prediction_df
-                          else prediction_df['target'])
+                          else prediction_df['target']).astype(np.int)
                 y_pred = (prediction_df['y_pred'] if 'y_pred' in prediction_df
-                          else prediction_df['vote'])
-                new_prediction_df = pd.DataFrame([y_pred, y_true]).T
+                          else prediction_df['vote']).astype(np.int)
+                new_prediction_df = pd.concat([y_pred, y_true], axis=1,
+                                              keys=['y_pred', 'y_true'])
                 new_prediction_df.to_pickle(pred_destination)
 
+                # These are to make sklearn.metrics happy.
+                # y_true = y_true.tolist()
+                # y_pred = y_pred.tolist()
                 experiment_results[dataset] = {
                     'prediction_file': pred_destination,
                     'mean_accuracy': float(sklearn.metrics.accuracy_score(
@@ -741,12 +751,13 @@ class Driver(object):
                         y_true, y_pred, average=None).tolist(),  # weighted?
                     'class_f1': sklearn.metrics.f1_score(
                         y_true, y_pred, average=None).tolist(),  # weighted?
-                    'sample_weight': np.array(y_true.value_counts()).tolist()
+                    'sample_weight': np.array(
+                        new_prediction_df['y_true'].value_counts()).tolist()
                 }
 
         experiment_results_file = os.path.join(
             results_output_dir, "experiment_results.json")
         with open(experiment_results_file, 'w') as fh:
-            json.dump(experiment_results, fh)
+            json.dump(experiment_results, fh, indent=2)
 
         return True

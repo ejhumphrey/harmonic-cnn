@@ -6,7 +6,7 @@ Usage:
  manage.py [options] extract_features
  manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
  manage.py [options] test [(data|model|unit)]
- manage.py [options] collect_results <results_destination> [<experiment_name>]
+ manage.py [options] collect_results <results_destination> [<experiment_name>] [--integration]
 
 Arguments:
  run           Run all of the the experiments end-to-end.
@@ -411,8 +411,10 @@ def handle_arguments(arguments):
     elif arguments['collect_results']:
         experiment_name = arguments.get('<experiment_name>', None)
         destination = arguments['<results_destination>']
+        integration_mode = arguments['--integration']
 
-        result = collect_results(config, destination, experiment_name)
+        result = collect_results(config, destination, experiment_name,
+                                 use_integration=integration_mode)
 
     return result
 
