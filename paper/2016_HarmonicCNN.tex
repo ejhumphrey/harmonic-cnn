@@ -213,7 +213,15 @@ For a CQT with $B$ bins per octave and minimum basis frequency $f_{\min}$, we ha
 \end{equation}
 and for any $f_k$, its $2^n$ harmonic will be located at $f_{k + (n-1)\cdot B}$.
 The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (time, pitch class, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
-The octave dimension thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+The octave dimension, illustrated in \Cref{fig:ocnn}, thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+
+\begin{figure}
+    \includegraphics[width=\columnwidth]{figs/octave-local}
+    \caption{The octave-local model is implemented by slicing the CQT $X$ into half-overlapping frequency ranges spanning two octaves each, as illustrated on the right.
+    A single filter (indicated in yellow) connects to the same time-pitch-class indices across all octave channels.}
+\label{fig:ocnn}
+\end{figure}
+
 
 % Harmonic is trickier, since the spacing is not fixed in CQT space
 The general harmonic CNN is somewhat more difficult to implement.
