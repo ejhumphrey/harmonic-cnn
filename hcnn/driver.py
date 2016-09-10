@@ -688,7 +688,7 @@ class Driver(object):
         #  so we stop re-writing these.
 
         experiment_results = {
-            "experiment": experiment_name
+            "experiment": self.experiment_name
         }
         for dataset in ['rwc', 'uiowa', 'philharmonia']:
             source_dir = os.path.join(self._model_dir, dataset)
