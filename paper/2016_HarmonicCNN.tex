@@ -72,22 +72,21 @@
 \begin{abstract}
 
 % Convnets have rocked MIR
-Convolutional neural networks, originally pioneered in computer vision, have shown great performance in content-based MIR across a variety of tasks.
+Convolutional neural networks, originally pioneered in computer vision, have shown great performance across a variety of tasks in audio analysis.
 % Operate on time-freq reps, which are not images
 In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels.
 However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images.
 % Sound is harmonic, and model assumptions may not hold.
 Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies.
 % Make input rep harmonic, does it matter?
-To better adapt convolutional networks to audio, we craft two alternative input representations that aim to exploit this known behavior directly.
+To better adapt convolutional networks to audio, we craft an alternative input representations that aims to exploit this known behavior directly.
 %and determine what effect these have on the efficacy of the learned model.
 % How do we do it?
-We study these approaches in a large, solo instrument classification task, and examine how model architecture influences performance.
+We study this approach in a large, solo instrument classification task, and examine how model architecture influences performance.
 % What do we find?
 %Experimental results show that the use of harmonic convolutions leads to better generalization, faster computation time, and more compact models per unit of performance.
 % Closeout
 Finally, we provide an open source framework to reproduce both our results and the data used herein.
-
 \end{abstract}
 
 
@@ -199,30 +198,33 @@ Formally, we define the HCNN operation as a function parametrized by coefficient
 where $X^h(t, k)$ denotes the $h$th harmonic of frequency at bin $k$ and time $t$.
 
 % Octave-local is easy: just wrap the cqt
-Note the octave-local model can be recovered from \cref{eq:hcnn} by taking only $h=2^n$ for integer $n$.
+Note that the octave-local model can be recovered from \cref{eq:hcnn} by taking a subset of harmonics $h=2^n$ for integer $n$.
 For a CQT with $B$ bins per octave and minimum basis frequency $f_{\min}$, we have bases frequencies defined by
 \begin{equation}
     f_k = 2^{k/B} \cdot f_{\min}, \label{eq:cqtfreqs}
 \end{equation}
-and for any $f_k$, its $h$ harmonic will be located at $f_{k + B}$.
-The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (pitch class, time, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
+and for any $f_k$, its $2^n$ harmonic will be located at $f_{k + (n-1)\cdot B}$.
+The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (time, pitch class, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
 The octave dimension thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
 
 % Harmonic is trickier, since the spacing is not fixed in CQT space
-The harmonic CNN is somewhat more difficult to implement, since the $h$th harmonic of a frequency $f_k$ will not generally coincide with an integer bin number, since this would require
+The general harmonic CNN is somewhat more difficult to implement.
+The $h$th harmonic of a frequency $f_k$ will not generally coincide with an integer bin index $j$, since this would require
 \begin{eqnarray}
-    f_j = 2^{j/B} \cdot f_{\min} &=& h \cdot 2^{k/B} f_{\min} = h \cdot f_k \notag \\
+    f_j = 2^{j/B} \cdot f_{\min} &=& h \cdot 2^{k/B}\cdot f_{\min} = h \cdot f_k \notag \\
     % 2^{j/B} = h * 2^{k/B}
     % j/B = log_2 h + k/B
     % j = k + B log_2 h
 \Rightarrow \quad j &=& k + B \cdot \log_2 h,
 \end{eqnarray}
 which is not an integer for $h \neq 2^n$.
+\Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to some form of approximation (\emph{e.g.}, interpolation between frequency bands).
 %Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
+Moreover, because the harmonically related patches are not evenly spaced along the frequency axis, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
 % Solution: use harmonic planes! analogous to color channels
 %           + volumetric filters
-Instead of octave-wrapping, we instead generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
+Instead of octave-wrapping, we generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
 $X^1$ is defined as a CQT with minimum basis frequency $f^1_{\min}$.
 For $h > 1$, we scale the minimum basis frequency to
 \begin{equation}
@@ -234,7 +236,7 @@ By the definition of the CQT, the subsequent basis frequencies also scale by a f
         &=& 2^{k/B} \cdot h \cdot f^1_{\min}\\
     &=& h \cdot f^1_k.
 \end{eqnarray}
-This implies that for all frequency bins $f$, the $h$th harmonic of $X^1_{t, f}$ is located at $X^h_{t, f}$.
+This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$.
 Collecting all $(X^h)_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
 
 % Note: if this is too expensive for you, harmonics can be approximated on the fly by linear interpolation.  We leave this as future work.
