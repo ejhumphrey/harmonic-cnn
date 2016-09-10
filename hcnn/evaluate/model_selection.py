@@ -1,10 +1,11 @@
 import logging
 import numpy as np
 import pandas
+import sklearn.metrics
 
 import hcnn.common.utils as utils
 import hcnn.train.models
-import hcnn.train.streams as streams
+from . import predict
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ModelSelector(object):
     """Class to choose a model given a list of model parameters."""
     def __init__(self, param_list, valid_df, slicer_fx, t_len,
-                 show_progress=False, percent_validation_set=None):
+                 show_progress=False):
         """
         Parameters
         ----------
@@ -45,7 +46,6 @@ class ModelSelector(object):
         self.slicer_fx = slicer_fx
         self.t_len = t_len
         self.show_progress = show_progress
-        self.percent_validation_set = percent_validation_set
 
     def __call__(self):
         """Do the thing.
@@ -110,28 +110,26 @@ class ModelSelector(object):
         model = hcnn.train.models.NetworkManager.deserialize_npz(
             params_file)
         # Results contains one point accross the whole dataset
-        logger.debug("Evaluating model: {}".format(params_file))
-
-        # Set up our streamer
-        logger.info("Setting up streamer")
-        instrument_mux_params = dict(k=10, lam=2)
-        batch_size = 1000
-        streamer = streams.InstrumentStreamer(
-            self.valid_df, self.slicer_fx, t_len=self.t_len,
-            instrument_mux_params=instrument_mux_params,
-            batch_size=batch_size)
-
-        # Get a batch worth
-        valid_loss, valid_acc = model.evaluate(next(streamer))
+        logger.debug("Evaluating params {}".format(params_file))
+        validation_predictions_df = predict.predict_many(
+            self.valid_df, model, self.slicer_fx, self.t_len,
+            show_progress=True)
 
         evaluation_results = pandas.Series({
-            "mean_loss": valid_loss,
-            "mean_acc": valid_acc
-            })
+            "mean_loss": validation_predictions_df['loss'].mean(),
+            "mean_acc": sklearn.metrics.accuracy_score(
+                validation_predictions_df['y_true'],
+                validation_predictions_df['y_pred']),
+            "f1_weighted": sklearn.metrics.f1_score(
+                validation_predictions_df['y_true'],
+                validation_predictions_df['y_pred'],
+                average='weighted')
+        })
         # Include the metadata in the series.
         model_iteration = utils.filebase(params_file)[6:]
         model_iteration = int(model_iteration) if model_iteration.isdigit() \
             else model_iteration
+
         return evaluation_results.append(pandas.Series({
             "model_file": params_file,
             "model_iteration": model_iteration
@@ -209,3 +207,54 @@ class BinarySearchModelSelector(ModelSelector):
             return -1
         else:
             return 1 if model_b['mean_acc'] > model_a['mean_acc'] else -1
+
+
+class CompleteLinearWeightedF1Search(ModelSelector):
+    """
+    """
+    def model_search(self):
+        """Do a model search with binary search.
+
+        Returns
+        -------
+        results : pandas.DataFrame
+        selected_model : dict or pandas.Series
+            Containing with keys:
+                model_file
+                model_iteration
+                mean_loss
+                mean_acc
+                f1_weighted
+        """
+        results = {}
+        # Don't allow the zero index; We should never select an
+        #  untrained model!
+        index = 1 if len(self.param_list) > 0 else 0
+        end_ind = len(self.param_list) - 1
+
+        logger.info("Linear Model Search from:{} to:{} [total #: {}]".format(
+            utils.filebase(self.param_list[index]),
+            utils.filebase(self.param_list[end_ind]),
+            len(self.param_list) - 1))
+
+        # kinda hacky, but it'll do for now.
+        increment_amount = int(np.round(min(max(10**(np.log10(
+            len(self.param_list)) - 1), 1), 10)))
+
+        while index < end_ind:
+            logger.info("Evaluating {}".format(
+                utils.filebase(self.param_list[index])))
+
+            if index not in results:
+                model = self.param_list[index]
+                results[index] = self.evaluate_model(model)
+
+            index += increment_amount
+
+        results_df = pandas.DataFrame.from_dict(results, orient='index')
+        selected_index = results_df['f1_weighted'].idxmax()
+
+        # Now select the one with the lowest score
+        logger.info("Selected model index:{} / params: {}".format(
+            selected_index, utils.filebase(self.param_list[index])))
+        return results_df, results[selected_index]
