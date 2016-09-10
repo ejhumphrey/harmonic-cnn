@@ -55,10 +55,19 @@ def get_slicer_from_feature(feature_mode):
 class Driver(object):
     "Controller class for running experiments and holding state."
 
+    @classmethod
+    def available_experiments(cls, config_path):
+        model_dir = os.path.expanduser(
+            C.Config.load(config_path)['paths']['model_dir'])
+
+        return [x for x in os.listdir(model_dir)
+                if os.path.isdir(os.path.join(model_dir, x))]
+
     def __init__(self, config, partitions=None,
                  model_name=None,
                  experiment_name=None,
-                 dataset=None, load_features=True):
+                 dataset=None, load_features=True,
+                 skip_load_dataset=False):
         """
         Parameters
         ----------
@@ -104,9 +113,10 @@ class Driver(object):
 
         # Initialize common paths 'n variables.
         self._init(model_name)
-        self.load_dataset(dataset=dataset, load_features=load_features)
-        if partitions:
-            self.setup_partitions(partitions)
+        if not skip_load_dataset:
+            self.load_dataset(dataset=dataset, load_features=load_features)
+            if partitions:
+                self.setup_partitions(partitions)
 
     @property
     def selected_dataset(self):
@@ -140,7 +150,10 @@ class Driver(object):
         else:
             self.model_definition = self.config["model"]
 
-        self.feature_mode = model_name.split('_')[0]
+        if self.model_definition:
+            self.feature_mode = self.model_definition.split('_')[0]
+        else:
+            self.feature_mode = None
 
         self.max_files_per_class = self.config.get(
             "training/max_files_per_class", None)
@@ -154,7 +167,9 @@ class Driver(object):
             self._experiment_config_path = os.path.join(
                 self._model_dir, self.config['experiment/config_path'])
 
-            utils.create_directory(self._model_dir)
+            # if these don't exist, we're not actually running anything
+            if self.model_definition and self.feature_mode:
+                utils.create_directory(self._model_dir)
 
     @property
     def param_format_str(self):
@@ -653,3 +668,17 @@ class Driver(object):
 
     def validate_data(self):
         return True
+
+    def collect_results(self, result_dir):
+        """
+        Moves the following files to result_dir/experiment_name:
+            - [hold_out_set]/training_loss.pkl
+            - [hold_out_set]/validation_loss.pkl
+            - [hold_out_set]/model_[param_number]_predictions.pkl
+
+        Parameters
+        ----------
+        result_dir : str
+            The root destination results directory.
+        """
+        import ipdb; ipdb.set_trace()

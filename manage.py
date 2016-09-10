@@ -6,14 +6,12 @@ Usage:
  manage.py [options] extract_features
  manage.py [options] experiment (train|predict|fit_and_predict|analyze) <experiment_name> <test_set> <model>
  manage.py [options] test [(data|model|unit)]
+ manage.py [options] collect_results <results_destination> [<experiment_name>]
 
 Arguments:
  run           Run all of the the experiments end-to-end.
-               'cqt' runs only on cqt features.
-               'wcqt' runs only on wcqt features.
-               'hcqt' runs only on hcqt features.
  extract_features  Manually extract features from the dataset audio files.
-               (This will happen automatically in a full 'run'.)
+               (This will happen automatically in a 'run'.)
  experiment    fit_and_predict  Train over a specified partition, and
                       immediately runs the predictions over the test set.
                train       Run only the training compoment for a specified
@@ -25,6 +23,12 @@ Arguments:
                'data' tests to make sure the data is setup to run.
                'model' runs simple train and predict on a small subset of data.
                'unit' runs unit tests.
+ collect_results  Collect all the relevant results files from experiments
+               into the results_destination. Most likely used to transfer
+               the results into this git repository.
+               Use 'experiment_name' to only copy results from one experiment.
+               'results_destination' is the root destination for all results.
+               Recommended path is the './results' folder in this repo.
 
 Options:
  -v --verbose  Increase verbosity.
@@ -319,6 +323,34 @@ def integration_test(config):
     return result
 
 
+def collect_results(config, destination, experiment_name=None,
+                    use_integration=False):
+    print(utils.colored("Collecting Results"))
+
+    if experiment_name is None:
+        experiments = hcnn.driver.Driver.available_experiments(config)
+    else:
+        experiments = [experiment_name]
+
+    results = []
+    for experiment_name in experiments:
+        if not use_integration and "integrationtest" in experiment_name:
+            continue
+        elif (use_integration and
+                "integrationtest" not in experiment_name):
+            continue
+
+        print("Collecting experiment", utils.colored(experiment_name, 'cyan'))
+
+        driver = hcnn.driver.Driver(config, experiment_name=experiment_name,
+                                    load_features=False,
+                                    skip_load_dataset=True)
+
+        results.append(driver.collect_results(destination))
+
+    return all(results)
+
+
 def handle_arguments(arguments):
     config = CONFIG_PATH
     logger.debug(arguments)
@@ -375,6 +407,12 @@ def handle_arguments(arguments):
         logger.info('Running {} tests'.format(test_type))
 
         result = run_tests(test_type)
+
+    elif arguments['collect_results']:
+        experiment_name = arguments.get('<experiment_name>', None)
+        destination = arguments['<results_destination>']
+
+        result = collect_results(config, destination, experiment_name)
 
     return result
 
