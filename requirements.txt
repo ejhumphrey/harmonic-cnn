@@ -9,3 +9,4 @@ requests
 https://github.com/Theano/Theano/archive/master.zip
 https://github.com/Lasagne/Lasagne/archive/master.zip
 librosa>=0.4.3
+scikit-learn

@@ -38,6 +38,7 @@ setup(
         'theano',
         'pandas',
         'scandir'
+        'scikit-learn'
     ],
     extras_require={
         'docs': ['numpydoc']
