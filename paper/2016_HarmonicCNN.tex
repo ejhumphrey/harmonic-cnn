@@ -31,7 +31,7 @@
 
 % Three addresses
 % --------------
-\twoauthors
+\twoauthors%
   {First Author} {Affiliation1 \\ {\tt author1@ismir.edu}}
   {Second Author} {\bf Retain these fake authors in\\\bf submission to preserve the formatting}
 %  {Third Author} {Affiliation3 \\ {\tt author3@ismir.edu}}
@@ -54,10 +54,10 @@
 
 %\sloppy % please retain sloppy command for improved formatting
 
-\def\eg{\emph{e.g.\/}}
-\def\ie{\emph{i.e.\/}}
-\def\etc{\emph{etc.\/}}
-\def\etal{\emph{et al.\/}}
+\def\eg{\emph{e.g.}}
+\def\ie{\emph{i.e.}}
+\def\etc{\emph{etc.}}
+\def\etal{\emph{et al.}}
 
 
 \begin{document}
@@ -68,26 +68,26 @@
 \begin{abstract}
 
 % Convnets have rocked MIR
-Convolutional neural networks, originally pioneered in computer vision, have shown great performance across a variety of tasks in audio analysis.
+Convolutional neural networks have shown great performance across a variety of tasks in audio analysis.
 % Operate on time-freq reps, which are not images
-In vision applications, convolutional networks exploit statistical regularities in spatial locality, \eg, neighboring pixels.
+In vision applications, convolutional networks exploit statistical regularities in spatial locality, \ie, neighboring pixels.
 %By limiting the receptive field of a filter to a spatial neighborhood, a convolutional network can learn representations which are position-invariant by allowing filters to move along spatial dimensions.
-However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images.
+However, in audio, these models often operate on time-frequency representations, which exhibit different statistical regularities from natural images.
 % Sound is harmonic, and model assumptions may not hold.
-Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies, which appear distant in time-frequency representations.
+Although time-frequency representations exhibit local regularities, modeling only these interactions ignores the relationships between harmonically related frequencies, which appear distant in time-frequency representations.
 % Make input rep harmonic, does it matter?
-To better adapt convolutional networks to audio, we craft an alternative input representations that aims to exploit this known behavior directly.
+To better adapt convolutional networks to audio, we craft an alternative input representations that directly exploits harmonic frequency statistics.
 %and determine what effect these have on the efficacy of the learned model.
 % How do we do it?
 We study this approach in a large, solo instrument classification task, and examine how model architecture influences performance.
 % What do we find?
 %Experimental results show that the use of harmonic convolutions leads to better generalization, faster computation time, and more compact models per unit of performance.
 % Closeout
-Finally, we provide an open source framework to reproduce both our results and the data used herein.
+Finally, we provide an open source framework to reproduce our dataset and experimental results.
 \end{abstract}
 
 \begin{keywords}
-    audio, deep learning, instrument recognition
+    audio, deep learning, instrument recognition, music
 \end{keywords}
 \section{Introduction}\label{sec:introduction}
 
@@ -108,26 +108,26 @@ and two, weights over local receptive fields can be shared across spatial dimens
 While these properties have been empirically demonstrated to hold for natural images, it is not immediately obvious that the same would be true for time-frequency representations of audio.
 
 %We can visualize why this is a good idea.
-Here, we take the CIFAR dataset, which consists of ${32\times 32}$ images.
-We use the training set of 25K images, compute a two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average over the dataset;
-this is defined formally by the following.
+Here, we take the CIFAR10 dataset~\cite{krizhevsky2009learning}, which consists of ${32\times 32}$ images.
+We use the training set of 25K images, compute a two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average over the dataset.
 As expected, \Cref{fig:image_corr} illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
 
-Intuitively, time-frequency representations are not images, but much previous work overlooks this reality, applying the standard CNN formulation to audio tasks.
-This raises an interesting question: how do these correlations differ from images, and can we similarly leverage this prior knowledge?
-We therefore repeat the same exercise, instead drawing observations from constant-Q representations of audio.
-Using the librosa toolkit, we compute CQT spectra over a number of recordings in the USPop dataset~\cite{berenzweig2004large} and draw 25K windowed observations at random.
+In audio, time-frequency representations (\eg, magnitude spectrograms) are not images, but much of the existing literature applies the same image-based CNN methods.
+This raises an interesting question: how do the statistical regularities of spectrograms differ from those of natural images?
+
+We therefore repeat the autocorrelation experiment, but instead draw observations from constant-Q transform (CQT) representations of audio.
+Using the librosa toolkit~\cite{librosa041}, we computed CQT spectra over a number of recordings in the USPop dataset~\cite{berenzweig2004large} and drew 25K windowed observations uniformly at random.
 As before, the valid, two-dimensional auto-correlation is performed between each windowed observation and a cropped version of itself.
-Given in~\Cref{fig:cqt_corr}, there are two notable distinctions compared to \Cref{fig:image_corr}.
-First, consistent with intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
+\Cref{fig:cqt_corr} demonstrates there are two notable differences from \Cref{fig:image_corr}.
+First, consistent with our intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
 Second, these correlations are not symmetric in frequency.
 
 \begin{figure}
-    \label{fig:cqt_corr}
+\label{fig:cqt_corr}
 \end{figure}
 
 \begin{figure}
-    \label{fig:image_corr}
+\label{fig:image_corr}
 \end{figure}
 
 \subsection{Our contributions}
@@ -194,11 +194,11 @@ Note that the harmonic-local pattern is able to capture the odd harmonics (third
 
 Formally, we define the HCNN operation as a function parametrized by coefficients $w \in \mathbb{R}^{F \times T \times H}$, where $F$ denotes the number of frequency bins, $T$ denotes the number of time frames, and $H$ denotes the number of harmonics to model:
 \begin{equation}
-    g_w(X)_{t, k} := 
-    \sum_{\substack{
-        h \in \{1, 2, \cdots, H\}\\
-        i \in \{-\lfloor T/2\rfloor, \cdots, \lfloor T/2 \rfloor\}\\
-        j \in \{-\lfloor F/2\rfloor, \cdots, \lfloor F/2 \rfloor\}}
+    {g_w(X)}_{t, k} := 
+    \sum_{\substack{%
+        h \in \{1, 2, \ldots, H\}\\
+        i \in \{-\lfloor T/2\rfloor, \ldots, \lfloor T/2 \rfloor\}\\
+        j \in \{-\lfloor F/2\rfloor, \ldots, \lfloor F/2 \rfloor\}}
     }
     \hspace{-3em}%
     w_{ijh} \cdot X^h\left(t + i,\; k + j\right)\label{eq:hcnn}
@@ -244,24 +244,23 @@ By the definition of the CQT, the subsequent basis frequencies also scale by a f
     &=& h \cdot f^1_k.
 \end{eqnarray}
 This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$, as illustrated in \Cref{fig:hcnn}.
-Collecting all $(X^h)_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
+Collecting all ${(X^h)}_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
 
 
 \begin{figure}
     \includegraphics[width=\columnwidth]{figs/hcnn}
-    \caption{The HCNN is implemented by generating $H$ constant-Q transforms $X^1, X^2, \cdots, X^H$.
+    \caption{The HCNN is implemented by generating $H$ constant-Q transforms $X^1, X^2, \ldots, X^H$.
     A single HCNN filter connects to the same time-frequency indices across all harmonic channels (indicated in red), just as color image filters connect to the same spatial coordinates across all color channels.}
 \label{fig:hcnn}
 \end{figure}
 
 \section{Method}\label{sec:typeset_text}
 
-The width (time) of the filters should match that of MH: above I suggested 5x5, but I think 7x7 might be better since it captures +- 1 semitone from the center bin. In M2, this translates to +- 3 semitones. For MF, layer 1 will be full-height by 7.
+%The width (time) of the filters should match that of MH: above I suggested 5x5, but I think 7x7 might be better since it captures +- 1 semitone from the center bin. In M2, this translates to +- 3 semitones. For MF, layer 1 will be full-height by 7.
 
-For layer 2 in MF, the input will have shape (n[1], 1, T - 7//2); frequency information is collapsed out by valid-mode convolution, and we effectively have two-dimensional data (filter number, time). Layer 2 filters then must have shape like (1, width), and the width may as well match the width of layer 2 in MH/M2 (I suggested 9x9 above).
+%For layer 2 in MF, the input will have shape (n[1], 1, T - 7//2); frequency information is collapsed out by valid-mode convolution, and we effectively have two-dimensional data (filter number, time). Layer 2 filters then must have shape like (1, width), and the width may as well match the width of layer 2 in MH/M2 (I suggested 9x9 above).
 
-After that, we max-pool over time and feed into dense layer just as in the other architectures.
-
+%After that, we max-pool over time and feed into dense layer just as in the other architectures.
 
 
 
@@ -272,13 +271,13 @@ Training and evaluating supervised machine learning approaches on MIR tasks face
 % Not many open-audio datasets that can be shared.
 While many researchers have built or leveraged labeled collections of audio, concerns of copyright undermine the reproducibility of results.
 % Data integrity issues, many MIR tasks are subjective, raising issues of evaluation and the use of ground truth.
-In many instances though, collections that do provide access to audio data suffer from questions of validity and integrity, such as GTZAN \cite{Sturm} or Ballroom \cite{Sturm}, or focus on subjective tasks which raise issues of ``ground truth''.
+In many instances though, collections that do provide access to audio data suffer from questions of validity and integrity, such as GTZAN~\cite{tzanetakis2002musical,sturm2012analysis}, or focus on subjective tasks which raise issues of ``ground truth''.
 % Seldom large in size
-Complementing these issues, large audio datasets are uncommon,
-Combined, these challenges make it difficult to form robust conclusions across experiments and researchers.
+Complementing these issues, large, well-annotated audio datasets are uncommon.
+These challenges make it difficult to form robust conclusions across experiments and researchers.
 
-Sizeable, open, and objective of datasets like MNIST \cite{}, CIFAR \cite{}, and NORB \cite{}, however, have served the computer vision community well in the last two decades, helping lead to a number of breakthroughs in the field.
-It is hard to imagine, for example, where the community would be without the early role served by MNIST.
+Sizeable, open, and objective of datasets like MNIST~\cite{lecun1998mnist} or CIFAR~\cite{krizhevsky2009learning}, however, have served the computer vision community well in the last two decades, helping lead to a number of breakthroughs in the field.
+It is hard to imagine, for example, where the community would be without the early role served by MNIST.\@
 Here, we strive to develop a similarly standardized data by building on top of previous efforts in the MIR community to build collections of solo instrument samples.
 
 Here, we combine a number of open datasets in a common manner to yield the Music Instrument dataset, dubbed MINST\footnote{\url{http://github.com/ejhumphrey/minst-dataset}}, in honor of its handwritten digit counterpart.
