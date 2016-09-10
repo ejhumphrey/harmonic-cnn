@@ -70,7 +70,11 @@ class Driver(object):
                  model_name=None,
                  experiment_name=None,
                  dataset=None, load_features=True,
-                 skip_load_dataset=False):
+                 skip_load_dataset=False,
+                 skip_features=False,
+                 skip_training=False,
+                 skip_cleaning=False
+                 ):
         """
         Parameters
         ----------
@@ -113,6 +117,9 @@ class Driver(object):
             self.config = config
 
         self.experiment_name = experiment_name
+        self.skip_features = skip_features
+        self.skip_training = skip_training
+        self.skip_cleaning = skip_cleaning
 
         # Initialize common paths 'n variables.
         self._init(model_name)
@@ -224,6 +231,7 @@ class Driver(object):
         """
         # Always start by loading the dataset.
         if dataset:
+            logger.info("load_dataset() - Using dataset passed as a parameter")
             # If it's a str, it's a path.
             if isinstance(dataset, str):
                 self.dataset = hcnn.data.dataset.Dataset.load(
@@ -231,14 +239,21 @@ class Driver(object):
             elif isinstance(dataset, hcnn.data.dataset.Dataset):
                 self.dataset = dataset
         else:
+            logger.info(utils.colored(
+                "load_dataset() - loading from {}".format(self.dataset_index)))
             self.dataset = hcnn.data.dataset.Dataset.load(
                 self.dataset_index, data_root=self.data_root)
+            logger.info(utils.colored("load_dataset() ... complete"))
 
         assert len(self.dataset) > 0
 
         # If we want the features, additionally add it to the dataset.
-        if load_features:
+        if load_features and not self.skip_features:
+            logger.info(utils.colored("load_dataset() - extracting features."))
             self.dataset = self.extract_features()
+        elif self.skip_features:
+            logger.info(utils.colored(
+                "load_dataset() - skipping feature extraction on user flag."))
 
     def setup_partitions(self, test_partition):
         """Given the partition, setup the sets."""
@@ -277,7 +292,12 @@ class Driver(object):
         self._training_loss_path = os.path.join(
             self._cv_model_dir, self.config['experiment/training_loss'])
 
-        utils.create_directory(self._cv_model_dir)
+        if os.path.exists(self._cv_model_dir):
+            logger.warning("Cleaning old experiment: {}".format(
+                self._cv_model_dir))
+        utils.create_directory(self._cv_model_dir,
+                               # aka if DO the clean, recreate.
+                               recreate=(not self.skip_cleaning))
         utils.create_directory(self._params_dir)
 
     def print_stats(self):
@@ -331,6 +351,10 @@ class Driver(object):
         Trains for max_iterations or max_time, whichever is fewer.
         [Specified in the config.]
         """
+        if self.skip_training:
+            logger.info(utils.colored("--skip_training specified - skipping"))
+            return True
+
         assert hasattr(self, 'train_set') and hasattr(self, 'valid_set')
 
         logger.info("Starting training for experiment: {}".format(
@@ -470,8 +494,7 @@ class Driver(object):
             self._training_loss_path)
 
         # We need these files for models election, so make sure they exist
-        return all([os.path.exists(self._training_loss_path),
-                    os.path.exists(self._training_loss_path)])
+        return os.path.exists(self._training_loss_path)
 
     def find_best_model(self):
         """Perform model selection on the validation set with a binary search
@@ -491,9 +514,9 @@ class Driver(object):
         """
         logger.info("Finding best model for {}".format(
             utils.colored(self.experiment_name, "magenta")))
-        if not self.check_features_input():
-            logger.error("find_best_model features missing invalid.")
-            return False
+        # if not self.check_features_input():
+        #     logger.error("find_best_model features missing invalid.")
+        #     return False
 
         validation_df = self.valid_set.to_df()
 
@@ -509,7 +532,7 @@ class Driver(object):
             model_files = glob.glob(
                 os.path.join(self._params_dir, "params*.npz"))
 
-            result_df, best_model = MS.BinarySearchModelSelector(
+            result_df, best_model = MS.CompleteLinearWeightedF1Search(
                 model_files, validation_df, slicer, t_len,
                 show_progress=True)()
 
@@ -600,13 +623,19 @@ class Driver(object):
 
         return os.path.exists(analysis_path)
 
-    def fit_and_predict_one(self, test_set):
+    def fit_and_predict_one(self, test_set, skip_training=False):
         """On a particular model, with a given set
         * train
         * model_selection
         * predict
         * analyze
         * Write all outputs to a file
+
+        Parameters
+        ----------
+        skip_training : boolean
+            For situations where you need to re-run model selection
+            and prediction, skip up to model selection.
 
         Returns
         -------
@@ -642,9 +671,15 @@ class Driver(object):
                     .format(test_set, result))
         return result
 
-    def fit_and_predict_cross_validation(self):
+    def fit_and_predict_cross_validation(self, skip_training=False):
         """Master loop for running cross validation across
         all datasets.
+
+        Parameters
+        ----------
+        skip_training : boolean
+            For situations where you need to re-run model selection
+            and prediction, skip up to model selection.
 
         Returns
         -------
@@ -654,7 +689,8 @@ class Driver(object):
         logger.info("Beginning fit_and_predict_cross_validation")
         results = []
         for test_set in ["rwc", "uiowa", "philharmonia"]:
-            results.append(self.fit_and_predict_one(test_set))
+            results.append(self.fit_and_predict_one(test_set,
+                                                    skip_training=False))
         final_result = all(results)
         logger.info("Completed fit_and_predict_cross_validation. Result={}"
                     .format(final_result))
