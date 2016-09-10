@@ -32,6 +32,9 @@ Arguments:
 
 Options:
  -v --verbose  Increase verbosity.
+ --skip_features  Prevent the driver from trying to create features.
+ --skip_training  Skip the trianing process, and just do the model selection
+               and prediction for each model given.
 """
 
 from docopt import docopt
@@ -226,7 +229,8 @@ def analyze(master_config,
     return 0
 
 
-def run_all_experiments(config, experiment_root=None):
+def run_all_experiments(config, experiment_root=None,
+                        skip_features=False, skip_training=False):
     MODELS_TO_RUN = [
         'cqt_MF_n16',
         'cqt_M2_n8',
@@ -246,12 +250,16 @@ def run_all_experiments(config, experiment_root=None):
 
     results = []
     for model_name in MODELS_TO_RUN:
-        results.append(run_experiment(model_name, config, experiment_root))
+        results.append(run_experiment(model_name, config, experiment_root,
+                                      skip_features=skip_features,
+                                      skip_training=skip_training))
 
     return all(results)
 
 
-def run_experiment(model_name, config, experiment_root=None):
+def run_experiment(model_name, config, experiment_root=None,
+                   skip_features=False,
+                   skip_training=False):
     """Run an experiment using the specified input feature
 
     Parameters
@@ -270,7 +278,10 @@ def run_experiment(model_name, config, experiment_root=None):
     driver = hcnn.driver.Driver(config,
                                 model_name=model_name,
                                 experiment_name=experiment_name,
-                                load_features=True)
+                                load_features=True,
+                                skip_features=skip_features,
+                                skip_training=skip_training,
+                                skip_cleaning=skip_training)
     result = driver.fit_and_predict_cross_validation()
 
     return result
@@ -358,12 +369,18 @@ def handle_arguments(arguments):
     # Run modes
     if arguments['run']:
         model = arguments['<model>']
+        skip_training = arguments['--skip_training']
+        skip_features = arguments['--skip_features']
 
         logger.info("Run Mode; model={}".format(model))
         if model:
-            result = run_experiment(model, config)
+            result = run_experiment(model, config,
+                                    skip_features=skip_features,
+                                    skip_training=skip_training)
         else:
-            result = run_all_experiments(config)
+            result = run_all_experiments(config,
+                                         skip_features=skip_features,
+                                         skip_training=skip_training)
 
     elif arguments['extract_features']:
         logger.info('Extracting features.')
