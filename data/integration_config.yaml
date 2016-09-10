@@ -1,5 +1,4 @@
 paths:
-  extract_dir: "~/data/hcnn_data"
   feature_dir: "~/data/hcnn_data/tinydata_cqt"
   model_dir: "~/data/hcnn_data/models"
 

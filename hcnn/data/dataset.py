@@ -39,7 +39,8 @@ class Observation(object):
     """Document model each item in the collection.
     TODO: Inherit / whatever from minst-dataset repo
     """
-    SCHEMA = get_remote_schema()
+    # SCHEMA = get_remote_schema()
+    SCHEMA = {}
 
     def __init__(self, dataset, audio_file, instrument,
                  index=None, source_key=None,
