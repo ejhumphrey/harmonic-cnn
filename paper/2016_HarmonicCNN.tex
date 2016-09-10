@@ -211,8 +211,7 @@ The $h$th harmonic of a frequency $f_k$ will not generally coincide with an inte
 \end{eqnarray}
 which is not an integer for $h \neq 2^n$.
 \Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to some form of approximation (\emph{e.g.}, interpolation between frequency bands).
-%Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
-Moreover, because the harmonically related patches are not evenly spaced along the frequency axis, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
+Moreover, because the harmonically related bins are not uniformly spaced along the frequency axis, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
 % Solution: use harmonic planes! analogous to color channels
 %           + volumetric filters
@@ -232,12 +231,9 @@ This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$
 Collecting all $(X^h)_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
 
 
-% Note: if this is too expensive for you, harmonics can be approximated on the fly by linear interpolation.  We leave this as future work.
-%TODO: make a figure showing the harmonic planes
-
 \begin{figure}
     \includegraphics[width=\columnwidth]{figs/hcnn}
-    \caption{The HCNN is implemented by generating $H$ constant-Q transforms $X^1, X^2, \cdots, X^h$.
+    \caption{The HCNN is implemented by generating $H$ constant-Q transforms $X^1, X^2, \cdots, X^H$.
     A single HCNN filter connects to the same time-frequency indices across all harmonic channels (indicated in red), just as color image filters connect to the same spatial coordinates across all color channels.}
 \label{fig:hcnn}
 \end{figure}
