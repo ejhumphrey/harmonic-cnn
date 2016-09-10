@@ -36,45 +36,27 @@ def predict_one(dfrecord, model, slicer_fx, t_len):
         All the results stored as a pandas.Series
     """
     # Get predictions for every timestep in the file.
-    results = []
-    losses = []
-    accs = []
     target = instrument_map.get_index(dfrecord["instrument"])
 
+    predictions = []
+    losses = []
+    # Technically, this should only ever sample one frame,
+    #  but we use the for loop to handle StopIterations smoothly.
     for frames in slicer_fx(dfrecord, t_len=t_len,
                             shuffle=False, auto_restart=False,
                             add_noise=False):
-        results += [model.predict(frames)]
+        predictions += [model.predict(frames).argmax()]
         loss, acc = model.evaluate(frames)
-        losses += [loss]
-        accs += [acc]
-    if len(results) and len(losses) and len(accs):
-        results = np.concatenate(results)
-        mean_loss = np.mean(losses)
-        mean_acc = np.mean(accs)
+        losses.append(loss)
 
-        class_predictions = results.argmax(axis=1)
+    y_pred = predictions[0] if len(predictions) else None
+    loss = losses[0] if len(losses) else None
 
-        # calculate the maximum likelihood class - the class with the highest
-        #  predicted probability across all frames.
-        max_likelihood_class = results.max(axis=0).argmax()
-
-        # Also calculate the highest voted frame.
-        vote_class = np.asarray(np.bincount(class_predictions).argmax(),
-                                dtype=np.int)
-
-        # Return both of these as a dataframe.
-        return pandas.Series(
-            data=[mean_loss, mean_acc, max_likelihood_class,
-                  vote_class, target],
-            index=["mean_loss", "mean_acc", "max_likelihood",
-                   "vote", "target"],
-            name=dfrecord.name)
-    else:
-        return pandas.Series(
-            index=["mean_loss", "mean_acc", "max_likelihood",
-                   "vote", "target"],
-            name=dfrecord.name)
+    # Return both of these as a dataframe.
+    return pandas.Series(
+        data=[loss, y_pred, target],
+        index=['loss', "y_pred", "y_true"],
+        name=dfrecord.name)
 
 
 def predict_many(test_df, model, slicer_fx, t_len, show_progress=False):
