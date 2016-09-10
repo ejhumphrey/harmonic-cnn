@@ -1,4 +1,5 @@
 import copy
+import glob
 import logging
 import logging.config
 import os
@@ -37,6 +38,31 @@ logging.config.dictConfig({
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), os.pardir,
                            "data", "integration_config.yaml")
 config = C.Config.load(CONFIG_PATH)
+
+
+@pytest.fixture
+def config_with_workspace(workspace):
+    thisconfig = copy.deepcopy(config)
+    thisconfig.data['training']['iteration_write_frequency'] = 1
+    thisconfig.data['training']['iteration_print_frequency'] = 5
+    thisconfig.data['training']['max_iterations'] = 20
+    thisconfig.data['training']['batch_size'] = 12
+    thisconfig.data['training']['max_files_per_class'] = 3
+    thisconfig.data['paths']['model_dir'] = os.path.join(workspace, "models")
+    thisconfig.data['paths']['feature_dir'] = os.path.join(workspace, "cqt")
+
+    return thisconfig
+
+
+@pytest.fixture
+def available_datasets():
+    return ["rwc", 'uiowa', 'philharmonia']
+
+
+@pytest.fixture
+def pre_existing_experiment(config_with_workspace):
+    """Create some template existing experiment data."""
+    pass
 
 
 @pytest.mark.slowtest
@@ -96,19 +122,10 @@ def test_train_simple_model(model_name, module_workspace, workspace,
                          ids=["cqt_MF_n16",
                               "cqt_M2_n8",
                               "hcqt_MH_n8"])
-def test_find_best_model(model_name, workspace):
-    thisconfig = copy.deepcopy(config)
-    thisconfig.data['training']['iteration_write_frequency'] = 2
-    thisconfig.data['training']['iteration_print_frequency'] = 10
-    thisconfig.data['training']['max_iterations'] = 50
-    thisconfig.data['training']['batch_size'] = 12
-    thisconfig.data['training']['max_files_per_class'] = 3
-    thisconfig.data['paths']['model_dir'] = workspace
-    thisconfig.data['experiment']['hold_out_set'] = "rwc"
+def test_find_best_model(config_with_workspace, model_name, workspace):
     experiment_name = "testexperiment"
-    hold_out = thisconfig['experiment/hold_out_set']
-
-    driver = hcnn.driver.Driver(thisconfig, model_name=model_name,
+    hold_out = "rwc"
+    driver = hcnn.driver.Driver(config_with_workspace, model_name=model_name,
                                 experiment_name=experiment_name,
                                 load_features=True)
     driver.setup_partitions(hold_out)
@@ -145,3 +162,38 @@ def test_find_best_model(model_name, workspace):
         workspace, experiment_name, hold_out,
         "model_{}_predictions.pkl".format(param_iter))
     assert os.path.exists(predictions_df_path)
+
+
+def test_collect_results(config_with_workspace, pre_existing_experiment,
+                         available_datasets, workspace):
+    driver = hcnn.driver.Driver(config_with_workspace,
+                                experiment_name=pre_existing_experiment,
+                                load_features=False,
+                                skip_load_dataset=True)
+
+    destination_dir = os.path.join(workspace, "results")
+    result = driver.collect_results(destination_dir)
+
+    assert result is True
+
+    new_experiment_dir = os.path.join(destination_dir, pre_existing_experiment)
+    assert os.path.isdir(new_experiment_dir)
+
+    for dataset in available_datasets:
+        dataset_results = os.path.join(new_experiment_dir, dataset)
+        assert os.path.isdir(dataset_results)
+
+        training_loss_fp = os.path.join(dataset_results, "training_loss.pkl")
+        assert os.path.isfile(training_loss_fp)
+        validation_loss_fp = os.path.join(dataset_results,
+                                          "validation_loss.pkl")
+        assert os.path.isfile(validation_loss_fp)
+
+        prediction_file = os.path.join(dataset_results, "*predictions.pkl")
+        assert len(glob.glob(prediction_file)) > 0
+
+    # Finally, collect_results should create an overall analysis of the
+    # three-fold validation, and put it in
+    overall_results_fp = os.path.join(
+        new_experiment_dir, "experiment_results.json")
+    assert os.path.isfile(overall_results_fp)
