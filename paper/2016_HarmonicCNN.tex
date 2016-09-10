@@ -10,7 +10,7 @@
 % -----------------------------------------------
 
 \documentclass{article}
-\usepackage{spconf,amsmath,cite}
+\usepackage{spconf,amsmath,amssymb,cite}
 \usepackage{graphicx}
 \usepackage{color}
 \usepackage{hyperref}
@@ -118,6 +118,13 @@ Given in \Cref{fig:cqt_corr}, there are two notable distinctions.
 First, consistent with intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
 Second, these correlations are not symmetrical in frequency.
 
+\begin{figure}
+    \label{fig:cqt_corr}
+\end{figure}
+\begin{figure}
+    \label{fig:image_corr}
+\end{figure}
+
 In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task of solo music instrument classification, using a newly standardized dataset referred to the Music INSTrument (MINST) dataset.
 %The remainder of the paper is organized as follows:
 %Section II details our approach to exploiting correlations in convolutional networks;
@@ -125,7 +132,7 @@ In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task 
 %and Section IV discusses results and conclusions drawn therein.
 
 
-\section{Harmonic Convolution Neural Networks}\label{sec:page_size}
+\section{Sparsity in Convolutional Networks}\label{sec:page_size}
 
 % 1. convnets in time-frequency (stft, 1d)
 % 2. convnets in time-logf (cqt, 1d/full)
@@ -136,14 +143,15 @@ In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task 
 \begin{figure}
     \includegraphics[width=\columnwidth]{figs/filter-shapes}
     \caption{A comparison of different sparsity patterns for convolutional networks on spectrogram inputs.
-        \emph{Full} connectivity requires that the filter connect to all frequency bins in a temporal window around the sample frame at time $t$.
-        \emph{Frequency-local} connectivity only connects a filter to near-by frequencies at time-frequency $(t, f)$.
-        \emph{Octave-local} connectivity allows a filter to connect to the same pitch classes across different octaves at time-frequency $(t, f)$: that is, frequencies related to $f$ by integer powers of 2 $f' = f \cdot 2^k$.
-        \emph{Harmonic-local} connectivity allows a filter to connect to harmonically related frequencies: $f' \in \{f, 2f, 3f, \dots\}$.}
+        \emph{Full} connectivity (blue) requires that the filter connect to all frequency bins in a temporal window around the center frame.
+        \emph{Frequency-local} connectivity (green) only connects a filter to near-by frequencies.
+        \emph{Octave-local} connectivity (yellow) allows a filter to connect to the same pitch classes across different octaves.
+        \emph{Harmonic-local} connectivity (white) allows a filter to connect to harmoincally related frequencies.}
 \label{figs:filter-shapes}
 \end{figure}
+Convolutional neural networks (CNNs) derive their expressive power by modeling ``local'' statistical regularities.
+As illustrated in \Cref{figs:filter-shapes}, there are a variety of ways to model ``locality'' in spectrogram representations.
 
-As illustrated in \Cref{figs:filter-shapes}, there are a variety of ways to model ``locality'' between time-frequency bins with a convolutional network.
 Arguably the simplest method is to model the entire frequency range over a short time window.  
 This method, denoted as \emph{Full} in \Cref{figs:filter-shapes} requires filter coefficients which span the entire frequency axis of the spectrogram.
 While this model makes the fewest possible assumptions about independence among frequencies, it also cannot be made pitch-invariant since the filter cannot move along the frequency axis.
@@ -157,19 +165,69 @@ Frequency-local filters can therefore capture highly localized characteristics o
 Higher-level properties can be modeled by subsequent processing layers, and this approach has been shown to be effective for intermediate-level tasks such as instrument recognition. %self-cite. TODO: eric, did you use this for chords?
 
 
-Recently, Lotsanlen~\nocite{lostanlen2016} proposed a variant of the Frequency-local approach in which filters are connected to small time-frequency patches tiled across multiple octaves.
+Recently, Lostanlen and Cella~\nocite{lostanlen2016} proposed a variant of the Frequency-local approach in which filters are connected to small time-frequency patches tiled across multiple octaves.
 This method is depicted in \Cref{figs:filter-shapes} as \emph{octave-local}.
 As the illustration shows, this connectivity scheme allows for a filter to be pitch-invariant while modeling local time-frequency statistics as well as broad spectrum properties.
 Consequently, this approach --- when used in combination with the previous two methods --- demonstrated superior performance for instrument recognition, which requires both pitch-invariance and broad-spectrum models.
 Note, however, that connections are only included to frequencies related by an integer power of 2 to the bottom time-frequency patch.
-Octave-local design therefore disregards odd (and composite) harmonics, which can be highly informative for determining the timbre of a sound.
+Octave-local design therefore disregards odd harmonics, which can be highly informative for determining the timbre of a sound.
+%We also note that Lostanlen's implementation limited the octave neighborhood to span three octaves.
 
 %Reference Lostanlen's ISMIR work.
 %The facets we consider differently are...
 
+\subsection{Harmonic CNNs}
+
+The proposed harmonic CNN (HCNN) is a straightforward extension of the previous methods.
+Rather than connect a filter to time-frequency patches which are in octave relation to each other (as in the octave-local model), the HCNN connects time-frequency patches which are related by integer multiples.
+This connectivity pattern is illustrated in the final column of \Cref{figs:filter-shapes} (harmonic-local).
+Note that the harmonic-local pattern is able to capture the odd harmonics (third and fifth)  of the fundamental (around 500Hz) which are missed by the frequency- and octave-local models.
+
+\subsection{HCNN Implementation}
+
+Formally, we define the HCNN operation as a function parametrized by coefficients $w \in \mathbb{R}^{F \times T \times H}$, where $F$ denotes the number of frequency bins, $T$ denotes the number of time frames, and $H$ denotes the number of harmonics to model:
+\begin{equation}
+    g_w(X)_{t, f} := 
+    \sum_{\substack{
+        h \in \{1, 2, \cdots, H\}\\
+        i \in \{-\lfloor T/2\rfloor, \cdots, \lfloor T/2 \rfloor\}\\
+        j \in \{-\lfloor F/2\rfloor, \cdots, \lfloor F/2 \rfloor\}}
+    }
+    \hspace{-3em}%
+    w_{ijh} \cdot X^h\left(t + i,\; f + j\right)\label{eq:hcnn}
+\end{equation}
+where $X^h(t, f)$ denotes the $h$th harmonic of frequency $f$ at time $t$.
+
+% Octave-local is easy: just wrap the cqt
+Note the octave-local model can be recovered from \cref{eq:hcnn} by taking only $h=2^k$ for integer $k$.
+In this case, the model can be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (pitch class, time, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
+The octave dimension then plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+
+% Harmonic is trickier, since the spacing is not fixed in CQT space
+The harmonic CNN is somewhat more difficult to implement, since the $h$ harmonic of a frequency $f$ will not in generally land at an integer bin number.
+Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
+
+% Solution: use harmonic planes! analogous to color channels
+%           + volumetric filters
+Instead of octave-wrapping, we instead generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
+$X^1$ is defined as a CQT with quality factor $Q$ and minimum basis frequency $f^1_{\min}$.
+For $h > 1$, we retain $Q$ but scale the minimum basis frequency to
+\begin{equation}
+    f^h_{\min} := h \cdot f^1_{\min}.\label{eq:fmin}
+\end{equation}
 
 
-% TODO: move this down to the next section
+
+
+
+%TODO: make a figure showing the harmonic planes
+
+
+
+
+
+
+\section{Method}\label{sec:typeset_text}
 
 The width (time) of the filters should match that of MH: above I suggested 5x5, but I think 7x7 might be better since it captures +- 1 semitone from the center bin. In M2, this translates to +- 3 semitones. For MF, layer 1 will be full-height by 7.
 
@@ -177,15 +235,8 @@ For layer 2 in MF, the input will have shape (n[1], 1, T - 7//2); frequency info
 
 After that, we max-pool over time and feed into dense layer just as in the other architectures.
 
-\begin{figure}
-    \label{fig:cqt_corr}
-\end{figure}
-\begin{figure}
-    \label{fig:image_corr}
-\end{figure}
 
 
-\section{Method}\label{sec:typeset_text}
 
 \subsection{The MINST Dataset}\label{subsec:body}
 
