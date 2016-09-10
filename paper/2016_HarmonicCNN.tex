@@ -163,13 +163,14 @@ Arguably the simplest method is to model the entire frequency range over a short
 This method, denoted as \emph{Full} in \Cref{figs:filter-shapes} requires filter coefficients which span the entire frequency axis of the spectrogram.
 While this model makes the fewest possible assumptions about independence among frequencies, it also cannot be made pitch-invariant since the filter cannot move along the frequency axis.
 Consequently, it may take a large number of filters --- each with a large number of coefficients --- and thus a large amount of training data to model the relatively simply phenomenon of pitch modulation.
-However, this approach has been demonstrated to be effective for high-level tasks. %TODO: cite sander, maybe pablo, eric, etc\ldots
+However, this approach has been demonstrated to be effective for high-level tasks~\cite{van2013deep}.
+%TODO: cite eric, etc\ldots
 
 The second approach uses smaller filters, which can be moved along the frequency axis.
 For this approach to properly generate pitch-invariant features, the frequency axis of the spectrogram must be logarithmically spaced, as in the constant-Q transform (CQT).
 This method, denoted as \emph{Frequency-local} in \Cref{figs:filter-shapes}, is closely related to the local receptive field filters used in computer vision applications.
 Frequency-local filters can therefore capture highly localized characteristics of sound, such as attack profile or vibrato, but cannot directly capture properties derived from distant frequencies, such as timbre.
-Higher-level properties can be modeled by subsequent processing layers, and this approach has been shown to be effective for intermediate-level tasks such as instrument recognition. %self-cite. TODO: eric, did you use this for chords?
+Higher-level properties can be modeled by subsequent processing layers, and this approach has been shown to be effective for intermediate-level tasks such as instrument recognition~\cite{mcfee2015_augmentation}.
 
 
 Recently, Lostanlen and Cella~\cite{lostanlen2016} proposed a variant of the Frequency-local approach in which filters are connected to small time-frequency patches tiled across multiple octaves.
@@ -178,10 +179,7 @@ As the illustration shows, this connectivity scheme allows for a filter to be pi
 Consequently, this approach --- when used in combination with the previous two methods --- demonstrated superior performance for instrument recognition, which requires both pitch-invariance and broad-spectrum models.
 Note, however, that connections are only included to frequencies related by an integer power of 2 to the bottom time-frequency patch.
 Octave-local design therefore disregards odd harmonics, which can be highly informative for determining the timbre of a sound.
-%We also note that Lostanlen's implementation limited the octave neighborhood to span three octaves.
 
-%Reference Lostanlen's ISMIR work.
-%The facets we consider differently are...
 
 \subsection{Harmonic CNNs}
 
@@ -223,7 +221,6 @@ The octave dimension, illustrated in \Cref{fig:ocnn}, thus plays a role similar 
 \end{figure}
 
 
-% Harmonic is trickier, since the spacing is not fixed in CQT space
 The general harmonic CNN is somewhat more difficult to implement.
 The $h$th harmonic of $f_k$ will not generally coincide with an integer bin index $j$, because
 \begin{eqnarray}
@@ -237,8 +234,6 @@ and $B \cdot\log_2 h$ is not an integer for (integer) $h \neq 2^n$.
 \Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to approximations (\eg, index rounding or interpolation between frequency bands).
 Moreover, because the harmonically related frequencies are not uniformly separated in log-frequency, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
-% Solution: use harmonic planes! analogous to color channels
-%           + volumetric filters
 These issues can be avoided by using $H$ constant-Q transforms $X^1, X^2, \dots, X^H$, defined as follows.
 $X^1$ is a CQT with minimum basis frequency $f^1_{\min}$,
 and for $h > 1$, the minimum basis frequency is
