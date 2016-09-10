@@ -240,7 +240,7 @@ def run_all_experiments(config, experiment_root=None):
     #     'cqt_M2_n32',
     #     'cqt_M2_n64'
     #     'hcqt_MH_n16',
-    #     'hcqt_MH_n32'
+    #     'hcqt_MH_n32',
     #     'hcqt_MH_n64'
     # ]
 

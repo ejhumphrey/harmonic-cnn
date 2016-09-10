@@ -37,7 +37,7 @@ setup(
         'scipy',
         'theano',
         'pandas',
-        'scandir'
+        'scandir',
         'scikit-learn'
     ],
     extras_require={
