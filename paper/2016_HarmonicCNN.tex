@@ -87,7 +87,7 @@ Finally, we provide an open source framework to reproduce our dataset and experi
 \end{abstract}
 
 \begin{keywords}
-    audio, deep learning, instrument recognition, music
+    audio, deep learning, instrument recognition, music, convolutional networks
 \end{keywords}
 \section{Introduction}\label{sec:introduction}
 
@@ -217,7 +217,7 @@ The octave dimension, illustrated in \Cref{fig:ocnn}, thus plays a role similar 
 
 \begin{figure}
     \includegraphics[width=\columnwidth]{figs/octave-local}
-    \caption{The octave-local model is implemented by slicing the CQT $X$ into half-overlapping frequency ranges spanning two octaves each, as illustrated on the right.
+    \caption{The octave-local model is implemented by slicing the CQT into half-overlapping frequency ranges spanning two octaves each, as illustrated on the right.
     A single filter (indicated in yellow) connects to the same time-pitch-class indices across all octave channels.}
 \label{fig:ocnn}
 \end{figure}
@@ -233,7 +233,7 @@ The $h$th harmonic of $f_k$ will not generally coincide with an integer bin inde
     % j = k + B log_2 h
 \Rightarrow \quad j &=& k + B \cdot \log_2 h,
 \end{eqnarray}
-and $B \cdot\log_2 h$ is not an integer for $h \neq 2^n$.
+and $B \cdot\log_2 h$ is not an integer for (integer) $h \neq 2^n$.
 \Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to approximations (\eg, index rounding or interpolation between frequency bands).
 Moreover, because the harmonically related frequencies are not uniformly separated in log-frequency, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
