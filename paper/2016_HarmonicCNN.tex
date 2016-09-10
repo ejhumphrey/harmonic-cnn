@@ -204,7 +204,7 @@ In this case, the model can be implemented efficiently by standard 2-dimensional
 The octave dimension then plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
 
 % Harmonic is trickier, since the spacing is not fixed in CQT space
-The harmonic CNN is somewhat more difficult to implement, since the $h$ harmonic of a frequency $f$ will not in generally land at an integer bin number.
+The harmonic CNN is somewhat more difficult to implement, since the $h$ harmonic of a frequency $f$ will not generally coincide with an integer bin number.
 Moreover, the octave-wrapping approach does not preserve index locality for ${h \neq 2^k}$, so the resulting representation would not be amenable to use with standard frameworks.
 
 % Solution: use harmonic planes! analogous to color channels
@@ -215,6 +215,7 @@ For $h > 1$, we retain $Q$ but scale the minimum basis frequency to
 \begin{equation}
     f^h_{\min} := h \cdot f^1_{\min}.\label{eq:fmin}
 \end{equation}
+% TODO CQT implies that this preserves index locality
 
 
 
