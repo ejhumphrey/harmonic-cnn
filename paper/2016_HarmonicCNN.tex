@@ -54,6 +54,12 @@
 
 %\sloppy % please retain sloppy command for improved formatting
 
+\def\eg{\emph{e.g.\/}}
+\def\ie{\emph{i.e.\/}}
+\def\etc{\emph{etc.\/}}
+\def\etal{\emph{et al.\/}}
+
+
 \begin{document}
 
 %
@@ -64,10 +70,11 @@
 % Convnets have rocked MIR
 Convolutional neural networks, originally pioneered in computer vision, have shown great performance across a variety of tasks in audio analysis.
 % Operate on time-freq reps, which are not images
-In vision applications, convolutional networks exploit statistical regularities in spatial locality, \emph{e.g.}, neighboring pixels.
+In vision applications, convolutional networks exploit statistical regularities in spatial locality, \eg, neighboring pixels.
+%By limiting the receptive field of a filter to a spatial neighborhood, a convolutional network can learn representations which are position-invariant by allowing filters to move along spatial dimensions.
 However, in audio, these models typically operate on time-frequency representations, which exhibit different statistical properties from natural images.
 % Sound is harmonic, and model assumptions may not hold.
-Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies.
+Although time-frequency bins do exhibit local regularities, modeling only these local interactions ignores the relationships between harmonically related frequencies, which appear distant in time-frequency representations.
 % Make input rep harmonic, does it matter?
 To better adapt convolutional networks to audio, we craft an alternative input representations that aims to exploit this known behavior directly.
 %and determine what effect these have on the efficacy of the learned model.
@@ -80,43 +87,52 @@ Finally, we provide an open source framework to reproduce both our results and t
 \end{abstract}
 
 \begin{keywords}
-    deep learning
+    audio, deep learning, instrument recognition
 \end{keywords}
 \section{Introduction}\label{sec:introduction}
 
 % Deep learning, so hot right now... deep learning.
-Many classic tasks in MIR aim to develop computational systems for modeling the human perception of music signals to achieve robust content understanding at scale, e.g. tens of millions of tracks.
-In the last several years, a number of research communities have fully embraced feature learning and deep networks, which excel at modeling the kinds of complex, nonlinear behavior found in acoustic signals.
-Convolutional neural networks (CNNs) are now an especially common choice for MIR tasks, finding use in timbre modelling, chord estimation, onset detection, structural segmentation, on so on.
+%Many tasks in audio analysis aim to develop computational systems for modeling the human perception of acoustic signals to achieve robust content understanding at scale, \eg, tens of millions of tracks.
 
-It is worth noting that convolutional networks draw inspiration from biological vision systems \cite{Hubel1964, LeCun1998}, and common implementations have been architected with computer vision in mind.
-CNNs are characterized by two features:
-one, local receptive fields exploit statistical properties of natural images, i.e. neighboring pixels tend to be more correlated than distant ones;
-and two, weights over these local receptive fields are shared across spatial dimensions, providing translation invariant features.
+Over the last decade, many research communities have embraced automatic feature learning and deep networks as a viable and superior alternative to hand-crafted feature design.
+In particular, convolutional neural networks (CNNs)~\cite{lecun1998gradient} excel at modeling complex, nonlinear, and multi-scale behavior found in acoustic signals.
+CNNs are now an common choice for many audio analysis tasks, such as speech recognition, environmental event detection and scene classification, and a host of musical analysis tasks, such as chord estimation, rhythm analysis, structural segmentation, or instrument detection.
+%TODO: cite application papers
 
-We can visualize why this is a good idea.
-Here, we take the CIFAR dataset, which consists of small (32x32) images.
-We use the training set of 25k images, compute a 2D auto-correlation between each image and a slightly cropped version of itself, and average over the dataset;
+\subsection{CNNs and spatial locality}
+It is worth noting that convolutional networks draw inspiration from biological vision systems~\cite{hubel1964effects}, and common model architectures have been designed with computer vision in mind.
+In vision applications, CNNs exploit two fundamental properties of natural images:
+one, statistical regularities exist primarily within small spatial regions (distant pixels tend to be uncorrelated),
+and two, weights over local receptive fields can be shared across spatial dimensions, providing translation-invariant features.
+
+While these properties have been empirically demonstrated to hold for natural images, it is not immediately obvious that the same would be true for time-frequency representations of audio.
+
+%We can visualize why this is a good idea.
+Here, we take the CIFAR dataset, which consists of ${32\times 32}$ images.
+We use the training set of 25K images, compute a two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average over the dataset;
 this is defined formally by the following.
 As expected, \Cref{fig:image_corr} illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
 
 Intuitively, time-frequency representations are not images, but much previous work overlooks this reality, applying the standard CNN formulation to audio tasks.
 This raises an interesting question: how do these correlations differ from images, and can we similarly leverage this prior knowledge?
 We therefore repeat the same exercise, instead drawing observations from constant-Q representations of audio.
-Using the librosa toolkit, we compute CQT spectra over a number of recordings in the USPop dataset\cite{Ellis2002} and draw 25k windowed observations at random.
-As before, the valid, 2D auto-correlation is performed between each windowed observation and a cropped version of itself.
-Given in \Cref{fig:cqt_corr}, there are two notable distinctions.
+Using the librosa toolkit, we compute CQT spectra over a number of recordings in the USPop dataset~\cite{berenzweig2004large} and draw 25K windowed observations at random.
+As before, the valid, two-dimensional auto-correlation is performed between each windowed observation and a cropped version of itself.
+Given in~\Cref{fig:cqt_corr}, there are two notable distinctions compared to \Cref{fig:image_corr}.
 First, consistent with intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
-Second, these correlations are not symmetrical in frequency.
+Second, these correlations are not symmetric in frequency.
 
 \begin{figure}
     \label{fig:cqt_corr}
 \end{figure}
+
 \begin{figure}
     \label{fig:image_corr}
 \end{figure}
 
-In this work, we apply Harmonic Convolution Neural Networks (HCNNs) to the task of solo music instrument classification, using a newly standardized dataset referred to the Music INSTrument (MINST) dataset.
+\subsection{Our contributions}
+In this work, we develop Harmonic Convolution Neural Networks (HCNNs), and apply the method to the task of solo music instrument classification.
+To evaluate the method, we developed a newly standardized dataset referred to the Music INSTrument (MINST) dataset.
 %The remainder of the paper is organized as follows:
 %Section II details our approach to exploiting correlations in convolutional networks;
 %Section III describes the experimental method used in this work;
@@ -210,7 +226,7 @@ The $h$th harmonic of a frequency $f_k$ will not generally coincide with an inte
 \Rightarrow \quad j &=& k + B \cdot \log_2 h,
 \end{eqnarray}
 which is not an integer for $h \neq 2^n$.
-\Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to some form of approximation (\emph{e.g.}, interpolation between frequency bands).
+\Cref{eq:hcnn} cannot be directly implemented on a CQT without resorting to some form of approximation (\eg, interpolation between frequency bands).
 Moreover, because the harmonically related bins are not uniformly spaced along the frequency axis, there is no simple reshaping of the spectrogram that would simultaneously align patches for use with standard 2D convolution operators.
 
 % Solution: use harmonic planes! analogous to color channels
