@@ -210,22 +210,22 @@ Moreover, the octave-wrapping approach does not preserve index locality for ${h 
 % Solution: use harmonic planes! analogous to color channels
 %           + volumetric filters
 Instead of octave-wrapping, we instead generate $H$ constant-Q transforms $X^1, X^2, \dots, X^H$ for a given input signal.
-$X^1$ is defined as a CQT with quality factor $Q$ and minimum basis frequency $f^1_{\min}$.
-For $h > 1$, we retain $Q$ but scale the minimum basis frequency to
+$X^1$ is defined as a CQT with minimum basis frequency $f^1_{\min}$ and $B$ bins per octave.
+For $h > 1$, we scale the minimum basis frequency to
 \begin{equation}
     f^h_{\min} := h \cdot f^1_{\min}.\label{eq:fmin}
 \end{equation}
-% TODO CQT implies that this preserves index locality
+By the definition of the CQT, the subsequent basis frequencies also scale by a factor of $h$ in relation to the original:
+\begin{eqnarray}
+    f^h_k &=& 2^{k/B} \cdot f^h_{\min}\\
+        &=& 2^{k/B} \cdot h \cdot f^1_{\min}\\
+    &=& h \cdot f^1_k.
+\end{eqnarray}
+This implies that for all frequency bins $f$, the $h$th harmonic $X^1_{t, f}$ is located at $X^h_{t, f}$.
+Collecting all $(X^h)_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
 
-
-
-
-
+% Note: if this is too expensive for you, harmonics can be approximated on the fly by linear interpolation.  We leave this as future work.
 %TODO: make a figure showing the harmonic planes
-
-
-
-
 
 
 \section{Method}\label{sec:typeset_text}
