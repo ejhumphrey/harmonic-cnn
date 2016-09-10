@@ -236,12 +236,19 @@ By the definition of the CQT, the subsequent basis frequencies also scale by a f
         &=& 2^{k/B} \cdot h \cdot f^1_{\min}\\
     &=& h \cdot f^1_k.
 \end{eqnarray}
-This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$.
+This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$, as illustrated in \Cref{fig:hcnn}.
 Collecting all $(X^h)_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
+
 
 % Note: if this is too expensive for you, harmonics can be approximated on the fly by linear interpolation.  We leave this as future work.
 %TODO: make a figure showing the harmonic planes
 
+\begin{figure}
+    \includegraphics[width=\columnwidth]{figs/hcnn}
+    \caption{The HCNN is implemented by generating $H$ constant-Q transforms $X^1, X^2, \cdots, X^h$.
+    A single HCNN filter connects to the same time-frequency indices across all harmonic channels, just as color image filters connect to the same spatial coordinates across all color channels.}
+\label{fig:hcnn}
+\end{figure}
 
 \section{Method}\label{sec:typeset_text}
 
