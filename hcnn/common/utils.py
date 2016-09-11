@@ -1,7 +1,9 @@
 import claudio
 import datetime
+import logging
 import logging.config
 import numpy as np
+import shutil
 import os
 import re
 import wave
@@ -19,8 +21,10 @@ COLOR_MAP = {
     "white": colorama.Fore.WHITE
 }
 
+logger = logging.getLogger(__name__)
 
-def create_directory(dname):
+
+def create_directory(dname, recreate=False):
     """Create the output directory recursively if it doesn't already exist.
 
     Parameters
@@ -33,8 +37,13 @@ def create_directory(dname):
     success : bool
         True if the requested directory now exists.
     """
+    if recreate and os.path.isdir(dname):
+        logger.info(colored("Cleaning path: {}".format(dname)))
+        shutil.rmtree(dname)
+
     if not os.path.exists(dname):
         os.makedirs(dname)
+
     return os.path.exists(dname)
 
 
