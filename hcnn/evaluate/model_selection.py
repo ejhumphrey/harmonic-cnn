@@ -113,7 +113,7 @@ class ModelSelector(object):
         logger.debug("Evaluating params {}".format(params_file))
         validation_predictions_df = predict.predict_many(
             self.valid_df, model, self.slicer_fx, self.t_len,
-            show_progress=True)
+            show_progress=True).dropna()
 
         evaluation_results = pandas.Series({
             "mean_loss": validation_predictions_df['loss'].mean(),
