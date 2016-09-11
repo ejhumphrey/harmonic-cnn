@@ -118,11 +118,11 @@ class ModelSelector(object):
         evaluation_results = pandas.Series({
             "mean_loss": validation_predictions_df['loss'].mean(),
             "mean_acc": sklearn.metrics.accuracy_score(
-                validation_predictions_df['y_true'],
-                validation_predictions_df['y_pred']),
+                validation_predictions_df['y_true'].astype(np.int),
+                validation_predictions_df['y_pred'].astype(np.int)),
             "f1_weighted": sklearn.metrics.f1_score(
-                validation_predictions_df['y_true'],
-                validation_predictions_df['y_pred'],
+                validation_predictions_df['y_true'].astype(np.int),
+                validation_predictions_df['y_pred'].astype(np.int),
                 average='weighted')
         })
         # Include the metadata in the series.
