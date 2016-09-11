@@ -124,12 +124,13 @@ As expected, \Cref{fig:corr} (left) illustrates that neighboring pixels are bett
 %In audio, time-frequency representations (\eg, magnitude spectrograms) are not images, but much of the existing literature applies the same image-based CNN methods.
 %This raises an interesting question: how do the statistical regularities of spectrograms differ from those of natural images?
 We then repeated this process using log-magnitude constant-Q transform (CQT) representations  from recordings in the USPop dataset~\cite{berenzweig2004large}, and plot the results in \Cref{fig:corr} (right).
+%TODO: cite cqt
 
 \Cref{fig:corr} demonstrates two notable differences between images and CQTs.
 First, the horizontal bands indicate strong correlations with harmonically related frequencies: the second harmonic (+1) and the third harmonic (+$\log_2 3 \approx 1.58$).
 Second, these correlations are not symmetric in frequency: aside from the weak correlation ath the second subharmonic (-1), correlations tend to be stronger with positive harmonics.
 
-This simple experiment demonstrates that CNN architectures designed for computer vision may not be optimal for time-frequency representations, and improvements may be possible by explicitly modeling harmonics.
+This simple experiment suggests that CNN architectures designed for computer vision may not be optimal for time-frequency representations, and improvements may be possible by explicitly modeling harmonics.
 
 \subsection{Our contributions}
 In this work, we develop Harmonic Convolution Neural Networks (HCNNs), and apply the method to the task of solo music instrument classification.
@@ -157,8 +158,8 @@ To evaluate the method, we developed a newly standardized dataset referred to th
         \emph{Harmonic-local} connectivity (red) allows a filter to connect to harmoincally related frequencies.}
 \label{figs:filter-shapes}
 \end{figure}
-Convolutional neural networks (CNNs) derive their expressive power by modeling ``local'' statistical regularities.
-As illustrated in \Cref{figs:filter-shapes}, there are a variety of ways to model ``locality'' in spectrogram representations.
+Convolutional neural networks (CNNs) derive their expressive power by modeling ``local'' statistics.
+As illustrated in \Cref{figs:filter-shapes}, there are many ways to define ``locality'' in spectrogram representations.
 
 Arguably the simplest method is to model the entire frequency range over a short time window.  
 This method, denoted as \emph{Full} in \Cref{figs:filter-shapes} requires filter coefficients which span the entire frequency axis of the spectrogram.
@@ -167,8 +168,8 @@ Consequently, it may take a large number of filters --- each with a large number
 However, this approach has been demonstrated to be effective for high-level tasks~\cite{van2013deep}.
 %TODO: cite eric, etc\ldots
 
-The second approach uses smaller filters, which can be moved along the frequency axis.
-For this approach to properly generate pitch-invariant features, the frequency axis of the spectrogram must be logarithmically spaced, as in the constant-Q transform (CQT).
+The second approach uses smaller filters, which can be moved along the frequency axis as well as the time axis.
+For this approach to properly generate pitch-invariant features, the frequency axis of the spectrogram must be logarithmically spaced, as in the CQT.\@
 This method, denoted as \emph{Frequency-local} in \Cref{figs:filter-shapes}, is closely related to the local receptive field filters used in computer vision applications.
 Frequency-local filters can therefore capture highly localized characteristics of sound, such as attack profile or vibrato, but cannot directly capture properties derived from distant frequencies, such as timbre.
 Higher-level properties can be modeled by subsequent processing layers, and this approach has been shown to be effective for intermediate-level tasks such as instrument recognition~\cite{mcfee2015_augmentation}.
@@ -177,15 +178,15 @@ Higher-level properties can be modeled by subsequent processing layers, and this
 Recently, Lostanlen and Cella~\cite{lostanlen2016} proposed a variant of the Frequency-local approach in which filters are connected to small time-frequency patches tiled across multiple octaves.
 This method is depicted in \Cref{figs:filter-shapes} as \emph{octave-local}.
 As the illustration shows, this connectivity scheme allows for a filter to be pitch-invariant while modeling local time-frequency statistics as well as broad spectrum properties.
-Consequently, this approach --- when used in combination with the previous two methods --- demonstrated superior performance for instrument recognition, which requires both pitch-invariance and broad-spectrum models.
+Consequently, this approach --- when used in combination with the previous two methods --- demonstrated superior performance for instrument recognition, which requires both pitch-invariance and broad-spectrum information.
 Note, however, that connections are only included to frequencies related by an integer power of 2 to the bottom time-frequency patch.
-Octave-local design therefore disregards odd harmonics, which can be highly informative for determining the timbre of a sound.
+Octave-local design therefore disregards odd harmonics, which can be highly informative for determining timbre, or resolving missing fundamentals.
 
 
 \subsection{Harmonic CNNs}
 
 The proposed harmonic CNN (HCNN) is a straightforward extension of the previous methods.
-Rather than connect a filter to time-frequency patches which are in octave relation to each other (as in the octave-local model), the HCNN connects time-frequency patches which are related by integer multiples.
+Rather than connect a filter to time-frequency patches which are in octave relation to each other (as in the octave-local model), the HCNN connects time-frequency patches which are related by integer harmonics.
 This connectivity pattern is illustrated in the final column of \Cref{figs:filter-shapes} (harmonic-local).
 Note that the harmonic-local pattern is able to capture the odd harmonics (third and fifth)  of the fundamental (around 500Hz) which are missed by the frequency- and octave-local models.
 
@@ -205,15 +206,14 @@ Formally, we define the HCNN operation as a function parametrized by coefficient
 where $X^h(t, k)$ denotes the $h$th harmonic of frequency at bin $k$ and time $t$.
 
 % Octave-local is easy: just wrap the cqt
-Note that the octave-local model can be recovered from \cref{eq:hcnn} by taking a subset of harmonics $h=2^n$ for integer $n$.
+The octave-local model can be recovered from \cref{eq:hcnn} by taking a subset of harmonics $h=2^n$ for integer $n$.
 For a CQT with $B$ bins per octave and minimum basis frequency $f_{\min}$, we have bases frequencies defined by
 \begin{equation}
     f_k = 2^{k/B} \cdot f_{\min}, \label{eq:cqtfreqs}
 \end{equation}
 and for any $f_k$, its $2^n$ harmonic will be located at $f_{k + (n-1)\cdot B}$.
 The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (time, pitch class, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
-The octave dimension%, illustrated in \Cref{fig:ocnn},
-thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+The octave dimension thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
 
 %\begin{figure}
 %    \includegraphics[width=\columnwidth]{figs/octave-local}
@@ -250,7 +250,7 @@ By the definition of the CQT, the subsequent basis frequencies also scale by a f
 \end{eqnarray}
 This implies that for all frequency bins $k$, the $h$th harmonic of $X^1_{t, k}$ is located at $X^h_{t, k}$, as illustrated in \Cref{fig:hcnn}.
 Collecting all ${(X^h)}_{h=1}^H$ into a three-dimensional array indexed by (time, frequency, harmonic) thus preserves index locality, and \cref{eq:hcnn} can be computed with standard 2-dimensional CNN frameworks.
-While this representation requires more memory usage than the frequency-local model (by a factor of $H$), we note that the first layer of processing collapses the harmonic channel, and any subsequent layers are unaffected.
+While this representation requires more memory than the frequency-local model, we note that the first layer of processing collapses the harmonic channel, and any subsequent layers are unaffected.
 
 
 \begin{figure}
