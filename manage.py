@@ -337,6 +337,8 @@ def integration_test(config):
 def collect_results(config, destination, experiment_name=None,
                     use_integration=False):
     print(utils.colored("Collecting Results"))
+    if use_integration:
+        config = INT_CONFIG_PATH
 
     if experiment_name is None:
         experiments = hcnn.driver.Driver.available_experiments(config)

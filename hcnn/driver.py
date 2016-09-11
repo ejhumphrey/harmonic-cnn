@@ -252,14 +252,16 @@ class Driver(object):
             logger.info(utils.colored("load_dataset() - extracting features."))
             self.dataset = self.extract_features()
 
+    def load_partition_df(self, test_partition):
+        partition_file = self.dataset_config['partitions'][test_partition]
+        return pd.read_csv(partition_file, index_col=0)
+
     def setup_partitions(self, test_partition):
         """Given the partition, setup the sets."""
         # If the dataset we have selected has partitions
         if 'partitions' in self.dataset_config:
             data_df = self.dataset.to_df()
-            partition_file = self.dataset_config['partitions'][test_partition]
-            # Load the parition_file
-            self.partitions_df = pd.read_csv(partition_file, index_col=0)
+            self.partitions_df = self.load_partition_df(test_partition)
 
             # set the train_set, valid_set, test_set from the original dataset
             # using the indexes from teh partition_file.
@@ -327,15 +329,24 @@ class Driver(object):
             if inst in classmap.allnames:
                 print_dataset_instcount(dataset_df, inst)
 
-    def extract_features(self):
-        """Extract CQTs from all files collected in collect."""
-        feature_ds_path = os.path.join(
+    @property
+    def feature_ds_path(self):
+        return os.path.join(
             self.feature_dir, os.path.basename(self.dataset_index))
 
+    def load_existing_features(self, as_dataset=True):
+        if os.path.exists(self.feature_ds_path):
+            if as_dataset:
+                return hcnn.data.dataset.Dataset.load(self.feature_ds_path)
+            else:
+                return pd.read_csv(self.feature_ds_path, index_col=0)
+
+    def extract_features(self):
+        """Extract CQTs from all files collected in collect."""
         if self.skip_features:
             logger.info(utils.colored("--skip_features selected; "
                         "loading from the constructed dataframe instead."))
-            updated_ds = hcnn.data.dataset.Dataset.load(feature_ds_path)
+            updated_ds = self.load_existing_features()
         else:
             logger.info(utils.colored("Extracting features."))
             updated_ds = hcnn.data.cqt.cqt_from_dataset(
@@ -343,7 +354,7 @@ class Driver(object):
 
             if updated_ds is not None and \
                     len(updated_ds) == len(self.dataset):
-                updated_ds.save(feature_ds_path)
+                updated_ds.save(self.feature_ds_path)
 
         return updated_ds
 
@@ -771,6 +782,9 @@ class Driver(object):
                 pred_destination = os.path.join(destination_dir,
                                                 os.path.basename(prediction_file))
                 prediction_df = pd.read_pickle(prediction_file).dropna()
+                prediction_df = pd.DataFrame([
+                    x for index, x in prediction_df.iterrows()
+                    if dataset in index])
                 # To make this easy, we drop the nan's here.
                 # Possibly this is going to bit me later.
 
@@ -782,9 +796,6 @@ class Driver(object):
                                               keys=['y_pred', 'y_true'])
                 new_prediction_df.to_pickle(pred_destination)
 
-                # These are to make sklearn.metrics happy.
-                # y_true = y_true.tolist()
-                # y_pred = y_pred.tolist()
                 experiment_results[dataset] = {
                     'prediction_file': pred_destination,
                     'mean_accuracy': float(sklearn.metrics.accuracy_score(
