@@ -69,6 +69,13 @@ def batch_norm_def(simple_network_def):
     return simple_network_def
 
 
+@pytest.fixture
+def batch_norm_no_last_layer_def(simple_network_def):
+    simple_network_def["batch_norm"] = True
+    simple_network_def['layers'][-1]["batch_norm"] = False
+    return simple_network_def
+
+
 def test_names_to_objects():
     test_dict = {
         "i'm_a_layer": "layers.Conv1DLayer",
@@ -245,7 +252,22 @@ def test_batchnorm(batch_norm_def):
 
     layer_names = [l.__class__.__name__
                    for l in get_all_layers(model._network)]
-    assert 'BatchNormLayer' in layer_names
+    batch_norm_layers = [l for l in layer_names
+                         if 'BatchNormLayer' in l]
+    layer_count = len(batch_norm_def['layers'])
+    assert len(batch_norm_layers) == layer_count
+
+
+def test_batchnorm_except_last_layer(batch_norm_no_last_layer_def):
+    model = models.NetworkManager(batch_norm_no_last_layer_def)
+    assert model is not None
+
+    layer_names = [l.__class__.__name__
+                   for l in get_all_layers(model._network)]
+    batch_norm_layers = [l for l in layer_names
+                         if 'BatchNormLayer' in l]
+    layer_count = len(batch_norm_no_last_layer_def['layers'])
+    assert len(batch_norm_layers) == (layer_count - 1)
 
 
 @pytest.mark.skip(reason="ToDo")
