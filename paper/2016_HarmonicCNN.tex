@@ -5,6 +5,7 @@
 \usepackage{color}
 \usepackage{hyperref}
 \usepackage{cleveref}
+\usepackage[inline]{enumitem}
 
 % Title.
 % ------
@@ -68,18 +69,18 @@
 \begin{abstract}
 
 % Convnets have rocked MIR
-Convolutional neural networks have shown great performance across a variety of tasks in audio analysis.
+Convolutional neural networks perform well across a variety of tasks in audio analysis.
 % Operate on time-freq reps, which are not images
-In vision applications, convolutional networks exploit statistical regularities in spatial locality, \ie, neighboring pixels.
+In vision applications, convolutional networks exploit spatially localized statistical regularities in natural images.
 %By limiting the receptive field of a filter to a spatial neighborhood, a convolutional network can learn representations which are position-invariant by allowing filters to move along spatial dimensions.
-However, in audio, these models often operate on time-frequency representations, which exhibit different statistical regularities from natural images.
+However, in audio, these models often operate on time-frequency representations, which we show to exhibit different statistical regularities.
 % Sound is harmonic, and model assumptions may not hold.
 Although time-frequency representations exhibit local regularities, modeling only these interactions ignores the relationships between harmonically related frequencies, which appear distant in time-frequency representations.
 % Make input rep harmonic, does it matter?
-To better adapt convolutional networks to audio, we craft an alternative input representations that directly exploits harmonic frequency statistics.
+To better adapt convolutional networks to audio, we craft an alternative input representation that directly exploits harmonic frequency statistics.
 %and determine what effect these have on the efficacy of the learned model.
 % How do we do it?
-We study this approach in a large, solo instrument classification task, and examine how model architecture influences performance.
+We study this approach in a large, solo instrument classification task.
 % What do we find?
 %Experimental results show that the use of harmonic convolutions leads to better generalization, faster computation time, and more compact models per unit of performance.
 % Closeout
@@ -96,40 +97,39 @@ Finally, we provide an open source framework to reproduce our dataset and experi
 
 Over the last decade, many research communities have embraced automatic feature learning and deep networks as a viable and superior alternative to hand-crafted feature design.
 In particular, convolutional neural networks (CNNs)~\cite{lecun1998gradient} excel at modeling complex, nonlinear, and multi-scale behavior found in acoustic signals.
-CNNs are now an common choice for many audio analysis tasks, such as speech recognition, environmental event detection and scene classification, and a host of musical analysis tasks, such as chord estimation, rhythm analysis, structural segmentation, or instrument detection.
+CNNs are commonly applied for many audio analysis tasks, such as speech recognition, environmental event detection and scene classification, and a host of musical analysis tasks, such as chord estimation, rhythm analysis, structural segmentation, or instrument detection.
 %TODO: cite application papers
 
 \subsection{CNNs and spatial locality}
-It is worth noting that convolutional networks draw inspiration from biological vision systems~\cite{hubel1964effects}, and common model architectures have been designed with computer vision in mind.
+It is worth noting that convolutional networks originally drew inspiration from biological vision systems~\cite{hubel1964effects}, and common model architectures have been designed with computer vision in mind.
 In vision applications, CNNs exploit two fundamental properties of natural images:
-one, statistical regularities exist primarily within small spatial regions (distant pixels tend to be uncorrelated),
-and two, weights over local receptive fields can be shared across spatial dimensions, providing translation-invariant features.
-
-While these properties have been empirically demonstrated to hold for natural images, it is not immediately obvious that the same would be true for time-frequency representations of audio.
+\begin{enumerate*}
+    \item statistical regularities exist primarily within small spatial regions;
+    \item weights over local receptive fields can be shared across spatial dimensions, providing translation-invariant features.
+\end{enumerate*}
+While these properties have been empirically demonstrated to hold for natural images, it is not immediately obvious that time-frequency representations share these properties.
 
 \begin{figure}
     \includegraphics[width=0.5\columnwidth]{figs/cifar-corr}%
     \includegraphics[width=0.5\columnwidth]{figs/uspop-corr}
-    \caption{Left: spatial autocorrelation of images in CIFAR.
+    \caption{Left: spatial autocorrelation of images in CIFAR.\@
     Right: time-frequency autocorrelation of constant-Q transform magnitude in USPop.}
 \label{fig:corr}
 \end{figure}
 
 %We can visualize why this is a good idea.
-Here, we take the CIFAR10 dataset~\cite{krizhevsky2009learning}, which consists of ${32\times 32}$ images.
-We use the training set of 25K images, compute a two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average over the dataset.
+\Cref{fig:corr} (left) illustrates spatial correlations in natural images.
+Here, we took the CIFAR10 dataset~\cite{krizhevsky2009learning}, which consists of ${32\times 32}$ images, and computed two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average the results over the dataset.
 As expected, \Cref{fig:corr} (left) illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
+%In audio, time-frequency representations (\eg, magnitude spectrograms) are not images, but much of the existing literature applies the same image-based CNN methods.
+%This raises an interesting question: how do the statistical regularities of spectrograms differ from those of natural images?
+We then repeated this process using log-magnitude constant-Q transform (CQT) representations  from recordings in the USPop dataset~\cite{berenzweig2004large}, and plot the results in \Cref{fig:corr} (right).
 
-In audio, time-frequency representations (\eg, magnitude spectrograms) are not images, but much of the existing literature applies the same image-based CNN methods.
-This raises an interesting question: how do the statistical regularities of spectrograms differ from those of natural images?
-
-We therefore repeat the autocorrelation experiment, but instead draw observations from constant-Q transform (CQT) representations of audio.
-We computed log-magnitude CQT spectra from recordings in the USPop dataset~\cite{berenzweig2004large}, and drew 25K windowed observations uniformly at random.
-As before, the valid, two-dimensional auto-correlation is performed between each windowed observation and a cropped version of itself.
-\Cref{fig:corr} (right) demonstrates there are two notable differences from \Cref{fig:corr} (left).
+\Cref{fig:corr} demonstrates two notable differences between images and CQTs.
 First, the horizontal bands indicate strong correlations with harmonically related frequencies: the second harmonic (+1) and the third harmonic (+$\log_2 3 \approx 1.58$).
-Second, these correlations are not symmetric in frequency: aside from the weak correlation ath the second subharmonic (-1), correlations tend to be stronger in the positive harmonics.
+Second, these correlations are not symmetric in frequency: aside from the weak correlation ath the second subharmonic (-1), correlations tend to be stronger with positive harmonics.
 
+This simple experiment demonstrates that CNN architectures designed for computer vision may not be optimal for time-frequency representations, and improvements may be possible by explicitly modeling harmonics.
 
 \subsection{Our contributions}
 In this work, we develop Harmonic Convolution Neural Networks (HCNNs), and apply the method to the task of solo music instrument classification.
@@ -212,14 +212,15 @@ For a CQT with $B$ bins per octave and minimum basis frequency $f_{\min}$, we ha
 \end{equation}
 and for any $f_k$, its $2^n$ harmonic will be located at $f_{k + (n-1)\cdot B}$.
 The octave-local model can therefore be implemented efficiently by standard 2-dimensional CNN frameworks by reshaping the CQT into a three-dimensional array parametrized by (time, pitch class, octave number).\footnote{To avoid boundary effects, Lostanlen and Cella use a redundant encoding where the ``pitch class'' dimension spans more than one octave.}
-The octave dimension, illustrated in \Cref{fig:ocnn}, thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
+The octave dimension%, illustrated in \Cref{fig:ocnn},
+thus plays a role similar to color channels in image processing, since the selected harmonics align exactly along the ``octave'' dimension.
 
-\begin{figure}
-    \includegraphics[width=\columnwidth]{figs/octave-local}
-    \caption{The octave-local model is implemented by slicing the CQT into half-overlapping frequency ranges spanning two octaves each, as illustrated on the right.
-    A single filter (indicated in yellow) connects to the same time-pitch-class indices across all octave channels.}
-\label{fig:ocnn}
-\end{figure}
+%\begin{figure}
+%    \includegraphics[width=\columnwidth]{figs/octave-local}
+%%    \caption{The octave-local model is implemented by slicing the CQT into half-overlapping frequency ranges spanning two octaves each, as illustrated on the right.
+%    A single filter (indicated in yellow) connects to the same time-pitch-class indices across all octave channels.}
+%\label{fig:ocnn}
+%\end{figure}
 
 
 The general harmonic CNN is somewhat more difficult to implement.
