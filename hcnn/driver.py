@@ -248,12 +248,9 @@ class Driver(object):
         assert len(self.dataset) > 0
 
         # If we want the features, additionally add it to the dataset.
-        if load_features and not self.skip_features:
+        if load_features:
             logger.info(utils.colored("load_dataset() - extracting features."))
             self.dataset = self.extract_features()
-        elif self.skip_features:
-            logger.info(utils.colored(
-                "load_dataset() - skipping feature extraction on user flag."))
 
     def setup_partitions(self, test_partition):
         """Given the partition, setup the sets."""
@@ -332,14 +329,21 @@ class Driver(object):
 
     def extract_features(self):
         """Extract CQTs from all files collected in collect."""
-        updated_ds = hcnn.data.cqt.cqt_from_dataset(
-            self.dataset, self.feature_dir, **self.config["features/cqt"])
+        feature_ds_path = os.path.join(
+            self.feature_dir, os.path.basename(self.dataset_index))
 
-        if updated_ds is not None and \
-                len(updated_ds) == len(self.dataset):
-            write_path = os.path.join(
-                self.feature_dir, os.path.basename(self.dataset_index))
-            updated_ds.save(write_path)
+        if self.skip_features:
+            logger.info(utils.colored("--skip_features selected; "
+                        "loading from the constructed dataframe instead."))
+            updated_ds = hcnn.data.dataset.Dataset.load(feature_ds_path)
+        else:
+            logger.info(utils.colored("Extracting features."))
+            updated_ds = hcnn.data.cqt.cqt_from_dataset(
+                self.dataset, self.feature_dir, **self.config["features/cqt"])
+
+            if updated_ds is not None and \
+                    len(updated_ds) == len(self.dataset):
+                updated_ds.save(feature_ds_path)
 
         return updated_ds
 
@@ -514,6 +518,7 @@ class Driver(object):
         """
         logger.info("Finding best model for {}".format(
             utils.colored(self.experiment_name, "magenta")))
+        # Commenting out skipping a previous model selection for exisitng file.
         # if not self.check_features_input():
         #     logger.error("find_best_model features missing invalid.")
         #     return False
@@ -528,10 +533,11 @@ class Driver(object):
         slicer = get_slicer_from_feature(self.feature_mode)
         t_len = original_config['training/t_len']
 
-        if not os.path.exists(validation_error_file):
-            model_files = glob.glob(
-                os.path.join(self._params_dir, "params*.npz"))
+        # if not os.path.exists(validation_error_file):
+        model_files = glob.glob(
+            os.path.join(self._params_dir, "params*.npz"))
 
+        if len(model_files) > 0:
             result_df, best_model = MS.CompleteLinearWeightedF1Search(
                 model_files, validation_df, slicer, t_len,
                 show_progress=True)()
@@ -541,12 +547,17 @@ class Driver(object):
                                      original_config['experiment/best_params'])
             shutil.copyfile(best_model['model_file'], best_path)
         else:
-            logger.info("Model Search already done; printing previous results")
-            result_df = pd.read_pickle(validation_error_file)
-            # make sure model_iteration is an int so sorting makes sense.
-            result_df["model_iteration"].apply(int)
-            logger.info("\n{}".format(
-                result_df.sort_values("model_iteration")))
+            logger.warn(utils.colored(
+                "No param files exist yet; did you skip training without "
+                "running this model yet?", "red"))
+            result_df = pd.DataFrame()
+        # else:
+        #     logger.info("Model Search already done; printing previous results")
+        #     result_df = pd.read_pickle(validation_error_file)
+        #     # make sure model_iteration is an int so sorting makes sense.
+        #     result_df["model_iteration"].apply(int)
+        #     logger.info("\n{}".format(
+        #         result_df.sort_values("model_iteration")))
 
         return result_df
 
@@ -654,6 +665,9 @@ class Driver(object):
         # Step 2: model selection
         if result:
             results_df = self.find_best_model()
+            if results_df.empty:
+                return False
+
             best_iter = self.select_best_iteration(results_df)
 
             # Step 3: predictions

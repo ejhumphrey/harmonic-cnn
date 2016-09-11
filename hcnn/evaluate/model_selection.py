@@ -255,6 +255,10 @@ class CompleteLinearWeightedF1Search(ModelSelector):
         selected_index = results_df['f1_weighted'].idxmax()
 
         # Now select the one with the lowest score
-        logger.info("Selected model index:{} / params: {}".format(
-            selected_index, utils.filebase(self.param_list[index])))
+        logger.info(
+            utils.colored("Selected model index:{} / params: {}".format(
+                selected_index,
+                utils.filebase(self.param_list[selected_index]))))
+        logger.info("For reference, here's the model selection results:")
+        logger.info("\n{}".format(results_df.to_string()))
         return results_df, results[selected_index]
