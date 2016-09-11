@@ -107,28 +107,29 @@ and two, weights over local receptive fields can be shared across spatial dimens
 
 While these properties have been empirically demonstrated to hold for natural images, it is not immediately obvious that the same would be true for time-frequency representations of audio.
 
+\begin{figure}
+    \includegraphics[width=0.5\columnwidth]{figs/cifar-corr}%
+    \includegraphics[width=0.5\columnwidth]{figs/uspop-corr}
+    \caption{Left: spatial autocorrelation of images in CIFAR.
+    Right: time-frequency autocorrelation of constant-Q transform magnitude in USPop.}
+\label{fig:corr}
+\end{figure}
+
 %We can visualize why this is a good idea.
 Here, we take the CIFAR10 dataset~\cite{krizhevsky2009learning}, which consists of ${32\times 32}$ images.
 We use the training set of 25K images, compute a two-dimensional auto-correlation between each image and a slightly cropped version of itself, and average over the dataset.
-As expected, \Cref{fig:image_corr} illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
+As expected, \Cref{fig:corr} (left) illustrates that neighboring pixels are better correlated than those at a distance, and there is little observable bias in either dimension.
 
 In audio, time-frequency representations (\eg, magnitude spectrograms) are not images, but much of the existing literature applies the same image-based CNN methods.
 This raises an interesting question: how do the statistical regularities of spectrograms differ from those of natural images?
 
 We therefore repeat the autocorrelation experiment, but instead draw observations from constant-Q transform (CQT) representations of audio.
-Using the librosa toolkit~\cite{librosa041}, we computed CQT spectra over a number of recordings in the USPop dataset~\cite{berenzweig2004large} and drew 25K windowed observations uniformly at random.
+We computed log-magnitude CQT spectra from recordings in the USPop dataset~\cite{berenzweig2004large}, and drew 25K windowed observations uniformly at random.
 As before, the valid, two-dimensional auto-correlation is performed between each windowed observation and a cropped version of itself.
-\Cref{fig:cqt_corr} demonstrates there are two notable differences from \Cref{fig:image_corr}.
-First, consistent with our intuition, the CQT representation exhibits strong correlations with harmonically related frequencies, being the octave (2:1), fifth (3:2), and major third (4:3).
-Second, these correlations are not symmetric in frequency.
+\Cref{fig:corr} (right) demonstrates there are two notable differences from \Cref{fig:corr} (left).
+First, the horizontal bands indicate strong correlations with harmonically related frequencies: the second harmonic (+1) and the third harmonic (+$\log_2 3 \approx 1.58$).
+Second, these correlations are not symmetric in frequency: aside from the weak correlation ath the second subharmonic (-1), correlations tend to be stronger in the positive harmonics.
 
-\begin{figure}
-\label{fig:cqt_corr}
-\end{figure}
-
-\begin{figure}
-\label{fig:image_corr}
-\end{figure}
 
 \subsection{Our contributions}
 In this work, we develop Harmonic Convolution Neural Networks (HCNNs), and apply the method to the task of solo music instrument classification.
