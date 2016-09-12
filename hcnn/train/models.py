@@ -185,7 +185,7 @@ class NetworkManager(object):
         if object_definition.get('regularize', None):
             penalty = regularize_layer_params(network,
                                               object_definition['regularize'])
-            train_loss = train_loss + penalty
+            train_loss = train_loss + object_definition.get('l2_weight', 1e-4) * penalty
 
         # Collect params and update expressions.
         self.params = lasagne.layers.get_all_params(network, trainable=True)
