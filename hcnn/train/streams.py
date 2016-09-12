@@ -359,7 +359,7 @@ class InstrumentStreamer(collections.Iterator):
                  t_len=1,
                  # 15 streams open, ~3 samples per stream before opening
                  #  a new one.
-                 instrument_mux_params=dict(k=10, lam=1),
+                 instrument_mux_params=dict(k=100, lam=1),
                  master_mux_params=dict(
                     n_samples=None,  # no maximum number
                     k=12,  # this is the number of classes.
