@@ -239,7 +239,7 @@ class CompleteLinearWeightedF1Search(ModelSelector):
 
         # kinda hacky, but it'll do for now.
         increment_amount = int(np.round(min(max(10**(np.log10(
-            len(self.param_list)) - 1), 1), 10)))
+            len(self.param_list)) - 1), 1), 25)))
 
         while index < end_ind:
             logger.info("Evaluating {}".format(

@@ -395,8 +395,11 @@ class Driver(object):
 
         # Set up our streamer
         logger.info("[{}] Setting up streamer".format(self.experiment_name))
+        slice_logger = utils.SliceLogger()
         streamer = streams.InstrumentStreamer(
-            self.train_set.to_df(), slicer, t_len=t_len, batch_size=batch_size)
+            self.train_set.to_df(), slicer,
+            slicer_kwargs={'slice_logger': slice_logger},
+            t_len=t_len, batch_size=batch_size)
 
         # create our model
         logger.info("[{}] Setting up model: {}".format(self.experiment_name,
@@ -444,10 +447,27 @@ class Driver(object):
                 if iter_print_freq and (iter_count % iter_print_freq == 0):
                     mean_train_loss = \
                         train_stats["loss"][-iter_print_freq:].mean()
-                    logger.info("Iteration: {} | Mean_Train_loss: {}"
-                                .format(iter_count,
-                                        utils.conditional_colored(
-                                            mean_train_loss, min_train_loss)))
+                    output_str = ("Iteration: {} | Mean_Train_loss: {}"
+                                  .format(iter_count,
+                                          utils.conditional_colored(
+                                             mean_train_loss, min_train_loss)))
+
+                    # On some small probability, do a randomly sampled
+                    # validation so we can see approximately how we're doing
+                    # on the validation set.
+                    if np.random.random() < .3:
+                        timers.start(("sampled_validation", iter_count))
+                        valid_loss = self.sampled_validation_loss(
+                            model, slicer, t_len)
+                        output_str += " | Sampled_Valid_loss: {:0.4f}".format(
+                            valid_loss)
+                        timers.end(("sampled_validation", iter_count))
+                        output_str += " | Val_time: {:0.2f}s".format(
+                            timers.get((
+                                "sampled_validation",
+                                iter_count)).total_seconds())
+
+                    logger.info(output_str)
                     min_train_loss = min(mean_train_loss, min_train_loss)
                     # Print the mean times for the last n frames
                     logger.debug("Mean stream time: {}, Mean train time: {}"
@@ -468,6 +488,10 @@ class Driver(object):
                         self.param_format_str.format(iter_count))
                     logger.debug("Writing params to {}".format(save_path))
                     model.save(save_path)
+
+                    slice_log = os.path.join(self._cv_model_dir,
+                                             "slice_log.csv")
+                    slice_logger.save(slice_log)
 
                 if datetime.datetime.now() > \
                         (timers.get("train") + datetime.timedelta(
@@ -510,6 +534,13 @@ class Driver(object):
 
         # We need these files for models election, so make sure they exist
         return os.path.exists(self._training_loss_path)
+
+    def sampled_validation_loss(self, model, slicer, t_len):
+        sample_valuation_set = self.valid_set.to_df().sample(500)
+        validation_df = hcnn.evaluate.predict.predict_many(
+            sample_valuation_set, model, slicer, t_len, show_progress=False)
+
+        return validation_df['loss'].mean()
 
     def find_best_model(self):
         """Perform model selection on the validation set with a binary search

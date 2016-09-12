@@ -19,7 +19,8 @@ instrument_map = labels.InstrumentClassMap()
 
 
 def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
-                add_noise=True, random_seed=None, npz_data_key='cqt'):
+                add_noise=True, random_seed=None, npz_data_key='cqt',
+                slice_logger=None):
     """Base slicer function for yielding data from an .npz file
     which contains the features for streaming.
 
@@ -81,6 +82,8 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
         The windowed observation.
     """
     rng = np.random.RandomState(random_seed)
+    target = instrument_map.get_index(record['instrument'])
+    if slice_logger: slice_logger.start(record, target)
 
     if not (('cqt' in record.index) and
             record['cqt'] is not None and
@@ -88,6 +91,7 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
             os.path.exists(record['cqt'])):
         logger.error('No valid feature file specified for record: {}'.format(
             record))
+        if slice_logger: slice_logger.error(record)
         return
 
     # Load the npz file with they key specified.
@@ -96,12 +100,11 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
     except zipfile.BadZipFile:
         logger.error('This zip file is bad! Sadness :(  -  {}'.format(
             record['cqt']))
+        if slice_logger: slice_logger.error(record)
         return
 
     # Take the logmagnitude of the cqt
     cqt = librosa.logamplitude(cqt ** 2, ref_power=np.max)
-
-    target = instrument_map.get_index(record['instrument'])
 
     # Make sure the data is long enough.
     # In practice this should no longer be necessary.
@@ -116,6 +119,8 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
 
     counter = 0
     while True:
+        if slice_logger: slice_logger.sample(record)
+
         obs = obs_slicer(cqt, idx, counter, t_len)
         if add_noise:
             obs = obs + utils.same_shape_noise(obs, 1, rng)
@@ -132,9 +137,12 @@ def base_slicer(record, t_len, obs_slicer, shuffle=True, auto_restart=True,
                 rng.shuffle(idx)
             counter = 0
 
+    if slice_logger: slice_logger.close(record)
+
 
 def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
-               add_noise=True, random_seed=None):
+               add_noise=True, random_seed=None,
+               slice_logger=None):
     """Generate slices from a cqt file.
 
     Thresholds the frames by finding the cqt means, and
@@ -184,12 +192,13 @@ def cqt_slices(record, t_len, shuffle=True, auto_restart=True,
             record, t_len, cqt_slicer,
             shuffle=shuffle, auto_restart=auto_restart,
             add_noise=add_noise, random_seed=random_seed,
-            npz_data_key='cqt'):
+            npz_data_key='cqt',
+            slice_logger=slice_logger):
         yield cqt_slice
 
 
 def wcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
-                p_len=54, p_stride=36, random_seed=None):
+                p_len=54, p_stride=36, random_seed=None, slice_logger=None):
     """Generate slices of wrapped CQT observations.
 
     To use this for training, use the following parameters:
@@ -242,12 +251,13 @@ def wcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
             record, t_len, wcqt_slicer,
             shuffle=shuffle, auto_restart=auto_restart,
             add_noise=add_noise, random_seed=random_seed,
-            npz_data_key='cqt'):
+            npz_data_key='cqt',
+            slice_logger=slice_logger):
         yield wcqt_slice
 
 
 def hcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
-                random_seed=None):
+                random_seed=None, slice_logger=None):
     """Generate slices of pre-generated harmonic cqts from a cqt file.
 
     To use this for training, use the following parameters:
@@ -295,7 +305,8 @@ def hcqt_slices(record, t_len, shuffle=True, auto_restart=True, add_noise=True,
             record, t_len, hcqt_slicer,
             shuffle=shuffle, auto_restart=auto_restart,
             add_noise=add_noise, random_seed=random_seed,
-            npz_data_key='harmonic_cqt'):
+            npz_data_key='harmonic_cqt',
+            slice_logger=slice_logger):
         yield hcqt_slice
 
 
@@ -348,7 +359,7 @@ class InstrumentStreamer(collections.Iterator):
                  t_len=1,
                  # 15 streams open, ~3 samples per stream before opening
                  #  a new one.
-                 instrument_mux_params=dict(k=20, lam=3),
+                 instrument_mux_params=dict(k=100, lam=1),
                  master_mux_params=dict(
                     n_samples=None,  # no maximum number
                     k=12,  # this is the number of classes.

@@ -8,6 +8,7 @@
 import copy
 import glob
 import lasagne
+from lasagne.regularization import regularize_layer_params
 import logging
 import numpy as np
 import os
@@ -37,7 +38,9 @@ __layermap__ = {
     "nonlin.softmax": lasagne.nonlinearities.softmax,
     "init.glorot": lasagne.init.GlorotUniform(),
     "loss.categorical_crossentropy":
-        lasagne.objectives.categorical_crossentropy
+        lasagne.objectives.categorical_crossentropy,
+    "l1": lasagne.regularization.l1,
+    "l2": lasagne.regularization.l2
 }
 
 
@@ -155,11 +158,17 @@ class NetworkManager(object):
             logger.debug("Building Netork - Layer: {}".format(
                 object_definition["input_shape"]))
             layer_class = layer.pop("type", None)
+            layer_batchnorm_override = layer.pop('batch_norm', True)
+
             if not layer_class:
                 raise InvalidNetworkDefinition(
                     "Each layer must contain a 'type'")
 
-            if object_definition.get("batch_norm", False) is True:
+            # This looks at the global batch_norm setting
+            if (object_definition.get("batch_norm", False) is True and
+                    # This checks the local batch_norm setting;
+                    # allows override in the last layer.
+                    layer_batchnorm_override is True):
                 network = lasagne.layers.batch_norm(
                     layer_class(network, **layer))
             else:
@@ -172,6 +181,11 @@ class NetworkManager(object):
         train_prediction = lasagne.layers.get_output(network)
         train_loss = object_definition['loss'](train_prediction, target_var)
         train_loss = train_loss.mean()
+
+        if object_definition.get('regularize', None):
+            penalty = regularize_layer_params(network,
+                                              object_definition['regularize'])
+            train_loss = train_loss + object_definition.get('l2_weight', 1e-4) * penalty
 
         # Collect params and update expressions.
         self.params = lasagne.layers.get_all_params(network, trainable=True)
@@ -559,11 +573,13 @@ def cqt_MF(n_in, n_out, n_basefilt):
         }, {
             "type": "layers.DenseLayer",
             "num_units": n_out,
-            "nonlinearity": "nonlin.softmax"
+            "nonlinearity": "nonlin.softmax",
             # 1024 * 12 [n_out] = 12,288
+            "batch_norm": False
         }],
         "loss": "loss.categorical_crossentropy",
-        "batch_norm": True
+        "batch_norm": True,
+        "regularize": "l2"
         # Total = 28,224 + 4,608 + 32,768 + 12,288 = 77,888 total params.
     }
     return network_def
@@ -626,11 +642,13 @@ def cqt_M2(n_in, n_out, n_basefilt):
         }, {
             "type": "layers.DenseLayer",
             "num_units": n_out,
-            "nonlinearity": "nonlin.softmax"
+            "nonlinearity": "nonlin.softmax",
+            "batch_norm": False
             # 128 * 12 [n_out] = 1,536
         }],
         "loss": "loss.categorical_crossentropy",
-        "batch_norm": True
+        "batch_norm": True,
+        "regularize": "l2"
         # Total = 1,176 + 10,368 + 65,536 + 1,536 = 78,616 total params.
     }
     return network_def
@@ -701,11 +719,13 @@ def hcqt_MH(n_in, n_out, n_basefilt):
         }, {
             "type": "layers.DenseLayer",
             "num_units": n_out,
-            "nonlinearity": "nonlin.softmax"
+            "nonlinearity": "nonlin.softmax",
+            "batch_norm": False
             # 128 * 12 [n_out] = 1,536
         }],
         "loss": "loss.categorical_crossentropy",
-        "batch_norm": True
+        "batch_norm": True,
+        "regularize": "l2"
         # Total = 1,176 + 10,368 + 65,280 + 1,536 = 78360 total params.
     }
     return network_def

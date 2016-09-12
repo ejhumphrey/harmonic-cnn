@@ -3,8 +3,9 @@ import datetime
 import logging
 import logging.config
 import numpy as np
-import shutil
 import os
+import pandas as pd
+import shutil
 import re
 import wave
 import zipfile
@@ -368,3 +369,32 @@ def same_shape_noise(original_signal, scale=1, rng=None):
     if rng is None:
         rng = np.random.RandomState()
     return rng.normal(scale=scale, size=original_signal.shape)
+
+
+class SliceLogger(object):
+    def __init__(self):
+        self.log = pd.DataFrame(columns=["target", "n_samples",
+                                         "n_opened", "n_closed",
+                                         "n_errors"])
+
+    def start(self, record, target):
+        key = record['cqt']
+        if key not in self.log:
+            self.log.loc[key] = [target, 0, 1, 0, 0]
+        else:
+            self.log.loc[key, 'n_opened'] += 1
+
+    def error(self, record):
+        key = record['cqt']
+        self.log.loc[key, 'n_errors'] += 1
+
+    def sample(self, record):
+        key = record['cqt']
+        self.log.loc[key, 'n_samples'] += 1
+
+    def close(self, record):
+        key = record['cqt']
+        self.log.loc[key, 'n_closed'] += 1
+
+    def save(self, path):
+        self.log.to_csv(path)
